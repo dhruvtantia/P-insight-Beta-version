@@ -1,0 +1,278 @@
+"""
+QuantAnalyticsService — Phase 2 Orchestrator
+----------------------------------------------
+Fetches price histories for all portfolio holdings, aligns them into a
+price matrix, and computes the full set of market-based analytics:
+
+  - Risk metrics (volatility, beta, Sharpe, Sortino, drawdown, etc.)
+  - Benchmark comparison (NIFTY 50)
+  - Cumulative return time series (portfolio vs benchmark)
+  - Drawdown time series
+  - Per-holding contribution stats
+  - Correlation matrix
+
+Designed to be called by the /api/v1/quant/ endpoint handlers.
+Keeps all I/O (provider calls) at the top; pure computation below.
+
+Mock mode:  Fast in-memory, seeded deterministic price histories.
+Live mode:  yfinance via LiveAPIProvider.get_price_history(), TTL-cached.
+"""
+
+import logging
+import asyncio
+import numpy as np
+import pandas as pd
+from typing import Optional
+
+from app.data_providers.base import BaseDataProvider
+from app.analytics import returns as ret_utils
+from app.analytics import risk as rsk
+from app.analytics import benchmark as bm
+from app.analytics import correlation as corr
+
+logger = logging.getLogger(__name__)
+
+RISK_FREE_RATE = 0.065
+TRADING_DAYS   = 252
+
+# ─── In-process result cache for quant computations ───────────────────────────
+# Key: "{mode}_{period}"  |  Value: (result_dict, timestamp)
+import time as _time
+_QUANT_CACHE: dict[str, tuple[dict, float]] = {}
+MOCK_QUANT_TTL = 3_600.0 * 24   # mock data is deterministic — cache 24h
+LIVE_QUANT_TTL = 600.0           # live data — cache 10 minutes
+
+
+def _cache_get(key: str) -> Optional[dict]:
+    entry = _QUANT_CACHE.get(key)
+    if not entry:
+        return None
+    ttl = MOCK_QUANT_TTL if key.startswith("mock_") else LIVE_QUANT_TTL
+    if (_time.time() - entry[1]) < ttl:
+        return entry[0]
+    return None
+
+
+def _cache_set(key: str, data: dict) -> None:
+    _QUANT_CACHE[key] = (data, _time.time())
+
+
+# ─── Main service class ───────────────────────────────────────────────────────
+
+class QuantAnalyticsService:
+
+    def __init__(self, provider: BaseDataProvider):
+        self.provider   = provider
+        self.mode       = provider.mode_name
+        self.period     = "1y"
+
+    async def compute_all(self, period: str = "1y") -> dict:
+        """
+        Main entry point. Returns a comprehensive dict with all quant analytics.
+        Results are cached to avoid repeated expensive fetches.
+        """
+        self.period = period
+        cache_key   = f"{self.mode}_{period}"
+        cached      = _cache_get(cache_key)
+        if cached:
+            logger.debug(f"Quant cache hit: {cache_key}")
+            return cached
+
+        result = await self._compute(period)
+        _cache_set(cache_key, result)
+        return result
+
+    async def _compute(self, period: str) -> dict:
+        # 1. Fetch all price histories
+        holdings     = await self.provider.get_holdings()
+        price_hists  = await self._fetch_all_histories(holdings, period)
+
+        # 2. Build price matrix
+        price_df = ret_utils.build_price_matrix(price_hists)
+
+        valid_tickers   = list(price_df.columns)
+        invalid_tickers = [h.ticker for h in holdings if h.ticker not in valid_tickers]
+
+        if price_df.empty or len(valid_tickers) < 2:
+            return self._empty_result(
+                valid_tickers, invalid_tickers,
+                reason="Insufficient price history (need ≥ 2 tickers)",
+            )
+
+        # 3. Portfolio weights (normalised to valid tickers)
+        total_value = sum(
+            h.quantity * (h.current_price or h.average_cost)
+            for h in holdings
+            if h.ticker in valid_tickers
+        )
+        weights: dict[str, float] = {}
+        for h in holdings:
+            if h.ticker in valid_tickers and total_value > 0:
+                weights[h.ticker] = (h.quantity * (h.current_price or h.average_cost)) / total_value
+        w_sum = sum(weights.values())
+        if w_sum > 0:
+            weights = {t: w / w_sum for t, w in weights.items()}
+
+        # 4. Portfolio daily return series
+        portfolio_returns = ret_utils.portfolio_return_series(price_df, weights)
+
+        # 5. Benchmark
+        bench_data    = bm.get_benchmark(self.mode, period)
+        bench_df      = ret_utils.build_price_matrix({
+            bench_data["ticker"]: bench_data["data"]
+        })
+        if bench_df.empty:
+            benchmark_returns = pd.Series(dtype=float)
+        else:
+            benchmark_returns = bench_df.iloc[:, 0].pct_change().dropna()
+
+        # 6. Align portfolio ↔ benchmark on common dates
+        if not benchmark_returns.empty:
+            p_ret, b_ret = ret_utils.align_series(portfolio_returns, benchmark_returns)
+        else:
+            p_ret, b_ret = portfolio_returns, pd.Series(dtype=float)
+
+        # 7. Risk metrics
+        metrics = rsk.compute_full_risk_metrics(p_ret, b_ret, RISK_FREE_RATE)
+
+        # 8. Benchmark standalone metrics
+        bench_metrics = {}
+        if not b_ret.empty and len(b_ret) >= 20:
+            bench_metrics = {
+                "name":                  bench_data["name"],
+                "ticker":                bench_data["ticker"],
+                "annualized_return":     round(float((1 + b_ret.mean()) ** TRADING_DAYS - 1) * 100, 3),
+                "annualized_volatility": round(float(b_ret.std() * np.sqrt(TRADING_DAYS)) * 100, 3),
+                "sharpe_ratio":          round(rsk.compute_risk_metrics(b_ret, risk_free_rate=RISK_FREE_RATE).sharpe_ratio or 0, 3),
+                "max_drawdown":          round(float(((1 + b_ret).cumprod() / (1 + b_ret).cumprod().cummax() - 1).min()) * 100, 3),
+                "source":                bench_data["source"],
+            }
+
+        # 9. Cumulative return time series
+        port_cum  = ret_utils.cumulative_returns(p_ret)
+        bench_cum = ret_utils.cumulative_returns(b_ret) if not b_ret.empty else pd.Series(dtype=float)
+
+        # 10. Drawdown series
+        cum_val   = (1 + p_ret).cumprod()
+        drawdown_series = (cum_val / cum_val.cummax() - 1)
+
+        # 11. Per-holding contributions
+        contributions = []
+        returns_df    = price_df.pct_change().dropna()
+        for ticker in valid_tickers:
+            if ticker in returns_df.columns:
+                t_ret = returns_df[ticker].dropna()
+                stat  = rsk.compute_holding_stats(
+                    ticker, t_ret, b_ret,
+                    weights.get(ticker, 0.0),
+                    RISK_FREE_RATE,
+                )
+                contributions.append(stat)
+
+        # 12. Correlation matrix
+        corr_result = corr.compute_correlation_matrix(price_df)
+
+        # 13. Package result
+        date_range = {}
+        if not p_ret.empty:
+            date_range = {
+                "start": p_ret.index[0].strftime("%Y-%m-%d"),
+                "end":   p_ret.index[-1].strftime("%Y-%m-%d"),
+            }
+
+        return {
+            "metrics": {
+                "portfolio":  metrics,
+                "benchmark":  bench_metrics,
+            },
+            "performance": {
+                "portfolio": [
+                    {"date": d.strftime("%Y-%m-%d"), "value": round(float(v) * 100, 4)}
+                    for d, v in port_cum.items()
+                ],
+                "benchmark": [
+                    {"date": d.strftime("%Y-%m-%d"), "value": round(float(v) * 100, 4)}
+                    for d, v in bench_cum.items()
+                ] if not bench_cum.empty else [],
+            },
+            "drawdown": [
+                {"date": d.strftime("%Y-%m-%d"), "value": round(float(v) * 100, 4)}
+                for d, v in drawdown_series.items()
+            ],
+            "correlation": corr_result,
+            "contributions": contributions,
+            "meta": {
+                "provider_mode":    self.mode,
+                "period":           period,
+                "valid_tickers":    valid_tickers,
+                "invalid_tickers":  invalid_tickers,
+                "data_points":      len(p_ret),
+                "date_range":       date_range,
+                "benchmark_ticker": bench_data["ticker"],
+                "benchmark_name":   bench_data["name"],
+                "benchmark_source": bench_data["source"],
+                "risk_free_rate":   RISK_FREE_RATE,
+                "cached":           False,
+            },
+        }
+
+    # ─── Price history fetching ────────────────────────────────────────────────
+
+    async def _fetch_all_histories(
+        self,
+        holdings: list,
+        period: str,
+    ) -> dict[str, list[dict]]:
+        """
+        Fetch price histories for all holdings concurrently.
+        Returns dict of ticker → [{"date": ..., "close": ...}, ...].
+        Silently skips tickers that return empty or error.
+        """
+        async def _fetch_one(h) -> tuple[str, list[dict]]:
+            try:
+                result = await self.provider.get_price_history(h.ticker, period=period)
+                data = result.get("data", [])
+                # Normalise key name: both "close" and "Close" accepted
+                normalised = []
+                for row in data:
+                    close = row.get("close") or row.get("Close")
+                    if close is not None:
+                        normalised.append({"date": row["date"], "close": float(close)})
+                return h.ticker, normalised
+            except Exception as e:
+                logger.warning(f"Price history error for {h.ticker}: {e}")
+                return h.ticker, []
+
+        tasks   = [_fetch_one(h) for h in holdings]
+        results = await asyncio.gather(*tasks)
+
+        return {ticker: data for ticker, data in results if data}
+
+    # ─── Empty / error result ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _empty_result(
+        valid_tickers: list[str],
+        invalid_tickers: list[str],
+        reason: str = "No data",
+    ) -> dict:
+        return {
+            "metrics":       {"portfolio": None, "benchmark": None},
+            "performance":   {"portfolio": [], "benchmark": []},
+            "drawdown":      [],
+            "correlation":   {"tickers": [], "matrix": [], "average_pairwise": None, "min_pair": None, "max_pair": None, "interpretation": None},
+            "contributions": [],
+            "meta": {
+                "provider_mode":    None,
+                "period":           "1y",
+                "valid_tickers":    valid_tickers,
+                "invalid_tickers":  invalid_tickers,
+                "data_points":      0,
+                "date_range":       None,
+                "benchmark_ticker": "^NSEI",
+                "benchmark_name":   "NIFTY 50",
+                "benchmark_source": None,
+                "risk_free_rate":   RISK_FREE_RATE,
+                "error":            reason,
+            },
+        }

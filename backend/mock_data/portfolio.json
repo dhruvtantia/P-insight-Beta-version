@@ -1,0 +1,1074 @@
+{
+  "_comment": "Mock portfolio data for P-Insight Phase 1 development",
+  "_note": "All prices in INR. NSE tickers use .NS suffix.",
+  "_fundamentals_note": "All fundamentals are representative of Indian large-cap equities circa early 2025. Null fields are not meaningful for that business type (e.g. D/E, operating_margin, profit_margin are null for banks).",
+  "holdings": [
+    {
+      "ticker": "RELIANCE.NS",
+      "name": "Reliance Industries Ltd",
+      "quantity": 50,
+      "average_cost": 2380.0,
+      "current_price": 2647.5,
+      "sector": "Energy",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "TCS.NS",
+      "name": "Tata Consultancy Services Ltd",
+      "quantity": 30,
+      "average_cost": 3490.0,
+      "current_price": 3821.0,
+      "sector": "Information Technology",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "HDFCBANK.NS",
+      "name": "HDFC Bank Ltd",
+      "quantity": 100,
+      "average_cost": 1560.0,
+      "current_price": 1623.45,
+      "sector": "Financials",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "INFY.NS",
+      "name": "Infosys Ltd",
+      "quantity": 75,
+      "average_cost": 1470.0,
+      "current_price": 1381.2,
+      "sector": "Information Technology",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "ICICIBANK.NS",
+      "name": "ICICI Bank Ltd",
+      "quantity": 120,
+      "average_cost": 845.0,
+      "current_price": 1058.3,
+      "sector": "Financials",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "HINDUNILVR.NS",
+      "name": "Hindustan Unilever Ltd",
+      "quantity": 40,
+      "average_cost": 2580.0,
+      "current_price": 2448.75,
+      "sector": "Consumer Staples",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "BHARTIARTL.NS",
+      "name": "Bharti Airtel Ltd",
+      "quantity": 80,
+      "average_cost": 815.0,
+      "current_price": 1098.6,
+      "sector": "Communication Services",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "WIPRO.NS",
+      "name": "Wipro Ltd",
+      "quantity": 150,
+      "average_cost": 415.0,
+      "current_price": 478.9,
+      "sector": "Information Technology",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "MARUTI.NS",
+      "name": "Maruti Suzuki India Ltd",
+      "quantity": 15,
+      "average_cost": 9450.0,
+      "current_price": 10218.0,
+      "sector": "Consumer Discretionary",
+      "asset_class": "Equity",
+      "currency": "INR"
+    },
+    {
+      "ticker": "SUNPHARMA.NS",
+      "name": "Sun Pharmaceutical Industries Ltd",
+      "quantity": 60,
+      "average_cost": 985.0,
+      "current_price": 1147.25,
+      "sector": "Healthcare",
+      "asset_class": "Equity",
+      "currency": "INR"
+    }
+  ],
+  "fundamentals": {
+    "RELIANCE.NS": {
+      "industry": "Oil, Gas & Diversified",
+      "pe_ratio": 24.8,
+      "forward_pe": 21.4,
+      "pb_ratio": 2.1,
+      "ev_ebitda": 13.5,
+      "peg_ratio": 2.2,
+      "market_cap": 17900000000000,
+      "dividend_yield": 0.4,
+      "roe": 12.5,
+      "roa": 5.8,
+      "revenue_growth": 8.2,
+      "earnings_growth": 11.4,
+      "operating_margin": 14.2,
+      "profit_margin": 8.6,
+      "debt_to_equity": 0.41
+    },
+    "TCS.NS": {
+      "industry": "IT Consulting & Services",
+      "pe_ratio": 28.5,
+      "forward_pe": 25.8,
+      "pb_ratio": 12.4,
+      "ev_ebitda": 21.3,
+      "peg_ratio": 2.6,
+      "market_cap": 13900000000000,
+      "dividend_yield": 1.6,
+      "roe": 51.4,
+      "roa": 27.8,
+      "revenue_growth": 11.3,
+      "earnings_growth": 10.8,
+      "operating_margin": 24.9,
+      "profit_margin": 20.6,
+      "debt_to_equity": 0.0
+    },
+    "HDFCBANK.NS": {
+      "industry": "Private Sector Bank",
+      "pe_ratio": 18.2,
+      "forward_pe": 15.8,
+      "pb_ratio": 2.8,
+      "ev_ebitda": null,
+      "peg_ratio": 1.5,
+      "market_cap": 12400000000000,
+      "dividend_yield": 1.2,
+      "roe": 16.4,
+      "roa": 1.8,
+      "revenue_growth": 14.7,
+      "earnings_growth": 18.2,
+      "operating_margin": null,
+      "profit_margin": null,
+      "debt_to_equity": null
+    },
+    "INFY.NS": {
+      "industry": "IT Consulting & Services",
+      "pe_ratio": 22.1,
+      "forward_pe": 19.6,
+      "pb_ratio": 7.8,
+      "ev_ebitda": 17.2,
+      "peg_ratio": 2.6,
+      "market_cap": 5800000000000,
+      "dividend_yield": 2.4,
+      "roe": 33.1,
+      "roa": 18.9,
+      "revenue_growth": 7.1,
+      "earnings_growth": 8.4,
+      "operating_margin": 21.2,
+      "profit_margin": 17.1,
+      "debt_to_equity": 0.0
+    },
+    "ICICIBANK.NS": {
+      "industry": "Private Sector Bank",
+      "pe_ratio": 17.4,
+      "forward_pe": 14.8,
+      "pb_ratio": 3.1,
+      "ev_ebitda": null,
+      "peg_ratio": 1.2,
+      "market_cap": 7400000000000,
+      "dividend_yield": 0.8,
+      "roe": 18.2,
+      "roa": 2.1,
+      "revenue_growth": 16.1,
+      "earnings_growth": 22.4,
+      "operating_margin": null,
+      "profit_margin": null,
+      "debt_to_equity": null
+    },
+    "HINDUNILVR.NS": {
+      "industry": "Household Products",
+      "pe_ratio": 55.2,
+      "forward_pe": 48.1,
+      "pb_ratio": 10.9,
+      "ev_ebitda": 38.7,
+      "peg_ratio": 4.8,
+      "market_cap": 5750000000000,
+      "dividend_yield": 1.9,
+      "roe": 19.8,
+      "roa": 14.7,
+      "revenue_growth": 3.2,
+      "earnings_growth": 1.6,
+      "operating_margin": 23.8,
+      "profit_margin": 18.4,
+      "debt_to_equity": 0.0
+    },
+    "BHARTIARTL.NS": {
+      "industry": "Telecommunications",
+      "pe_ratio": 62.4,
+      "forward_pe": 40.2,
+      "pb_ratio": 7.2,
+      "ev_ebitda": 8.6,
+      "peg_ratio": 2.8,
+      "market_cap": 6100000000000,
+      "dividend_yield": 0.5,
+      "roe": 22.6,
+      "roa": 5.2,
+      "revenue_growth": 12.8,
+      "earnings_growth": 75.0,
+      "operating_margin": 28.4,
+      "profit_margin": 9.1,
+      "debt_to_equity": 2.15
+    },
+    "WIPRO.NS": {
+      "industry": "IT Consulting & Services",
+      "pe_ratio": 19.8,
+      "forward_pe": 18.2,
+      "pb_ratio": 3.4,
+      "ev_ebitda": 14.1,
+      "peg_ratio": 2.0,
+      "market_cap": 2480000000000,
+      "dividend_yield": 1.0,
+      "roe": 16.4,
+      "roa": 10.8,
+      "revenue_growth": 0.9,
+      "earnings_growth": 3.2,
+      "operating_margin": 17.9,
+      "profit_margin": 14.1,
+      "debt_to_equity": 0.0
+    },
+    "MARUTI.NS": {
+      "industry": "Passenger Vehicles",
+      "pe_ratio": 26.3,
+      "forward_pe": 22.1,
+      "pb_ratio": 4.8,
+      "ev_ebitda": 17.8,
+      "peg_ratio": 1.6,
+      "market_cap": 3100000000000,
+      "dividend_yield": 0.9,
+      "roe": 18.6,
+      "roa": 11.4,
+      "revenue_growth": 18.3,
+      "earnings_growth": 44.7,
+      "operating_margin": 10.8,
+      "profit_margin": 9.2,
+      "debt_to_equity": 0.0
+    },
+    "SUNPHARMA.NS": {
+      "industry": "Pharmaceuticals",
+      "pe_ratio": 34.5,
+      "forward_pe": 28.4,
+      "pb_ratio": 5.6,
+      "ev_ebitda": 24.3,
+      "peg_ratio": 1.9,
+      "market_cap": 2750000000000,
+      "dividend_yield": 0.8,
+      "roe": 17.2,
+      "roa": 11.8,
+      "revenue_growth": 13.7,
+      "earnings_growth": 28.2,
+      "operating_margin": 28.1,
+      "profit_margin": 22.4,
+      "debt_to_equity": 0.04
+    }
+  },
+  "news": [
+    {
+      "title": "Reliance Industries Q3 FY26 net profit up 14% YoY on Jio and retail strength",
+      "summary": "Reliance reported ₹19,641 crore net profit for Q3 FY26, beating analyst estimates. Jio Platforms added 8.2 million subscribers and retail EBITDA hit a record ₹7,100 crore. Management guided for continued 5G-led monetisation in H2.",
+      "url": "#",
+      "published_at": "2026-01-18",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "RELIANCE.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Reliance announces ₹9 per share dividend for H1 FY26",
+      "summary": "Reliance Industries declared an interim dividend of ₹9 per equity share for the first half of FY26, with a record date of February 14, 2026.",
+      "url": "#",
+      "published_at": "2026-01-18",
+      "source": "Mock BSE",
+      "tickers": [
+        "RELIANCE.NS"
+      ],
+      "event_type": "dividend",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Jio signs 5-year spectrum sharing deal with BSNL — market event",
+      "summary": "Reliance Jio and BSNL formalised a strategic spectrum-sharing agreement for sub-GHz bands in rural India, expected to reduce Jio's capex by ₹3,200 crore over the plan period.",
+      "url": "#",
+      "published_at": "2026-02-05",
+      "source": "Mock Business Standard",
+      "tickers": [
+        "RELIANCE.NS",
+        "BHARTIARTL.NS"
+      ],
+      "event_type": "deal",
+      "sentiment": "positive"
+    },
+    {
+      "title": "SEBI probe into Reliance's 2024 derivatives positions — update",
+      "summary": "SEBI issued a show-cause notice to Reliance relating to F&O positions taken ahead of a 2024 fundraising announcement. The company denied any wrongdoing and said it would respond formally.",
+      "url": "#",
+      "published_at": "2026-02-20",
+      "source": "Mock Mint",
+      "tickers": [
+        "RELIANCE.NS"
+      ],
+      "event_type": "regulatory",
+      "sentiment": "negative"
+    },
+    {
+      "title": "TCS Q3 FY26 revenue grows 6.4% in constant currency; deal wins at all-time high",
+      "summary": "TCS reported $7.89 billion in quarterly revenue, with TCV of $13.2 billion in new deal wins — the highest ever. BFSI vertical led growth at 8.1% CC. Management maintained FY27 hiring guidance of 40,000 freshers.",
+      "url": "#",
+      "published_at": "2026-01-10",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "TCS.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "TCS wins $1.8 billion GenAI transformation deal with US insurer",
+      "summary": "TCS secured a multi-year contract to implement a generative-AI-first underwriting and claims platform for a Fortune 100 US insurance group. The deal is TCS's largest single AI engagement to date.",
+      "url": "#",
+      "published_at": "2026-02-12",
+      "source": "Mock Financial Times",
+      "tickers": [
+        "TCS.NS"
+      ],
+      "event_type": "deal",
+      "sentiment": "positive"
+    },
+    {
+      "title": "UBS upgrades TCS to Buy, raises target price to ₹4,600",
+      "summary": "UBS analyst revised TCS to Buy from Neutral, citing accelerating GenAI deal momentum and a potential rerating as BFSI discretionary spending recovers in H1 CY2026.",
+      "url": "#",
+      "published_at": "2026-03-03",
+      "source": "Mock UBS Research",
+      "tickers": [
+        "TCS.NS"
+      ],
+      "event_type": "rating",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Infosys narrows FY26 revenue guidance to 5.1%–5.5% after Q3 beat",
+      "summary": "Infosys raised the lower end of its FY26 constant-currency revenue guidance to 5.1%–5.5% after reporting ₹41,764 crore revenue in Q3, up 8.2% YoY in INR terms.",
+      "url": "#",
+      "published_at": "2026-01-16",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "INFY.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Infosys CFO departure — Jayesh Sanghrajka steps down",
+      "summary": "Infosys announced the resignation of CFO Jayesh Sanghrajka effective March 31, 2026. The board said a search for a successor is underway. Shares fell 2.1% on the news.",
+      "url": "#",
+      "published_at": "2026-02-28",
+      "source": "Mock Business Standard",
+      "tickers": [
+        "INFY.NS"
+      ],
+      "event_type": "management",
+      "sentiment": "negative"
+    },
+    {
+      "title": "Infosys launches 'Topaz for Manufacturing' — dedicated AI suite",
+      "summary": "Infosys unveiled a manufacturing-specific Topaz AI suite covering predictive maintenance, supply chain optimisation, and quality control. The suite targets ₹12,000 crore of addressable pipeline.",
+      "url": "#",
+      "published_at": "2026-03-10",
+      "source": "Mock Mint",
+      "tickers": [
+        "INFY.NS"
+      ],
+      "event_type": "company_update",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Wipro Q3 FY26 revenue in line; attrition falls to 14.8%",
+      "summary": "Wipro's IT services revenue came in at $2.635 billion, at the lower end of guidance. Attrition improved to 14.8% from 16.3% a year ago. CEO Srinivas Pallia said deal pipelines remain healthy across energy and utilities.",
+      "url": "#",
+      "published_at": "2026-01-15",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "WIPRO.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "Macquarie downgrades Wipro to Underperform on margin pressure concerns",
+      "summary": "Macquarie cut Wipro to Underperform from Neutral, citing limited pricing power and a larger-than-expected wage revision planned for Q1 FY27. Target price reduced to ₹260 from ₹310.",
+      "url": "#",
+      "published_at": "2026-02-08",
+      "source": "Mock Macquarie Research",
+      "tickers": [
+        "WIPRO.NS"
+      ],
+      "event_type": "rating",
+      "sentiment": "negative"
+    },
+    {
+      "title": "HDFC Bank Q3 FY26 PAT grows 12.6%; NIM stable at 3.46%",
+      "summary": "HDFC Bank posted ₹17,259 crore net profit in Q3 FY26, up 12.6% YoY. Net interest margin held at 3.46% despite liquidity tightening. Gross NPA ratio improved to 1.23%, the lowest since the merger.",
+      "url": "#",
+      "published_at": "2026-01-22",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "HDFCBANK.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "RBI increases HDFC Bank's overseas borrowing limit under liberalised framework",
+      "summary": "The Reserve Bank of India approved an expanded overseas borrowing ceiling for HDFC Bank, allowing it to raise up to $7 billion in ECBs in FY27 to fund priority-sector lending.",
+      "url": "#",
+      "published_at": "2026-02-14",
+      "source": "Mock RBI Bulletin",
+      "tickers": [
+        "HDFCBANK.NS"
+      ],
+      "event_type": "regulatory",
+      "sentiment": "positive"
+    },
+    {
+      "title": "HDFC Bank announces ₹19.50 per share final dividend for FY26",
+      "summary": "HDFC Bank's board recommended a final dividend of ₹19.50 per share for FY26, subject to shareholder approval at the AGM on June 10, 2026.",
+      "url": "#",
+      "published_at": "2026-03-18",
+      "source": "Mock BSE",
+      "tickers": [
+        "HDFCBANK.NS"
+      ],
+      "event_type": "dividend",
+      "sentiment": "positive"
+    },
+    {
+      "title": "ICICI Bank posts 15.1% PAT growth in Q3; retail loan book crosses ₹10 lakh crore",
+      "summary": "ICICI Bank reported ₹11,792 crore PAT in Q3 FY26, ahead of consensus estimates. Its retail loan book crossed ₹10 lakh crore for the first time, with personal loans growing 22% YoY.",
+      "url": "#",
+      "published_at": "2026-01-25",
+      "source": "Mock Mint",
+      "tickers": [
+        "ICICIBANK.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "ICICI Bank to acquire 26% stake in Fincare Small Finance Bank",
+      "summary": "ICICI Bank announced a definitive agreement to acquire a 26% strategic stake in Fincare SFB for ₹2,100 crore, expanding its micro-lending distribution reach to 650 new districts.",
+      "url": "#",
+      "published_at": "2026-02-25",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "ICICIBANK.NS"
+      ],
+      "event_type": "deal",
+      "sentiment": "positive"
+    },
+    {
+      "title": "HUL Q3 FY26 volume growth recovers to 4%; urban demand picks up",
+      "summary": "Hindustan Unilever reported 4% underlying volume growth in Q3 FY26, recovering from 1% in the prior quarter. Urban premium segments led recovery; rural lagged but showed sequential improvement.",
+      "url": "#",
+      "published_at": "2026-01-24",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "HINDUNILVR.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "HUL launches 'Horlicks Plus' fortified nutrition range — Tier 2/3 focus",
+      "summary": "Hindustan Unilever rolled out a new affordable nutrition platform under Horlicks targeting Tier 2 and Tier 3 cities. The range is priced 18% below existing premium SKUs and distributed via e-B2B channels.",
+      "url": "#",
+      "published_at": "2026-03-05",
+      "source": "Mock Business Standard",
+      "tickers": [
+        "HINDUNILVR.NS"
+      ],
+      "event_type": "company_update",
+      "sentiment": "neutral"
+    },
+    {
+      "title": "Airtel Q3 FY26 EBITDA up 18%; India wireless ARPU crosses ₹227",
+      "summary": "Bharti Airtel posted Q3 FY26 EBITDA of ₹22,003 crore, up 18% YoY. India wireless Average Revenue Per User hit ₹227 — a record — after two tariff hike cycles. Africa operations grew 8% in constant currency.",
+      "url": "#",
+      "published_at": "2026-02-04",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "BHARTIARTL.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Airtel Enterprise wins ₹1,200 crore 5G private network contract with IOCL",
+      "summary": "Airtel Business secured a private 5G network deployment contract with Indian Oil Corporation for 14 refineries, enabling real-time asset monitoring and predictive maintenance at scale.",
+      "url": "#",
+      "published_at": "2026-03-12",
+      "source": "Mock Mint",
+      "tickers": [
+        "BHARTIARTL.NS"
+      ],
+      "event_type": "deal",
+      "sentiment": "positive"
+    },
+    {
+      "title": "TRAI consultation paper on satellite broadband may pressure Airtel mobility ARPU",
+      "summary": "TRAI's consultation on spectrum pricing for satellite broadband (Starlink, OneWeb) raised concerns among analysts that Jio and Airtel's rural ARPU could face competitive pressure from low-orbit satellite services from 2027.",
+      "url": "#",
+      "published_at": "2026-02-18",
+      "source": "Mock Business Standard",
+      "tickers": [
+        "BHARTIARTL.NS",
+        "RELIANCE.NS"
+      ],
+      "event_type": "regulatory",
+      "sentiment": "negative"
+    },
+    {
+      "title": "Maruti Q3 FY26 net profit jumps 17%; hybrid models drive market share to 42.5%",
+      "summary": "Maruti Suzuki reported ₹3,727 crore PAT in Q3 FY26, up 17% YoY, driven by a 9% rise in volumes and a shift toward higher-ASP hybrid models. Market share in PVs expanded to 42.5%.",
+      "url": "#",
+      "published_at": "2026-01-30",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "MARUTI.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Maruti Suzuki to invest ₹35,000 crore in a new EV and hybrid facility in Kharkhoda",
+      "summary": "Maruti Suzuki India announced a ₹35,000 crore greenfield investment in Kharkhoda, Haryana, for a dedicated EV and strong-hybrid manufacturing plant with 1 million annual capacity by FY30.",
+      "url": "#",
+      "published_at": "2026-02-22",
+      "source": "Mock Mint",
+      "tickers": [
+        "MARUTI.NS"
+      ],
+      "event_type": "company_update",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Sun Pharma Q3 FY26 revenue up 11%; US specialty sales beat estimates",
+      "summary": "Sun Pharmaceutical reported ₹13,264 crore revenue in Q3 FY26, up 11% YoY. US specialty business grew 28% driven by Ilumya and Winlevi ramp-up. Domestic branded formulations grew 9%.",
+      "url": "#",
+      "published_at": "2026-02-06",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "SUNPHARMA.NS"
+      ],
+      "event_type": "earnings",
+      "sentiment": "positive"
+    },
+    {
+      "title": "US FDA issues Form 483 for Sun Pharma's Halol facility — 4 observations",
+      "summary": "The US FDA issued a Form 483 with 4 observations following a routine inspection of Sun Pharma's Halol manufacturing facility. Sun Pharma said it is working on a comprehensive response within the 15-business-day window.",
+      "url": "#",
+      "published_at": "2026-03-08",
+      "source": "Mock US FDA",
+      "tickers": [
+        "SUNPHARMA.NS"
+      ],
+      "event_type": "regulatory",
+      "sentiment": "negative"
+    },
+    {
+      "title": "Sun Pharma files NDA for deuruxolitinib in alopecia areata in EU",
+      "summary": "Sun Pharma submitted a New Drug Application to the EMA for deuruxolitinib for moderate-to-severe alopecia areata. Analysts estimate peak EU revenues of $180 million annually if approved.",
+      "url": "#",
+      "published_at": "2026-03-19",
+      "source": "Mock Mint",
+      "tickers": [
+        "SUNPHARMA.NS"
+      ],
+      "event_type": "company_update",
+      "sentiment": "positive"
+    },
+    {
+      "title": "Nifty IT index hits 52-week high as US rate cut expectations boost tech sentiment",
+      "summary": "The Nifty IT index surged 3.4% to a 52-week high as US Federal Reserve minutes signalled a potential 50bps rate cut in June, boosting valuations for Indian IT exporters. TCS, Infosys, Wipro, and HCL Tech all gained.",
+      "url": "#",
+      "published_at": "2026-03-15",
+      "source": "Mock Economic Times",
+      "tickers": [
+        "TCS.NS",
+        "INFY.NS",
+        "WIPRO.NS"
+      ],
+      "event_type": "market_event",
+      "sentiment": "positive"
+    },
+    {
+      "title": "RBI holds repo rate at 6.0% — positive for banking and rate-sensitive sectors",
+      "summary": "The Reserve Bank of India's MPC voted 5-1 to hold the repo rate at 6.0% in its March 2026 meeting. The accommodative stance continues, seen as positive for HDFC Bank, ICICI Bank, and rate-sensitive NBFCs.",
+      "url": "#",
+      "published_at": "2026-03-07",
+      "source": "Mock RBI",
+      "tickers": [
+        "HDFCBANK.NS",
+        "ICICIBANK.NS"
+      ],
+      "event_type": "market_event",
+      "sentiment": "positive"
+    }
+  ],
+  "_peer_note": "peer_fundamentals covers stocks used as peers but not held in the portfolio. Same schema as fundamentals. Used by GET /api/v1/peers/{ticker}.",
+  "peer_fundamentals": {
+    "HCLTECH.NS": {
+      "name": "HCL Technologies Ltd",
+      "sector": "Information Technology",
+      "industry": "IT Services",
+      "pe_ratio": 27.5,
+      "forward_pe": 22.8,
+      "pb_ratio": 8.2,
+      "ev_ebitda": 18.4,
+      "peg_ratio": 2.6,
+      "market_cap": 8450000000000,
+      "dividend_yield": 3.2,
+      "roe": 24.8,
+      "roa": 17.6,
+      "revenue_growth": 5.8,
+      "earnings_growth": 7.2,
+      "operating_margin": 18.8,
+      "profit_margin": 15.0,
+      "debt_to_equity": 0.0
+    },
+    "TECHM.NS": {
+      "name": "Tech Mahindra Ltd",
+      "sector": "Information Technology",
+      "industry": "IT Services",
+      "pe_ratio": 31.2,
+      "forward_pe": 26.0,
+      "pb_ratio": 3.6,
+      "ev_ebitda": 17.2,
+      "peg_ratio": 3.8,
+      "market_cap": 1340000000000,
+      "dividend_yield": 2.4,
+      "roe": 12.2,
+      "roa": 7.4,
+      "revenue_growth": -0.8,
+      "earnings_growth": 8.5,
+      "operating_margin": 11.2,
+      "profit_margin": 8.8,
+      "debt_to_equity": 0.12
+    },
+    "KOTAKBANK.NS": {
+      "name": "Kotak Mahindra Bank Ltd",
+      "sector": "Financials",
+      "industry": "Private Sector Bank",
+      "pe_ratio": 19.8,
+      "forward_pe": 17.2,
+      "pb_ratio": 3.1,
+      "ev_ebitda": null,
+      "peg_ratio": 2.0,
+      "market_cap": 3480000000000,
+      "dividend_yield": 0.1,
+      "roe": 14.8,
+      "roa": 2.3,
+      "revenue_growth": 19.2,
+      "earnings_growth": 16.8,
+      "operating_margin": null,
+      "profit_margin": null,
+      "debt_to_equity": null
+    },
+    "AXISBANK.NS": {
+      "name": "Axis Bank Ltd",
+      "sector": "Financials",
+      "industry": "Private Sector Bank",
+      "pe_ratio": 14.2,
+      "forward_pe": 12.1,
+      "pb_ratio": 1.9,
+      "ev_ebitda": null,
+      "peg_ratio": 1.4,
+      "market_cap": 2180000000000,
+      "dividend_yield": 0.1,
+      "roe": 17.4,
+      "roa": 1.8,
+      "revenue_growth": 21.8,
+      "earnings_growth": 25.2,
+      "operating_margin": null,
+      "profit_margin": null,
+      "debt_to_equity": null
+    },
+    "ONGC.NS": {
+      "name": "Oil & Natural Gas Corporation Ltd",
+      "sector": "Energy",
+      "industry": "Oil & Gas Exploration",
+      "pe_ratio": 7.2,
+      "forward_pe": 7.8,
+      "pb_ratio": 1.1,
+      "ev_ebitda": 5.2,
+      "peg_ratio": 0.8,
+      "market_cap": 2800000000000,
+      "dividend_yield": 4.6,
+      "roe": 14.1,
+      "roa": 7.2,
+      "revenue_growth": -2.1,
+      "earnings_growth": 14.8,
+      "operating_margin": 21.8,
+      "profit_margin": 12.1,
+      "debt_to_equity": 0.28
+    },
+    "BPCL.NS": {
+      "name": "Bharat Petroleum Corporation Ltd",
+      "sector": "Energy",
+      "industry": "Refining & Marketing",
+      "pe_ratio": 8.1,
+      "forward_pe": 7.2,
+      "pb_ratio": 1.8,
+      "ev_ebitda": 5.8,
+      "peg_ratio": 0.9,
+      "market_cap": 1060000000000,
+      "dividend_yield": 5.1,
+      "roe": 21.4,
+      "roa": 7.8,
+      "revenue_growth": -5.2,
+      "earnings_growth": 42.0,
+      "operating_margin": 5.4,
+      "profit_margin": 3.8,
+      "debt_to_equity": 0.52
+    },
+    "IOC.NS": {
+      "name": "Indian Oil Corporation Ltd",
+      "sector": "Energy",
+      "industry": "Refining & Marketing",
+      "pe_ratio": 5.4,
+      "forward_pe": 6.2,
+      "pb_ratio": 0.8,
+      "ev_ebitda": 4.1,
+      "peg_ratio": 0.6,
+      "market_cap": 1490000000000,
+      "dividend_yield": 6.8,
+      "roe": 15.8,
+      "roa": 5.8,
+      "revenue_growth": -7.8,
+      "earnings_growth": 72.0,
+      "operating_margin": 3.2,
+      "profit_margin": 2.8,
+      "debt_to_equity": 0.79
+    },
+    "NESTLEIND.NS": {
+      "name": "Nestle India Ltd",
+      "sector": "Consumer Staples",
+      "industry": "Packaged Foods",
+      "pe_ratio": 68.5,
+      "forward_pe": 58.2,
+      "pb_ratio": 82.4,
+      "ev_ebitda": 44.8,
+      "peg_ratio": 4.8,
+      "market_cap": 2180000000000,
+      "dividend_yield": 1.8,
+      "roe": 112.5,
+      "roa": 37.2,
+      "revenue_growth": 5.5,
+      "earnings_growth": 8.2,
+      "operating_margin": 23.1,
+      "profit_margin": 17.2,
+      "debt_to_equity": 0.0
+    },
+    "DABUR.NS": {
+      "name": "Dabur India Ltd",
+      "sector": "Consumer Staples",
+      "industry": "Health & Personal Care",
+      "pe_ratio": 44.8,
+      "forward_pe": 38.2,
+      "pb_ratio": 10.2,
+      "ev_ebitda": 28.4,
+      "peg_ratio": 4.1,
+      "market_cap": 850000000000,
+      "dividend_yield": 1.3,
+      "roe": 22.4,
+      "roa": 15.2,
+      "revenue_growth": 3.2,
+      "earnings_growth": 5.1,
+      "operating_margin": 18.8,
+      "profit_margin": 14.8,
+      "debt_to_equity": 0.0
+    },
+    "MARICO.NS": {
+      "name": "Marico Ltd",
+      "sector": "Consumer Staples",
+      "industry": "Consumer Goods",
+      "pe_ratio": 47.5,
+      "forward_pe": 40.8,
+      "pb_ratio": 11.8,
+      "ev_ebitda": 29.8,
+      "peg_ratio": 3.8,
+      "market_cap": 615000000000,
+      "dividend_yield": 1.5,
+      "roe": 39.2,
+      "roa": 27.8,
+      "revenue_growth": 4.1,
+      "earnings_growth": 6.8,
+      "operating_margin": 19.5,
+      "profit_margin": 15.8,
+      "debt_to_equity": 0.0
+    },
+    "IDEA.NS": {
+      "name": "Vodafone Idea Ltd",
+      "sector": "Communication Services",
+      "industry": "Telecommunications",
+      "pe_ratio": null,
+      "forward_pe": null,
+      "pb_ratio": null,
+      "ev_ebitda": 11.8,
+      "peg_ratio": null,
+      "market_cap": 82000000000,
+      "dividend_yield": 0.0,
+      "roe": null,
+      "roa": null,
+      "revenue_growth": -1.8,
+      "earnings_growth": null,
+      "operating_margin": -1.5,
+      "profit_margin": null,
+      "debt_to_equity": null
+    },
+    "TATACOMM.NS": {
+      "name": "Tata Communications Ltd",
+      "sector": "Communication Services",
+      "industry": "Enterprise Telecom",
+      "pe_ratio": 28.5,
+      "forward_pe": 23.2,
+      "pb_ratio": null,
+      "ev_ebitda": 12.4,
+      "peg_ratio": 2.8,
+      "market_cap": 322000000000,
+      "dividend_yield": 2.1,
+      "roe": null,
+      "roa": 5.2,
+      "revenue_growth": 8.4,
+      "earnings_growth": 28.5,
+      "operating_margin": 14.2,
+      "profit_margin": 5.8,
+      "debt_to_equity": null
+    },
+    "TATAMOTORS.NS": {
+      "name": "Tata Motors Ltd",
+      "sector": "Consumer Discretionary",
+      "industry": "Automobile Manufacturing",
+      "pe_ratio": 7.5,
+      "forward_pe": 8.8,
+      "pb_ratio": 2.8,
+      "ev_ebitda": 6.2,
+      "peg_ratio": 0.9,
+      "market_cap": 2820000000000,
+      "dividend_yield": 0.5,
+      "roe": 38.2,
+      "roa": 8.2,
+      "revenue_growth": 8.4,
+      "earnings_growth": 118.0,
+      "operating_margin": 8.1,
+      "profit_margin": 4.8,
+      "debt_to_equity": 0.92
+    },
+    "M&M.NS": {
+      "name": "Mahindra & Mahindra Ltd",
+      "sector": "Consumer Discretionary",
+      "industry": "Automobile & Farm Equipment",
+      "pe_ratio": 25.2,
+      "forward_pe": 21.4,
+      "pb_ratio": 4.8,
+      "ev_ebitda": 14.2,
+      "peg_ratio": 1.8,
+      "market_cap": 3220000000000,
+      "dividend_yield": 0.8,
+      "roe": 18.4,
+      "roa": 7.8,
+      "revenue_growth": 12.4,
+      "earnings_growth": 38.5,
+      "operating_margin": 10.2,
+      "profit_margin": 7.1,
+      "debt_to_equity": 0.15
+    },
+    "DRREDDY.NS": {
+      "name": "Dr. Reddy's Laboratories Ltd",
+      "sector": "Healthcare",
+      "industry": "Pharmaceuticals",
+      "pe_ratio": 23.8,
+      "forward_pe": 20.8,
+      "pb_ratio": 5.2,
+      "ev_ebitda": 15.2,
+      "peg_ratio": 2.0,
+      "market_cap": 892000000000,
+      "dividend_yield": 0.5,
+      "roe": 22.4,
+      "roa": 14.2,
+      "revenue_growth": 15.2,
+      "earnings_growth": 18.4,
+      "operating_margin": 24.8,
+      "profit_margin": 17.8,
+      "debt_to_equity": 0.0
+    },
+    "CIPLA.NS": {
+      "name": "Cipla Ltd",
+      "sector": "Healthcare",
+      "industry": "Pharmaceuticals",
+      "pe_ratio": 27.8,
+      "forward_pe": 23.8,
+      "pb_ratio": 4.2,
+      "ev_ebitda": 16.8,
+      "peg_ratio": 2.4,
+      "market_cap": 848000000000,
+      "dividend_yield": 0.3,
+      "roe": 14.8,
+      "roa": 9.8,
+      "revenue_growth": 10.2,
+      "earnings_growth": 11.8,
+      "operating_margin": 21.8,
+      "profit_margin": 14.8,
+      "debt_to_equity": 0.05
+    },
+    "DIVISLAB.NS": {
+      "name": "Divi's Laboratories Ltd",
+      "sector": "Healthcare",
+      "industry": "Pharmaceuticals",
+      "pe_ratio": 51.8,
+      "forward_pe": 41.5,
+      "pb_ratio": 9.8,
+      "ev_ebitda": 30.2,
+      "peg_ratio": 4.5,
+      "market_cap": 802000000000,
+      "dividend_yield": 0.8,
+      "roe": 18.8,
+      "roa": 16.2,
+      "revenue_growth": 7.8,
+      "earnings_growth": 4.8,
+      "operating_margin": 27.5,
+      "profit_margin": 23.8,
+      "debt_to_equity": 0.0
+    }
+  },
+  "events": [
+    {
+      "ticker": "RELIANCE.NS",
+      "name": "Reliance Industries",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Earnings",
+      "date": "2026-04-18",
+      "details": "Q4 FY26 results. Consensus: ₹21,000 Cr PAT."
+    },
+    {
+      "ticker": "TCS.NS",
+      "name": "Tata Consultancy Services",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-10",
+      "details": "Q4 FY26 results. Watch for FY27 hiring guidance."
+    },
+    {
+      "ticker": "INFY.NS",
+      "name": "Infosys",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-16",
+      "details": "Final quarter of FY26. New CFO announcement expected."
+    },
+    {
+      "ticker": "HDFCBANK.NS",
+      "name": "HDFC Bank",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-19",
+      "details": "Watch for NIM trajectory and CD ratio normalisation."
+    },
+    {
+      "ticker": "ICICIBANK.NS",
+      "name": "ICICI Bank",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-24",
+      "details": "Retail loan growth trend will be key."
+    },
+    {
+      "ticker": "WIPRO.NS",
+      "name": "Wipro",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-14",
+      "details": "Q4 guidance for IT services revenue in focus."
+    },
+    {
+      "ticker": "SUNPHARMA.NS",
+      "name": "Sun Pharmaceutical",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-30",
+      "details": "US specialty momentum and Halol FDA response pending."
+    },
+    {
+      "ticker": "TCS.NS",
+      "name": "Tata Consultancy Services",
+      "event_type": "dividend",
+      "title": "Final Dividend Record Date",
+      "date": "2026-04-14",
+      "details": "Expected final dividend ₹28–30/share for FY26."
+    },
+    {
+      "ticker": "WIPRO.NS",
+      "name": "Wipro",
+      "event_type": "dividend",
+      "title": "Interim Dividend Record Date",
+      "date": "2026-04-02",
+      "details": "Interim dividend ₹6/share record date."
+    },
+    {
+      "ticker": "INFY.NS",
+      "name": "Infosys",
+      "event_type": "dividend",
+      "title": "Final Dividend (Proposed)",
+      "date": "2026-06-15",
+      "details": "AGM dividend. Typical payout ₹21–24/share."
+    },
+    {
+      "ticker": "HDFCBANK.NS",
+      "name": "HDFC Bank",
+      "event_type": "agm",
+      "title": "Annual General Meeting",
+      "date": "2026-06-10",
+      "details": "FY26 final dividend of ₹19.50/share to be ratified."
+    },
+    {
+      "ticker": "RELIANCE.NS",
+      "name": "Reliance Industries",
+      "event_type": "agm",
+      "title": "Annual General Meeting",
+      "date": "2026-07-15",
+      "details": "FY26 annual results and strategic update by Chairman."
+    },
+    {
+      "ticker": "MARUTI.NS",
+      "name": "Maruti Suzuki",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-25",
+      "details": "Volume growth and hybrid mix will drive PAT."
+    },
+    {
+      "ticker": "HINDUNILVR.NS",
+      "name": "Hindustan Unilever",
+      "event_type": "earnings",
+      "title": "Q4 FY26 Results",
+      "date": "2026-04-29",
+      "details": "Rural demand recovery trajectory in focus."
+    }
+  ]
+}
