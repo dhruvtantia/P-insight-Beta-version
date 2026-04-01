@@ -787,12 +787,31 @@ export interface AIAdvisorResponse {
   context_summary:  AdvisorContextSummary | null
 }
 
+/** A single conversation turn passed to the backend for multi-turn AI context */
+export interface ConversationTurn {
+  role:    'user' | 'assistant'
+  content: string
+}
+
 /** Request body for POST /advisor/ask */
 export interface AdvisorQueryRequest {
-  query:                string
-  portfolio_id?:        number | null
-  include_snapshots?:   boolean
+  query:                 string
+  portfolio_id?:         number | null
+  include_snapshots?:    boolean
   include_optimization?: boolean
+  /** Prior conversation turns (oldest first, max 6) for multi-turn awareness */
+  conversation_history?: ConversationTurn[]
+}
+
+/** Data quality summary returned by GET /advisor/context/{id} */
+export interface SourceMetaPayload {
+  provider_mode:      string
+  live_count:         number
+  db_only_count:      number
+  unavailable_count:  number
+  mock_count:         number
+  total_holdings:     number
+  data_quality_note:  string
 }
 
 // Context payload types (for debug endpoint GET /advisor/context/{id})
@@ -851,6 +870,7 @@ export interface PortfolioContextPayload {
   snapshot_count:        number
   snapshots:             SnapshotBrief[]
   recent_changes:        PortfolioRecentChanges | null
+  source_metadata:       SourceMetaPayload | null
   built_at:              string
 }
 

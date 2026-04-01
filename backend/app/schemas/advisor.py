@@ -15,12 +15,26 @@ from pydantic import BaseModel, Field
 
 # ─── Request ──────────────────────────────────────────────────────────────────
 
+class ConversationTurn(BaseModel):
+    """A single turn in the conversation history for multi-turn AI calls."""
+    role:    str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., description="Message text")
+
+
 class AdvisorQueryRequest(BaseModel):
     """Body for POST /advisor/ask"""
     query:                str  = Field(..., description="User's natural language question")
     portfolio_id:         Optional[int]  = Field(None, description="Portfolio to analyse (uses active if omitted)")
     include_snapshots:    bool = Field(True,  description="Include snapshot history in context")
-    include_optimization: bool = Field(False, description="Skip optimization (expensive) unless explicitly requested")
+    include_optimization: bool = Field(False, description="Include optimization-aware narrative in context")
+    conversation_history: list[ConversationTurn] = Field(
+        default_factory=list,
+        description=(
+            "Prior turns in this conversation, oldest first. "
+            "Sent to the LLM so it can maintain context across messages. "
+            "Limit to last 6 turns to avoid token overflow."
+        ),
+    )
 
 
 # ─── Context payload (also used for debug endpoint) ──────────────────────────
@@ -56,6 +70,17 @@ class SectorBrief(BaseModel):
     sector:     str
     weight_pct: float
     num_holdings: int
+
+
+class SourceMetaPayload(BaseModel):
+    """Data-quality summary for the AI context debug view."""
+    provider_mode:      str
+    live_count:         int
+    db_only_count:      int
+    unavailable_count:  int
+    mock_count:         int
+    total_holdings:     int
+    data_quality_note:  str
 
 
 class PortfolioContextPayload(BaseModel):
@@ -96,6 +121,9 @@ class PortfolioContextPayload(BaseModel):
     snapshot_count: int
     snapshots:      list[SnapshotBrief]
     recent_changes: Optional[RecentChanges]
+
+    # Data quality / source metadata
+    source_metadata: Optional[SourceMetaPayload] = None
 
     # Meta
     built_at: str

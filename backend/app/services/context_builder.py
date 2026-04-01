@@ -74,6 +74,22 @@ class RecentChangesCtx:
 
 
 @dataclass
+class SourceMetadataCtx:
+    """
+    Data-quality summary derived from the holdings' data_source field.
+    Included in the system prompt so the AI can qualify its answers
+    appropriately (e.g., warn when prices are stale or unavailable).
+    """
+    provider_mode:      str   # "live" | "mock" | "uploaded" | "db_only" | "unknown"
+    live_count:         int   # holdings with data_source == "live"
+    db_only_count:      int   # holdings with data_source == "db_only"
+    unavailable_count:  int   # holdings with data_source == "unavailable"
+    mock_count:         int   # holdings with data_source == "mock" or "mock_fallback"
+    total_holdings:     int
+    data_quality_note:  str   # plain-language summary for the LLM
+
+
+@dataclass
 class PortfolioContext:
     # Identity
     portfolio_id:   int
@@ -106,6 +122,9 @@ class PortfolioContext:
     snapshot_count: int
     snapshots:      list[SnapshotCtx]
     recent_changes: Optional[RecentChangesCtx]
+
+    # Data quality / source metadata
+    source_metadata: Optional[SourceMetadataCtx] = None
 
     # Meta
     built_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -140,11 +159,12 @@ class PortfolioContextBuilder:
 
         holdings = list(portfolio.holdings)  # loaded via selectin
 
-        summary       = self._compute_summary(holdings)
-        top_holdings  = self._compute_top_holdings(holdings, summary["total_value"])
-        sectors       = self._compute_sectors(holdings, summary["total_value"])
-        risk          = self._compute_risk(holdings, sectors, summary["total_value"])
+        summary         = self._compute_summary(holdings)
+        top_holdings    = self._compute_top_holdings(holdings, summary["total_value"])
+        sectors         = self._compute_sectors(holdings, summary["total_value"])
+        risk            = self._compute_risk(holdings, sectors, summary["total_value"])
         snap_ctx, recent = self._compute_snapshot_history(portfolio_id)
+        source_meta     = self._compute_source_metadata(holdings, portfolio.source or "unknown")
 
         return PortfolioContext(
             portfolio_id   = portfolio_id,
@@ -157,6 +177,7 @@ class PortfolioContextBuilder:
             snapshot_count  = len(snap_ctx),
             snapshots       = snap_ctx,
             recent_changes  = recent,
+            source_metadata = source_meta,
         )
 
     # ── Private helpers ───────────────────────────────────────────────────────
@@ -295,6 +316,78 @@ class PortfolioContextBuilder:
             "top3_weight":           top3_weight,
             "num_sectors":           num_sectors,
         }
+
+    def _compute_source_metadata(
+        self,
+        holdings: list[Holding],
+        portfolio_source: str,
+    ) -> SourceMetadataCtx:
+        """
+        Compute data-quality statistics from the holdings' data_source field.
+        Gracefully handles missing or null data_source values.
+        """
+        live_count        = 0
+        db_only_count     = 0
+        unavailable_count = 0
+        mock_count        = 0
+
+        for h in holdings:
+            ds = getattr(h, "data_source", None) or ""
+            if ds == "live":
+                live_count += 1
+            elif ds == "db_only":
+                db_only_count += 1
+            elif ds == "unavailable":
+                unavailable_count += 1
+            elif ds in ("mock", "mock_fallback"):
+                mock_count += 1
+            # "uploaded" counts as db_only for quality purposes
+            elif ds == "uploaded":
+                db_only_count += 1
+
+        total = len(holdings)
+
+        # Build a plain-English note for the LLM
+        if portfolio_source == "live":
+            if unavailable_count == 0 and db_only_count == 0:
+                note = (
+                    f"All {total} holding prices are live from Yahoo Finance. "
+                    "Data is real-time (cached ≤60s)."
+                )
+            elif unavailable_count > 0:
+                note = (
+                    f"Live mode: {live_count}/{total} holdings have live prices. "
+                    f"{unavailable_count} ticker(s) could not be fetched from Yahoo Finance — "
+                    "their values use stored cost basis only. "
+                    "Portfolio totals may be understated."
+                )
+            else:
+                note = (
+                    f"Live mode: {live_count}/{total} holdings have live prices, "
+                    f"{db_only_count} use stored database prices (Yahoo Finance unavailable for those tickers)."
+                )
+        elif portfolio_source in ("mock", ""):
+            note = (
+                f"Mock mode: all {total} holdings use simulated data generated from "
+                "a seeded Geometric Brownian Motion model. This is for development only."
+            )
+        elif portfolio_source == "uploaded":
+            note = (
+                f"Uploaded mode: {total} holdings loaded from a user-uploaded CSV. "
+                "Prices reflect the upload timestamp unless live refresh has been run."
+            )
+        else:
+            note = f"Data mode: {portfolio_source}. {total} holdings in portfolio."
+
+        return SourceMetadataCtx(
+            provider_mode     = portfolio_source or "unknown",
+            live_count        = live_count,
+            db_only_count     = db_only_count,
+            unavailable_count = unavailable_count,
+            mock_count        = mock_count,
+            total_holdings    = total,
+            data_quality_note = note,
+        )
 
     def _compute_snapshot_history(
         self,

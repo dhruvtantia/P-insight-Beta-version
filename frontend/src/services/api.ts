@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn } from '@/types'
 
 // ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
 export interface RefreshResponse {
@@ -415,6 +415,7 @@ export const advisorApi = {
     portfolioId?:         number | null,
     includeSnapshots?:    boolean,
     includeOptimization?: boolean,
+    conversationHistory?: ConversationTurn[],
   ) =>
     apiFetch<AIAdvisorResponse>('/api/v1/advisor/ask', {
       method: 'POST',
@@ -423,6 +424,8 @@ export const advisorApi = {
         portfolio_id:         portfolioId  ?? null,
         include_snapshots:    includeSnapshots    ?? true,
         include_optimization: includeOptimization ?? false,
+        // Send last 6 turns only to keep token count bounded
+        conversation_history: (conversationHistory ?? []).slice(-6),
       } satisfies AdvisorQueryRequest),
     }),
 

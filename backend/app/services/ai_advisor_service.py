@@ -36,13 +36,14 @@ from app.schemas.advisor   import (
     AdvisorQueryRequest,
     ContextSummary,
     PortfolioContextPayload,
+    SourceMetaPayload,
     SnapshotBrief,
     RecentChanges,
     HoldingBrief,
     SectorBrief,
 )
 from app.services.context_builder import PortfolioContextBuilder, PortfolioContext
-from app.services.ai.provider     import get_provider, get_provider_status, FallbackProvider, ProviderError
+from app.services.ai.provider     import get_provider, get_provider_status, FallbackProvider, ProviderError, ConversationHistory
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,58 @@ def _render_system_prompt(ctx: PortfolioContext) -> str:
             lines.append(f"  Increased qty   : {rc.increased_count}  |  Decreased qty: {rc.decreased_count}")
         lines.append("")
 
+    # Source metadata / data quality
+    if ctx.source_metadata:
+        sm = ctx.source_metadata
+        lines.append("DATA QUALITY")
+        lines.append(f"  Mode: {sm.provider_mode}")
+        lines.append(f"  {sm.data_quality_note}")
+        if sm.unavailable_count > 0:
+            lines.append(
+                f"  ⚠ {sm.unavailable_count} holding(s) have no live price — "
+                "flag this uncertainty if it materially affects the answer."
+            )
+        lines.append("")
+
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    return "\n".join(lines)
+
+
+def _render_optimization_note(ctx: PortfolioContext) -> str:
+    """
+    Produce an optimization-aware narrative section using only data that is
+    already in the context (no async optimizer call). Included in the system
+    prompt when include_optimization=True.
+    """
+    lines = ["", "OPTIMIZATION CONTEXT (inline analysis)"]
+
+    hhi = ctx.hhi
+    n   = ctx.num_holdings
+    top3 = ctx.top3_weight
+
+    # Ideal HHI for equal-weight portfolio
+    ideal_hhi = round(1 / n, 4) if n > 0 else 1.0
+    hhi_ratio = round(hhi / ideal_hhi, 2) if ideal_hhi > 0 else "N/A"
+
+    lines.append(f"  Current HHI        : {hhi:.4f}  (ideal equal-weight: {ideal_hhi:.4f}, ratio: {hhi_ratio}×)")
+    lines.append(f"  Top-3 concentration: {top3:.1f}%")
+    lines.append(f"  Effective-N        : {round(1/hhi) if hhi > 0 else 0} (portfolio acts like this many equal positions)")
+
+    if hhi > 0.25:
+        lines.append("  Signal: HIGH concentration. A Minimum-Variance optimizer would recommend spreading weight.")
+    elif hhi > 0.15:
+        lines.append("  Signal: MODERATE concentration. Max-Sharpe portfolio may shift weight toward underweighted sectors.")
+    else:
+        lines.append("  Signal: Well-diversified by weight. Optimization gains may be marginal.")
+
+    if ctx.num_sectors <= 2:
+        lines.append("  Signal: Very few sectors. Sector diversification is a higher priority than weight rebalancing.")
+    elif ctx.num_sectors >= 6:
+        lines.append("  Signal: Good sector breadth. Optimization focus should be on weight distribution, not sector addition.")
+
+    lines.append("  Note: Full efficient frontier and Max-Sharpe weights require running the /optimization/full endpoint.")
+    lines.append("")
 
     return "\n".join(lines)
 
@@ -276,6 +328,17 @@ class AIAdvisorService:
                     decreased_count = ctx.recent_changes.decreased_count,
                 ) if ctx.recent_changes else None
             ),
+            source_metadata = (
+                SourceMetaPayload(
+                    provider_mode     = ctx.source_metadata.provider_mode,
+                    live_count        = ctx.source_metadata.live_count,
+                    db_only_count     = ctx.source_metadata.db_only_count,
+                    unavailable_count = ctx.source_metadata.unavailable_count,
+                    mock_count        = ctx.source_metadata.mock_count,
+                    total_holdings    = ctx.source_metadata.total_holdings,
+                    data_quality_note = ctx.source_metadata.data_quality_note,
+                ) if ctx.source_metadata else None
+            ),
             built_at = ctx.built_at,
         )
 
@@ -326,12 +389,21 @@ class AIAdvisorService:
         provider = get_provider()
         info     = provider.get_info()
 
-        # Build system prompt + call provider
+        # Build system prompt — include optimization narrative if requested
         system_prompt = _render_system_prompt(ctx)
+        if req.include_optimization:
+            system_prompt += _render_optimization_note(ctx)
+
+        # Build conversation history for multi-turn awareness (max 6 turns)
+        history: ConversationHistory = [
+            {"role": t.role, "content": t.content}
+            for t in (req.conversation_history or [])
+        ][-6:]  # truncate to last 6 turns
+
         raw_response  = ""
 
         try:
-            raw_response = provider.complete(system_prompt, req.query)
+            raw_response = provider.complete(system_prompt, req.query, history)
         except ProviderError as e:
             logger.warning("Provider %s failed: %s", info.get("provider"), e)
             raw_response = json.dumps({

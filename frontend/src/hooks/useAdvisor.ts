@@ -32,6 +32,8 @@ import { useFundamentals }     from '@/hooks/useFundamentals'
 import { useWatchlist }        from '@/hooks/useWatchlist'
 import { useOptimization }     from '@/hooks/useOptimization'
 import { usePortfolios }       from '@/hooks/usePortfolios'
+import { useSnapshots }        from '@/hooks/useSnapshots'
+import { useDataModeStore }    from '@/store/dataModeStore'
 import { computeRiskSnapshot } from '@/lib/risk'
 import { advisorApi }          from '@/services/api'
 import {
@@ -40,7 +42,7 @@ import {
   type AdvisorResponse,
   type AdvisorEngineInput,
 } from '@/lib/advisor'
-import type { AdvisorProviderName } from '@/types'
+import type { AdvisorProviderName, ConversationTurn } from '@/types'
 
 // ─── Message types ────────────────────────────────────────────────────────────
 
@@ -80,6 +82,10 @@ interface UseAdvisorResult {
   provider:           AdvisorProviderName
   /** latency of the last AI call in ms (0 for rule-based) */
   lastLatencyMs:      number
+  /** number of saved snapshots for the active portfolio */
+  snapshotCount:      number
+  /** current data mode: 'mock' | 'live' | 'uploaded' | 'broker' */
+  dataMode:           string
 }
 
 // ─── AI response → AdvisorResponse adapter ───────────────────────────────────
@@ -119,6 +125,54 @@ function aiToAdvisorResponse(ai: AIAdvisorResponse, query: string): AdvisorRespo
   }
 }
 
+// ─── Optimization intent detector ────────────────────────────────────────────
+
+/**
+ * Returns true when the query is asking about optimization, rebalancing,
+ * or efficient frontier — signals the backend to include the optimization
+ * narrative in the system prompt.
+ */
+function isOptimizationQuery(query: string): boolean {
+  const lower = query.toLowerCase()
+  const KEYWORDS = [
+    'optimiz', 'rebalanc', 'frontier', 'sharpe', 'efficient',
+    'min variance', 'max sharpe', 'weight', 'allocat', 'reduce risk',
+    'improve return', 'how should i invest', 'what should i buy', 'sell',
+  ]
+  return KEYWORDS.some((kw) => lower.includes(kw))
+}
+
+// ─── Conversation history builder ─────────────────────────────────────────────
+
+/**
+ * Convert the ChatMessage[] (app state) into the ConversationTurn[] format
+ * the backend expects. Maps user messages and advisor AI responses only
+ * (rule-based messages are not sent — they have no backend state).
+ */
+function buildHistory(messages: ChatMessage[]): ConversationTurn[] {
+  const turns: ConversationTurn[] = []
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      turns.push({ role: 'user', content: msg.content })
+    } else if (msg.role === 'advisor' && msg.source === 'ai') {
+      // Only include AI responses (not rule-based) in the server-side history
+      const resp = msg.content
+      const assistantText = [
+        resp.summary,
+        ...resp.items.map((item) =>
+          item.type === 'insight'    ? item.explanation :
+          item.type === 'suggestion' ? item.rationale   :
+          item.type === 'warning'    ? item.detail       : ''
+        ),
+      ].filter(Boolean).join(' ')
+      if (assistantText.trim()) {
+        turns.push({ role: 'assistant', content: assistantText })
+      }
+    }
+  }
+  return turns.slice(-6) // last 6 turns
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAdvisor(): UseAdvisorResult {
@@ -128,6 +182,8 @@ export function useAdvisor(): UseAdvisorResult {
   const { items: watchlistItems }             = useWatchlist()
   const { data: optData }                     = useOptimization()
   const { activePortfolioId }                 = usePortfolios()
+  const { snapshots }                         = useSnapshots(activePortfolioId)
+  const dataMode                              = useDataModeStore((s) => s.mode)
 
   const riskSnapshot = useMemo(
     () => computeRiskSnapshot(holdings, sectors, summary),
@@ -231,11 +287,17 @@ export function useAdvisor(): UseAdvisorResult {
       try {
         if (aiEnabled) {
           // ── AI path ────────────────────────────────────────────────────────
+          // Build conversation history from prior messages for multi-turn context
+          const history = buildHistory(messages)
+          // Auto-detect whether this query needs the optimization narrative
+          const needsOptimization = isOptimizationQuery(query)
+
           const aiResp = await advisorApi.ask(
             query,
             activePortfolioId ?? null,
-            true,   // include_snapshots
-            false,  // include_optimization (expensive — skip unless query demands it)
+            true,              // include_snapshots
+            needsOptimization, // include_optimization (auto-detected from query)
+            history,           // conversation_history for multi-turn awareness
           )
 
           if (!aiResp.fallback_used && aiResp.summary) {
@@ -287,5 +349,7 @@ export function useAdvisor(): UseAdvisorResult {
     aiEnabled,
     provider,
     lastLatencyMs,
+    snapshotCount:  snapshots.length,
+    dataMode,
   }
 }

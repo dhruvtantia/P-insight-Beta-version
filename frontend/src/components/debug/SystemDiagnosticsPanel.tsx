@@ -1096,11 +1096,22 @@ function AIAdvisorSection() {
       {/* Provider status */}
       {status && (
         <SubSection label="Provider Status">
-          <KVRow label="available"   value={String(status.available)} />
+          <KVRow
+            label="available"
+            value={status.available ? '✓ yes' : '✗ no'}
+            valueClass={status.available ? 'text-emerald-600' : 'text-slate-400'}
+          />
           <KVRow label="provider"    value={status.provider} />
           <KVRow label="model"       value={status.model ?? '—'} />
+          <KVRow
+            label="fallback_mode"
+            value={status.available ? 'inactive' : 'ACTIVE (rule-based)'}
+            valueClass={status.available ? 'text-slate-400' : 'text-amber-600 font-semibold'}
+          />
           <KVRow label="ai_enabled"  value={String(status.ai_enabled)} />
-          <KVRow label="message"     value={status.message} />
+          <p className="text-[9px] text-slate-500 bg-slate-50 rounded p-2 mt-1 leading-relaxed">
+            {status.message}
+          </p>
         </SubSection>
       )}
 
@@ -1117,6 +1128,30 @@ function AIAdvisorSection() {
           <KVRow label="snapshot_count"  value={context.snapshot_count} />
           <KVRow label="has_changes"     value={String(!!context.recent_changes)} />
           <KVRow label="built_at"        value={new Date(context.built_at).toLocaleString()} />
+        </SubSection>
+      )}
+
+      {/* Source metadata / data quality */}
+      {context?.source_metadata && (
+        <SubSection label="Context Data Quality">
+          <KVRow label="provider_mode"      value={context.source_metadata.provider_mode} />
+          <KVRow
+            label="live_prices"
+            value={`${context.source_metadata.live_count} / ${context.source_metadata.total_holdings}`}
+            valueClass={context.source_metadata.live_count === context.source_metadata.total_holdings ? 'text-emerald-600' : undefined}
+          />
+          {context.source_metadata.db_only_count > 0 && (
+            <KVRow label="db_only_prices"     value={context.source_metadata.db_only_count} valueClass="text-sky-600" />
+          )}
+          {context.source_metadata.unavailable_count > 0 && (
+            <KVRow label="unavailable_prices" value={context.source_metadata.unavailable_count} valueClass="text-red-600 font-semibold" />
+          )}
+          {context.source_metadata.mock_count > 0 && (
+            <KVRow label="mock_prices"        value={context.source_metadata.mock_count} valueClass="text-indigo-600" />
+          )}
+          <p className="text-[9px] text-slate-500 bg-slate-50 rounded p-2 mt-1 leading-relaxed">
+            {context.source_metadata.data_quality_note}
+          </p>
         </SubSection>
       )}
 

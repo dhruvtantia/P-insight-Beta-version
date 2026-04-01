@@ -36,6 +36,8 @@ import {
   Zap,
   Bot,
   Clock,
+  Camera,
+  Database,
 } from 'lucide-react'
 import { useAdvisor }               from '@/hooks/useAdvisor'
 import { AdvisorChatBubble, ThinkingBubble } from '@/components/advisor/AdvisorChatBubble'
@@ -91,16 +93,37 @@ function ContextStat({
   )
 }
 
+// Data mode label helper
+function DataModeBadge({ mode }: { mode: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    live:     { label: 'Live',     cls: 'bg-emerald-100 text-emerald-700' },
+    mock:     { label: 'Mock',     cls: 'bg-indigo-100 text-indigo-600'   },
+    uploaded: { label: 'Uploaded', cls: 'bg-sky-100 text-sky-700'         },
+    broker:   { label: 'Broker',   cls: 'bg-violet-100 text-violet-700'   },
+  }
+  const { label, cls } = config[mode] ?? { label: mode, cls: 'bg-slate-100 text-slate-500' }
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold', cls)}>
+      <Database className="h-2.5 w-2.5" />
+      {label}
+    </span>
+  )
+}
+
 function ContextPanel({
   engineInput,
   loading,
   aiEnabled,
   provider,
+  snapshotCount,
+  dataMode,
 }: {
-  engineInput: ReturnType<typeof useAdvisor>['engineInput']
-  loading:     boolean
-  aiEnabled:   boolean
-  provider:    AdvisorProviderName
+  engineInput:   ReturnType<typeof useAdvisor>['engineInput']
+  loading:       boolean
+  aiEnabled:     boolean
+  provider:      AdvisorProviderName
+  snapshotCount: number
+  dataMode:      string
 }) {
   const { holdings, sectors, weightedMetrics, riskSnapshot } = engineInput
 
@@ -124,12 +147,26 @@ function ContextPanel({
 
   return (
     <div className="p-4 space-y-0">
+      {/* Data mode badge */}
+      <div className="flex items-center justify-between pb-2 mb-1 border-b border-slate-100">
+        <span className="text-[10px] text-slate-400 uppercase tracking-wide">Data source</span>
+        <DataModeBadge mode={dataMode} />
+      </div>
+
       <ContextStat
         icon={Cpu}
         label="Holdings"
         value={`${holdings.length} stocks`}
         sub={`${sectors.length} sectors`}
       />
+      {snapshotCount > 0 && (
+        <ContextStat
+          icon={Camera}
+          label="Snapshots"
+          value={`${snapshotCount} saved`}
+          sub="History available"
+        />
+      )}
       <ContextStat
         icon={Activity}
         label="Risk Profile"
@@ -326,6 +363,8 @@ function AdvisorPageInner() {
     portfolioError,
     aiEnabled,
     provider,
+    snapshotCount,
+    dataMode,
   } = useAdvisor()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -361,6 +400,8 @@ function AdvisorPageInner() {
             loading={portfolioLoading}
             aiEnabled={aiEnabled}
             provider={provider}
+            snapshotCount={snapshotCount}
+            dataMode={dataMode}
           />
         </div>
       </aside>

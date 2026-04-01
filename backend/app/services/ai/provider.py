@@ -35,6 +35,10 @@ from typing import Optional
 
 from app.core.config import settings
 
+# Conversation turn type — matches ConversationTurn schema
+# dict keys: "role" ("user"|"assistant"), "content" (str)
+ConversationHistory = list[dict[str, str]]
+
 logger = logging.getLogger(__name__)
 
 # Default model identifiers — changeable without code edits by subclassing
@@ -52,9 +56,19 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def complete(self, system_prompt: str, user_message: str) -> str:
+    def complete(
+        self,
+        system_prompt:        str,
+        user_message:         str,
+        conversation_history: Optional[ConversationHistory] = None,
+    ) -> str:
         """
-        Send a system prompt + user message to the model.
+        Send a system prompt + optional prior conversation turns + current user message.
+
+        conversation_history — list of {"role": "user"|"assistant", "content": str} dicts,
+        oldest first, max 6 turns. When provided, the LLM sees previous Q&A pairs and can
+        give coherent multi-turn responses (e.g. "As I mentioned above…").
+
         Returns the model's raw text reply.
         Raises ProviderError on failure.
         """
@@ -87,7 +101,12 @@ class ClaudeProvider(LLMProvider):
         self.api_key = api_key
         self.model   = model
 
-    def complete(self, system_prompt: str, user_message: str) -> str:
+    def complete(
+        self,
+        system_prompt:        str,
+        user_message:         str,
+        conversation_history: Optional[ConversationHistory] = None,
+    ) -> str:
         try:
             import anthropic  # soft-import
         except ImportError as e:
@@ -96,12 +115,22 @@ class ClaudeProvider(LLMProvider):
             ) from e
 
         client = anthropic.Anthropic(api_key=self.api_key)
+
+        # Build the messages array with optional prior context
+        messages: list[dict] = []
+        for turn in (conversation_history or []):
+            role = turn.get("role", "user")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user_message})
+
         try:
             msg = client.messages.create(
                 model=self.model,
                 max_tokens=MAX_TOKENS,
                 system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
+                messages=messages,
             )
             return msg.content[0].text
         except Exception as e:
@@ -128,7 +157,12 @@ class OpenAIProvider(LLMProvider):
         self.api_key = api_key
         self.model   = model
 
-    def complete(self, system_prompt: str, user_message: str) -> str:
+    def complete(
+        self,
+        system_prompt:        str,
+        user_message:         str,
+        conversation_history: Optional[ConversationHistory] = None,
+    ) -> str:
         try:
             from openai import OpenAI  # soft-import
         except ImportError as e:
@@ -137,14 +171,21 @@ class OpenAIProvider(LLMProvider):
             ) from e
 
         client = OpenAI(api_key=self.api_key)
+
+        # System message first, then history, then current user message
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        for turn in (conversation_history or []):
+            role = turn.get("role", "user")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user_message})
+
         try:
             resp = client.chat.completions.create(
                 model=self.model,
                 max_tokens=MAX_TOKENS,
-                messages=[
-                    {"role": "system",  "content": system_prompt},
-                    {"role": "user",    "content": user_message},
-                ],
+                messages=messages,
                 response_format={"type": "json_object"},
             )
             return resp.choices[0].message.content or ""
@@ -166,7 +207,12 @@ class FallbackProvider(LLMProvider):
     def __init__(self, reason: str = "No API key configured"):
         self.reason = reason
 
-    def complete(self, system_prompt: str, user_message: str) -> str:
+    def complete(
+        self,
+        system_prompt:        str,
+        user_message:         str,
+        conversation_history: Optional[ConversationHistory] = None,
+    ) -> str:
         # Return valid JSON so the parsing pipeline doesn't break
         return json.dumps({
             "summary":         "",
