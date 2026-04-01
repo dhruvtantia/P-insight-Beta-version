@@ -148,7 +148,7 @@ class OptimizerService:
             return self._error_result("No holdings available")
 
         # 2. Fetch price histories concurrently
-        price_hists = await self._fetch_all_histories(holdings, period)
+        price_hists, ticker_status = await self._fetch_all_histories(holdings, period)
 
         # 3. Build aligned price matrix
         price_df = build_price_matrix(price_hists)
@@ -271,6 +271,8 @@ class OptimizerService:
                 "period":                  period,
                 "valid_tickers":           valid_tickers,
                 "invalid_tickers":         invalid_tickers,
+                # Per-ticker history source: "yfinance" / "mock" / "unavailable"
+                "ticker_status":           ticker_status,
                 "n_observations":          n_obs,
                 "expected_returns_method": er_label,
                 "covariance_method":       cov_label,
@@ -289,23 +291,39 @@ class OptimizerService:
 
     async def _fetch_all_histories(
         self, holdings: list, period: str
-    ) -> dict[str, list[dict]]:
-        async def _fetch_one(h) -> tuple[str, list[dict]]:
+    ) -> tuple[dict[str, list[dict]], dict[str, str]]:
+        """
+        Fetch price histories concurrently.
+        Returns:
+          price_hists:   {ticker: records}  — only tickers with non-empty data
+          ticker_status: {ticker: source}   — "yfinance" / "mock" / "unavailable"
+        Tickers with no data are excluded from optimization (not substituted).
+        """
+        async def _fetch_one(h) -> tuple[str, list[dict], str]:
             try:
                 result = await self.provider.get_price_history(h.ticker, period=period)
-                data = result.get("data", [])
+                data   = result.get("data", [])
+                source = result.get("source", "unknown")
                 normalised = []
                 for row in data:
                     close = row.get("close") or row.get("Close")
                     if close is not None:
                         normalised.append({"date": row["date"], "close": float(close)})
-                return h.ticker, normalised
+                return h.ticker, normalised, source if normalised else "unavailable"
             except Exception as e:
                 logger.warning(f"Price history error for {h.ticker}: {e}")
-                return h.ticker, []
+                return h.ticker, [], "unavailable"
 
         results = await asyncio.gather(*[_fetch_one(h) for h in holdings])
-        return {ticker: data for ticker, data in results if data}
+
+        price_hists:   dict[str, list[dict]] = {}
+        ticker_status: dict[str, str]        = {}
+        for ticker, data, source in results:
+            ticker_status[ticker] = source
+            if data:
+                price_hists[ticker] = data
+
+        return price_hists, ticker_status
 
     # ── Error result ───────────────────────────────────────────────────────────
 
@@ -323,6 +341,7 @@ class OptimizerService:
                 "period":                  "1y",
                 "valid_tickers":           [],
                 "invalid_tickers":         [],
+                "ticker_status":           {},
                 "n_observations":          0,
                 "expected_returns_method": None,
                 "covariance_method":       None,

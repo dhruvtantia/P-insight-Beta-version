@@ -1,27 +1,47 @@
 """
-Efficient Frontier API Endpoints  [Phase 2 — scaffold]
--------------------------------------------------------
-Returns efficient frontier data for portfolio optimization chart.
-Phase 1: Scaffold response. Phase 2: Powered by PyPortfolioOpt.
+Efficient Frontier — Legacy Scaffold Endpoint
+----------------------------------------------
+This endpoint was a Phase 1 scaffold returning an empty response.
+
+The full efficient frontier implementation now lives at:
+  GET /api/v1/optimization/full
+
+This route is retained for backward compatibility and redirects
+callers to the correct endpoint.
 """
 
 from fastapi import APIRouter
 from app.core.dependencies import DataProvider
-from app.analytics.optimization import compute_efficient_frontier
 
 router = APIRouter(prefix="/frontier", tags=["Efficient Frontier"])
 
 
-@router.get("/", summary="Get efficient frontier data")
+@router.get("/", summary="[Deprecated] Efficient frontier — use /optimization/full instead")
 async def get_efficient_frontier(provider: DataProvider):
     """
-    Return portfolio optimization data: efficient frontier curve,
-    minimum variance portfolio, and maximum Sharpe portfolio.
-    Phase 2: Requires historical price data from Live API mode.
+    This is a deprecated scaffold endpoint.
+
+    **Use `/api/v1/optimization/full` instead.**
+
+    The full optimizer computes:
+    - Efficient frontier curve (40 points by default)
+    - Minimum variance portfolio weights
+    - Maximum Sharpe ratio portfolio weights
+    - Buy/sell rebalancing recommendations
+    - Per-ticker history status (valid/excluded)
+
+    Supports modes: mock | live
     """
-    result = compute_efficient_frontier(price_histories={})
     return {
-        **result,
-        "data_mode": provider.mode_name,
-        "message": "Efficient frontier optimization requires Phase 2 (Live API data).",
+        "scaffolded":         True,
+        "deprecated":         True,
+        "redirect_to":        "/api/v1/optimization/full",
+        "data_mode":          provider.mode_name,
+        "frontier_points":    [],
+        "min_variance_portfolio": None,
+        "max_sharpe_portfolio":   None,
+        "message": (
+            "This endpoint is a deprecated scaffold. "
+            "Use GET /api/v1/optimization/full for the complete optimizer result."
+        ),
     }

@@ -37,6 +37,8 @@ class OptimizationMeta(BaseModel):
     period:                  str
     valid_tickers:           list[str]
     invalid_tickers:         list[str]
+    # Per-ticker history source: {"TCS.NS": "yfinance", "WIPRO.NS": "unavailable"}
+    ticker_status:           dict[str, str]  = {}
     n_observations:          int
     expected_returns_method: Optional[str]
     covariance_method:       Optional[str]
@@ -44,8 +46,11 @@ class OptimizationMeta(BaseModel):
     n_frontier_points:       int
     risk_free_rate:          float
     constraints:             list[str]
+    # Library availability — determines SLSQP vs Monte Carlo fallback
+    scipy_available:         Optional[bool]  = None
+    sklearn_available:       Optional[bool]  = None
     cached:                  bool
-    error:                   Optional[str] = None
+    error:                   Optional[str]   = None
 
 
 class OptimizationFullResponse(BaseModel):

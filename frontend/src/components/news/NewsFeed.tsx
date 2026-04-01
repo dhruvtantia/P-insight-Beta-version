@@ -11,7 +11,7 @@
  */
 
 import { useMemo }                from 'react'
-import { Calendar, Inbox }        from 'lucide-react'
+import { Calendar, Inbox, WifiOff } from 'lucide-react'
 import { cn }                     from '@/lib/utils'
 import { CORPORATE_EVENT_LABELS,
          CORPORATE_EVENT_STYLES } from '@/constants'
@@ -23,9 +23,11 @@ interface Props {
   events:           CorporateEvent[]
   tickerFilter:     string | null    // active ticker chip (null = show all)
   eventTypeFilter:  NewsEventType | null
+  /** True when backend is in live mode but no news API is configured */
+  liveUnavailable?: boolean
 }
 
-export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter }: Props) {
+export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter, liveUnavailable = false }: Props) {
   // ── Client-side ticker filter ───────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = articles
@@ -51,7 +53,9 @@ export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter }: Pr
   return (
     <div className="space-y-6">
       {/* ── Articles ─────────────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {liveUnavailable ? (
+        <LiveUnavailableState />
+      ) : filtered.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-3">
@@ -140,7 +144,7 @@ function EventRow({ event }: { event: CorporateEvent }) {
   )
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
+// ─── Empty states ─────────────────────────────────────────────────────────────
 
 function EmptyState() {
   return (
@@ -148,6 +152,19 @@ function EmptyState() {
       <Inbox className="mx-auto h-8 w-8 text-slate-200 mb-2" />
       <p className="text-sm font-medium text-slate-400">No articles match this filter</p>
       <p className="text-xs text-slate-300 mt-1">Try removing a stock or event type filter.</p>
+    </div>
+  )
+}
+
+function LiveUnavailableState() {
+  return (
+    <div className="card px-6 py-10 text-center">
+      <WifiOff className="mx-auto h-8 w-8 text-amber-300 mb-2" />
+      <p className="text-sm font-medium text-slate-500">No news source configured for live mode</p>
+      <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+        Live mode is active but no NewsAPI key has been wired up yet.
+        News is only available in mock mode. Phase 2: connect a NewsAPI or yfinance news key.
+      </p>
     </div>
   )
 }

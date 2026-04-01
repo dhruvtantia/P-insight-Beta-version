@@ -722,6 +722,28 @@ function OptimizationSection() {
             {meta?.error && <ErrorRow message={meta.error} />}
           </SubSection>
 
+          {/* Per-ticker history source */}
+          {meta?.ticker_status && Object.keys(meta.ticker_status).length > 0 && (
+            <SubSection label="Ticker Data Sources (Optimizer)">
+              <div className="space-y-1">
+                {Object.entries(meta.ticker_status).map(([ticker, src]) => (
+                  <div key={ticker} className="flex items-center justify-between py-0.5">
+                    <span className="text-[10px] font-mono text-slate-600">{ticker}</span>
+                    <span className={cn(
+                      'text-[9px] font-bold rounded px-1.5 py-0.5',
+                      src === 'yfinance'    ? 'bg-emerald-50 text-emerald-700' :
+                      src === 'mock'        ? 'bg-indigo-50 text-indigo-600'   :
+                      src === 'unavailable' ? 'bg-red-50 text-red-600'         :
+                      'bg-slate-100 text-slate-500'
+                    )}>
+                      {src}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </SubSection>
+          )}
+
           {/* Portfolio points comparison */}
           {current && (
             <SubSection label="Portfolio Comparison">
@@ -1134,6 +1156,68 @@ function AIAdvisorSection() {
   )
 }
 
+// ─── Scaffolded Modules ───────────────────────────────────────────────────────
+
+function ScaffoldedModulesSection() {
+  const SCAFFOLDED = [
+    {
+      module:    'GET /api/v1/news/',
+      status:    'No news API wired',
+      detail:    'LiveAPIProvider.get_news() returns []. Phase 2: connect NewsAPI / yfinance.news key.',
+      severity:  'warn' as const,
+    },
+    {
+      module:    'GET /api/v1/news/events',
+      status:    'No corporate calendar API',
+      detail:    'LiveAPIProvider.get_events() returns []. Phase 2: connect Bloomberg or EODHD events API.',
+      severity:  'warn' as const,
+    },
+    {
+      module:    'GET /api/v1/frontier/',
+      status:    'Deprecated scaffold',
+      detail:    'Returns empty response with redirect_to=/api/v1/optimization/full. Safe to remove after clients migrate.',
+      severity:  'info' as const,
+    },
+    {
+      module:    'BrokerSyncProvider',
+      status:    'Placeholder only',
+      detail:    'get_holdings() / get_price_history() raise NotImplementedError. No broker OAuth implemented yet.',
+      severity:  'info' as const,
+    },
+  ]
+
+  return (
+    <DiagSection title="Scaffolded / Unavailable Modules" icon={Layers}>
+      <p className="text-[10px] text-slate-400 mb-2">
+        Modules intentionally not fully implemented. Live mode callers receive explicit
+        empty/unavailable responses — no silent mock fallback.
+      </p>
+      <div className="space-y-2">
+        {SCAFFOLDED.map((item) => (
+          <div
+            key={item.module}
+            className={cn(
+              'rounded-md border px-3 py-2',
+              item.severity === 'warn' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'
+            )}
+          >
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-mono font-bold text-slate-700">{item.module}</span>
+              <span className={cn(
+                'text-[9px] font-bold rounded px-1.5 py-0.5',
+                item.severity === 'warn' ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-600'
+              )}>
+                {item.status}
+              </span>
+            </div>
+            <p className="text-[9px] text-slate-500 leading-relaxed">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </DiagSection>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function SystemDiagnosticsPanel() {
@@ -1148,6 +1232,7 @@ export function SystemDiagnosticsPanel() {
       <ProviderStatusSection />
       <QuantAnalyticsSection />
       <OptimizationSection />
+      <ScaffoldedModulesSection />
       <FilterStateSection />
       <SimulationStateSection />
       <PortfolioDataSection />

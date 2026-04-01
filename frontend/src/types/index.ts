@@ -299,6 +299,26 @@ export interface NewsArticle {
   sentiment:    NewsSentiment
 }
 
+/** API response envelope from GET /api/v1/news/ */
+export interface NewsResponse {
+  articles:        NewsArticle[]
+  total:           number
+  source:          string
+  event_types:     string[]
+  /** True when mode is live and no news API is configured — show explicit message */
+  live_unavailable: boolean
+  scaffolded:      boolean
+}
+
+/** API response envelope from GET /api/v1/news/events */
+export interface EventsResponse {
+  events:          CorporateEvent[]
+  total:           number
+  source:          string
+  live_unavailable: boolean
+  scaffolded:      boolean
+}
+
 /** Upcoming corporate event — earnings date, dividend record date, AGM, etc. */
 export interface CorporateEvent {
   ticker:     string
@@ -515,6 +535,8 @@ export interface OptimizationMeta {
   period:                  string
   valid_tickers:           string[]
   invalid_tickers:         string[]
+  /** Per-ticker price-history source: "yfinance" | "mock" | "unavailable" */
+  ticker_status:           Record<string, string>
   n_observations:          number
   expected_returns_method: string | null
   covariance_method:       string | null

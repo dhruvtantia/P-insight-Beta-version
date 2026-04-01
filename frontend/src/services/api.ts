@@ -131,9 +131,14 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length)  params.set('tickers', options.tickers.join(','))
     if (options?.eventType)        params.set('event_type', options.eventType)
-    return apiFetch<{ articles: NewsArticle[]; total: number; source: string; event_types: string[] }>(
-      `/api/v1/news/?${params.toString()}`
-    )
+    return apiFetch<{
+      articles:        NewsArticle[]
+      total:           number
+      source:          string
+      event_types:     string[]
+      live_unavailable: boolean
+      scaffolded:      boolean
+    }>(`/api/v1/news/?${params.toString()}`)
   },
 
   getEvents: (
@@ -143,9 +148,13 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length) params.set('tickers', options.tickers.join(','))
     if (options?.eventType)       params.set('event_type', options.eventType)
-    return apiFetch<{ events: CorporateEvent[]; total: number; source: string }>(
-      `/api/v1/news/events?${params.toString()}`
-    )
+    return apiFetch<{
+      events:          CorporateEvent[]
+      total:           number
+      source:          string
+      live_unavailable: boolean
+      scaffolded:      boolean
+    }>(`/api/v1/news/events?${params.toString()}`)
   },
 }
 

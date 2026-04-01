@@ -101,7 +101,9 @@ async def get_live_fundamentals(
     Results are cached for 4 hours. The `from_cache` flag indicates whether this
     response was served from cache.
 
-    Falls back to mock fundamentals if Yahoo Finance returns an empty/invalid response.
+    If Yahoo Finance returns an empty or invalid response, a 404 is raised.
+    No mock fallback is used — callers receive an explicit error rather than
+    silently receiving fabricated data.
     """
     if not settings.LIVE_API_ENABLED:
         raise HTTPException(

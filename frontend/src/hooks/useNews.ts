@@ -29,20 +29,23 @@ export interface NewsFilters {
 }
 
 interface UseNewsResult {
-  articles:   NewsArticle[]
-  events:     CorporateEvent[]
-  loading:    boolean
-  error:      string | null
-  refetch:    () => void
+  articles:        NewsArticle[]
+  events:          CorporateEvent[]
+  loading:         boolean
+  error:           string | null
+  refetch:         () => void
+  /** True when backend is in live mode and no news API is configured */
+  liveUnavailable: boolean
 }
 
 export function useNews(filters?: NewsFilters): UseNewsResult {
   const mode = useDataModeStore((s) => s.mode)
 
-  const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [events,   setEvents]   = useState<CorporateEvent[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState<string | null>(null)
+  const [articles,        setArticles]        = useState<NewsArticle[]>([])
+  const [events,          setEvents]          = useState<CorporateEvent[]>([])
+  const [loading,         setLoading]         = useState(true)
+  const [error,           setError]           = useState<string | null>(null)
+  const [liveUnavailable, setLiveUnavailable] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -59,6 +62,10 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
       ])
       setArticles(newsRes.articles)
       setEvents(eventsRes.events)
+      // Signal the UI when live mode has no news source configured
+      setLiveUnavailable(
+        !!(newsRes.live_unavailable || eventsRes.live_unavailable)
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load news.')
     } finally {
@@ -70,5 +77,5 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
     fetchData()
   }, [fetchData])
 
-  return { articles, events, loading, error, refetch: fetchData }
+  return { articles, events, loading, error, refetch: fetchData, liveUnavailable }
 }
