@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload } from '@/types'
 
 // ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
 export interface RefreshResponse {
@@ -131,9 +131,14 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length)  params.set('tickers', options.tickers.join(','))
     if (options?.eventType)        params.set('event_type', options.eventType)
-    return apiFetch<{ articles: NewsArticle[]; total: number; source: string; event_types: string[] }>(
-      `/api/v1/news/?${params.toString()}`
-    )
+    return apiFetch<{
+      articles:        NewsArticle[]
+      total:           number
+      source:          string
+      event_types:     string[]
+      live_unavailable: boolean
+      scaffolded:      boolean
+    }>(`/api/v1/news/?${params.toString()}`)
   },
 
   getEvents: (
@@ -143,9 +148,13 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length) params.set('tickers', options.tickers.join(','))
     if (options?.eventType)       params.set('event_type', options.eventType)
-    return apiFetch<{ events: CorporateEvent[]; total: number; source: string }>(
-      `/api/v1/news/events?${params.toString()}`
-    )
+    return apiFetch<{
+      events:          CorporateEvent[]
+      total:           number
+      source:          string
+      live_unavailable: boolean
+      scaffolded:      boolean
+    }>(`/api/v1/news/events?${params.toString()}`)
   },
 }
 
@@ -384,6 +393,45 @@ export const brokerApi = {
       `/api/v1/brokers/${portfolioId}/connection`,
       { method: 'DELETE' }
     ),
+}
+
+// ─── AI Advisor API ───────────────────────────────────────────────────────────
+
+export const advisorApi = {
+  /**
+   * Check which AI provider is configured and whether AI is available.
+   * Frontend calls this once on mount to decide Claude vs rule-based mode.
+   */
+  status: () =>
+    apiFetch<AdvisorStatus>('/api/v1/advisor/status'),
+
+  /**
+   * Ask the AI Portfolio Copilot a question about the active portfolio.
+   * When fallback_used=true in the response, the frontend should use
+   * the local rule-based routeQuery() instead.
+   */
+  ask: (
+    query:                string,
+    portfolioId?:         number | null,
+    includeSnapshots?:    boolean,
+    includeOptimization?: boolean,
+  ) =>
+    apiFetch<AIAdvisorResponse>('/api/v1/advisor/ask', {
+      method: 'POST',
+      body: JSON.stringify({
+        query,
+        portfolio_id:         portfolioId  ?? null,
+        include_snapshots:    includeSnapshots    ?? true,
+        include_optimization: includeOptimization ?? false,
+      } satisfies AdvisorQueryRequest),
+    }),
+
+  /**
+   * Fetch the raw portfolio context that would be sent to the AI.
+   * Used by /debug to inspect context payload.
+   */
+  getContext: (portfolioId: number) =>
+    apiFetch<PortfolioContextPayload>(`/api/v1/advisor/context/${portfolioId}`),
 }
 
 // ─── Health Check ─────────────────────────────────────────────────────────────

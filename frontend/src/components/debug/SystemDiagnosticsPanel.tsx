@@ -36,7 +36,7 @@ import { useDataModeStore }      from '@/store/dataModeStore'
 import { useFilterStore }        from '@/store/filterStore'
 import { usePortfolioStore }     from '@/store/portfolioStore'
 import { computeRiskSnapshot }   from '@/lib/risk'
-import { systemApi, brokerApi }  from '@/services/api'
+import { systemApi, brokerApi, advisorApi }  from '@/services/api'
 import { cn }                    from '@/lib/utils'
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
@@ -517,6 +517,12 @@ function QuantAnalyticsSection() {
             <KVRow label="period"            value={meta?.period ?? '—'} />
             <KVRow label="data_points"       value={meta?.data_points ?? 0} />
             <KVRow label="benchmark"         value={`${meta?.benchmark_name ?? '—'} (${meta?.benchmark_ticker ?? '—'})`} />
+            <KVRow label="benchmark_source"  value={meta?.benchmark_source ?? '—'} />
+            <KVRow
+              label="benchmark_available"
+              value={String(meta?.benchmark_available ?? true)}
+              valueClass={meta?.benchmark_available === false ? 'text-red-600' : 'text-emerald-700'}
+            />
             <KVRow label="risk_free_rate"    value={`${((meta?.risk_free_rate ?? 0) * 100).toFixed(1)}%`} />
             <KVRow label="cached"            value={String(meta?.cached ?? false)} />
             {meta?.date_range && (
@@ -528,6 +534,28 @@ function QuantAnalyticsSection() {
               </p>
             )}
           </SubSection>
+
+          {/* Per-ticker data source status */}
+          {meta?.ticker_status && Object.keys(meta.ticker_status).length > 0 && (
+            <SubSection label="Ticker Data Sources">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                {Object.entries(meta.ticker_status).map(([ticker, src]) => (
+                  <div key={ticker} className="flex items-center justify-between py-0.5">
+                    <span className="font-mono text-[10px] text-slate-600">{ticker}</span>
+                    <span className={cn(
+                      'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border',
+                      src === 'yfinance'     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : src === 'mock'       ? 'bg-slate-100 text-slate-500 border-slate-200'
+                      : src === 'unavailable' ? 'bg-red-50 text-red-600 border-red-200'
+                      :                        'bg-amber-50 text-amber-700 border-amber-200'
+                    )}>
+                      {src}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </SubSection>
+          )}
 
           {/* Portfolio metrics */}
           {metrics && (
@@ -693,6 +721,28 @@ function OptimizationSection() {
             )}
             {meta?.error && <ErrorRow message={meta.error} />}
           </SubSection>
+
+          {/* Per-ticker history source */}
+          {meta?.ticker_status && Object.keys(meta.ticker_status).length > 0 && (
+            <SubSection label="Ticker Data Sources (Optimizer)">
+              <div className="space-y-1">
+                {Object.entries(meta.ticker_status).map(([ticker, src]) => (
+                  <div key={ticker} className="flex items-center justify-between py-0.5">
+                    <span className="text-[10px] font-mono text-slate-600">{ticker}</span>
+                    <span className={cn(
+                      'text-[9px] font-bold rounded px-1.5 py-0.5',
+                      src === 'yfinance'    ? 'bg-emerald-50 text-emerald-700' :
+                      src === 'mock'        ? 'bg-indigo-50 text-indigo-600'   :
+                      src === 'unavailable' ? 'bg-red-50 text-red-600'         :
+                      'bg-slate-100 text-slate-500'
+                    )}>
+                      {src}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </SubSection>
+          )}
 
           {/* Portfolio points comparison */}
           {current && (
@@ -994,6 +1044,182 @@ function BrokerConnectionsSection() {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
+// ─── AI Advisor Section ───────────────────────────────────────────────────────
+
+function AIAdvisorSection() {
+  const { activePortfolioId } = usePortfolios()
+
+  const [status,   setStatus]   = useState<import('@/types').AdvisorStatus | null>(null)
+  const [context,  setContext]  = useState<import('@/types').PortfolioContextPayload | null>(null)
+  const [lastQuery,  setLastQuery]  = useState<string>('')
+  const [lastResp,   setLastResp]   = useState<import('@/types').AIAdvisorResponse | null>(null)
+  const [loading,  setLoading]  = useState(false)
+  const [testMsg,  setTestMsg]  = useState('')
+  const [err,      setErr]      = useState<string | null>(null)
+
+  // Fetch status + context on mount / portfolio change
+  useEffect(() => {
+    setLoading(true)
+    setErr(null)
+    Promise.allSettled([
+      advisorApi.status(),
+      activePortfolioId ? advisorApi.getContext(activePortfolioId) : Promise.resolve(null),
+    ]).then(([sRes, cRes]) => {
+      if (sRes.status === 'fulfilled') setStatus(sRes.value)
+      else setErr((sRes.reason as Error)?.message ?? 'Status fetch failed')
+      if (cRes.status === 'fulfilled' && cRes.value) setContext(cRes.value as import('@/types').PortfolioContextPayload)
+    }).finally(() => setLoading(false))
+  }, [activePortfolioId])
+
+  const testQuery = async () => {
+    if (!lastQuery.trim()) return
+    setTestMsg('Sending…')
+    try {
+      const resp = await advisorApi.ask(lastQuery, activePortfolioId, true, false)
+      setLastResp(resp)
+      setTestMsg(`${resp.fallback_used ? '⚠ fallback used' : '✓ AI response'} — ${resp.latency_ms}ms`)
+    } catch (e) {
+      setTestMsg(`Error: ${(e as Error).message}`)
+    }
+  }
+
+  return (
+    <DiagSection
+      title="AI Advisor"
+      badge={loading ? '…' : err ? 'error' : status?.available ? status.provider : 'fallback'}
+      badgeOk={!err && !loading && (status?.available ?? false)}
+      icon={Wifi}
+    >
+      {loading && <p className="text-xs text-slate-400">Loading…</p>}
+      {err && <p className="text-xs text-rose-500">{err}</p>}
+
+      {/* Provider status */}
+      {status && (
+        <SubSection label="Provider Status">
+          <KVRow label="available"   value={String(status.available)} />
+          <KVRow label="provider"    value={status.provider} />
+          <KVRow label="model"       value={status.model ?? '—'} />
+          <KVRow label="ai_enabled"  value={String(status.ai_enabled)} />
+          <KVRow label="message"     value={status.message} />
+        </SubSection>
+      )}
+
+      {/* Context payload summary */}
+      {context && (
+        <SubSection label="Context Payload (last built)">
+          <KVRow label="portfolio"       value={context.portfolio_name} />
+          <KVRow label="total_value"     value={`₹${context.total_value.toLocaleString()}`} />
+          <KVRow label="num_holdings"    value={context.num_holdings} />
+          <KVRow label="sectors"         value={context.num_sectors} />
+          <KVRow label="risk_profile"    value={context.risk_profile} />
+          <KVRow label="hhi"             value={context.hhi.toFixed(4)} />
+          <KVRow label="div_score"       value={`${context.diversification_score}/100`} />
+          <KVRow label="snapshot_count"  value={context.snapshot_count} />
+          <KVRow label="has_changes"     value={String(!!context.recent_changes)} />
+          <KVRow label="built_at"        value={new Date(context.built_at).toLocaleString()} />
+        </SubSection>
+      )}
+
+      {/* Test query */}
+      <SubSection label="Test Query">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={lastQuery}
+            onChange={(e) => setLastQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && testQuery()}
+            placeholder="Type a test query…"
+            className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+          />
+          <button
+            onClick={testQuery}
+            className="text-[10px] font-semibold bg-indigo-600 text-white rounded px-2 py-1 hover:bg-indigo-700 transition-colors"
+          >
+            Ask
+          </button>
+        </div>
+        {testMsg && <p className="text-[10px] text-slate-500 mt-1">{testMsg}</p>}
+        {lastResp && (
+          <pre className="text-[10px] font-mono text-slate-600 bg-slate-50 border border-slate-100 rounded-md p-3 overflow-x-auto max-h-[180px] overflow-y-auto leading-relaxed mt-2">
+            {JSON.stringify({
+              provider:      lastResp.provider,
+              latency_ms:    lastResp.latency_ms,
+              fallback_used: lastResp.fallback_used,
+              summary:       lastResp.summary,
+              insights:      lastResp.insights.slice(0, 2),
+              recommendations: lastResp.recommendations.slice(0, 2),
+            }, null, 2)}
+          </pre>
+        )}
+      </SubSection>
+    </DiagSection>
+  )
+}
+
+// ─── Scaffolded Modules ───────────────────────────────────────────────────────
+
+function ScaffoldedModulesSection() {
+  const SCAFFOLDED = [
+    {
+      module:    'GET /api/v1/news/',
+      status:    'No news API wired',
+      detail:    'LiveAPIProvider.get_news() returns []. Phase 2: connect NewsAPI / yfinance.news key.',
+      severity:  'warn' as const,
+    },
+    {
+      module:    'GET /api/v1/news/events',
+      status:    'No corporate calendar API',
+      detail:    'LiveAPIProvider.get_events() returns []. Phase 2: connect Bloomberg or EODHD events API.',
+      severity:  'warn' as const,
+    },
+    {
+      module:    'GET /api/v1/frontier/',
+      status:    'Deprecated scaffold',
+      detail:    'Returns empty response with redirect_to=/api/v1/optimization/full. Safe to remove after clients migrate.',
+      severity:  'info' as const,
+    },
+    {
+      module:    'BrokerSyncProvider',
+      status:    'Placeholder only',
+      detail:    'get_holdings() / get_price_history() raise NotImplementedError. No broker OAuth implemented yet.',
+      severity:  'info' as const,
+    },
+  ]
+
+  return (
+    <DiagSection title="Scaffolded / Unavailable Modules" icon={Layers}>
+      <p className="text-[10px] text-slate-400 mb-2">
+        Modules intentionally not fully implemented. Live mode callers receive explicit
+        empty/unavailable responses — no silent mock fallback.
+      </p>
+      <div className="space-y-2">
+        {SCAFFOLDED.map((item) => (
+          <div
+            key={item.module}
+            className={cn(
+              'rounded-md border px-3 py-2',
+              item.severity === 'warn' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'
+            )}
+          >
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-mono font-bold text-slate-700">{item.module}</span>
+              <span className={cn(
+                'text-[9px] font-bold rounded px-1.5 py-0.5',
+                item.severity === 'warn' ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-600'
+              )}>
+                {item.status}
+              </span>
+            </div>
+            <p className="text-[9px] text-slate-500 leading-relaxed">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </DiagSection>
+  )
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
 export function SystemDiagnosticsPanel() {
   return (
     <div className="space-y-3">
@@ -1002,9 +1228,11 @@ export function SystemDiagnosticsPanel() {
       <PortfolioPersistenceSection />
       <SnapshotSection />
       <BrokerConnectionsSection />
+      <AIAdvisorSection />
       <ProviderStatusSection />
       <QuantAnalyticsSection />
       <OptimizationSection />
+      <ScaffoldedModulesSection />
       <FilterStateSection />
       <SimulationStateSection />
       <PortfolioDataSection />

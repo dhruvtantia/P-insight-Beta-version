@@ -29,21 +29,25 @@ DataMode = Literal["mock", "uploaded", "live", "broker"]
 
 
 def get_data_provider(
-    mode: DataMode = Query(default="mock", description="Data source mode")
+    db:   Annotated[Session, Depends(get_db)],
+    mode: DataMode = Query(default="mock", description="Data source mode"),
 ) -> BaseDataProvider:
     """
     Returns the appropriate data provider based on the requested mode.
     This is the central switching mechanism for the Data Mode toggle.
+
+    LiveAPIProvider receives the current db session so it can load the active
+    portfolio's holdings directly from the database instead of mock_data/.
 
     To add a new provider:
       1. Create a new class in data_providers/ implementing BaseDataProvider
       2. Add a new case here
     """
     providers: dict[str, BaseDataProvider] = {
-        "mock": MockDataProvider(),
+        "mock":     MockDataProvider(),
         "uploaded": FileDataProvider(),
-        "live": LiveAPIProvider(),
-        "broker": BrokerSyncProvider(),
+        "live":     LiveAPIProvider(db=db),   # db-backed live holdings
+        "broker":   BrokerSyncProvider(),
     }
 
     provider = providers.get(mode)
@@ -52,11 +56,10 @@ def get_data_provider(
         raise HTTPException(status_code=400, detail=f"Unknown data mode: {mode}")
 
     if not provider.is_available:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Data mode '{mode}' is not currently enabled. "
-                   f"Check feature flags in settings.",
-        )
+        detail = getattr(provider, 'unavailable_reason', None)
+        if not detail:
+            detail = f"Data mode '{mode}' is not currently enabled. Check feature flags in settings."
+        raise HTTPException(status_code=503, detail=detail)
 
     return provider
 

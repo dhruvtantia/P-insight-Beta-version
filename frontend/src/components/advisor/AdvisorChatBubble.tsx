@@ -9,6 +9,7 @@
 
 'use client'
 
+import { Zap, Bot, Clock } from 'lucide-react'
 import { AdvisorResponseCard }  from './AdvisorResponseCard'
 import type { ChatMessage }     from '@/hooks/useAdvisor'
 
@@ -78,7 +79,30 @@ export function AdvisorChatBubble({ message, onFollowUp }: AdvisorChatBubbleProp
           response={message.content}
           onFollowUp={onFollowUp}
         />
-        <span className="block text-[10px] text-slate-400 pl-1">{relTime(message.timestamp)}</span>
+        {/* Timestamp + source + latency */}
+        <div className="flex items-center gap-2 pl-1">
+          <span className="text-[10px] text-slate-400">{relTime(message.timestamp)}</span>
+          {message.source === 'ai' && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-violet-600">
+              <Zap className="h-2.5 w-2.5" />
+              {message.provider === 'claude' ? 'Claude' : message.provider ?? 'AI'}
+            </span>
+          )}
+          {message.source === 'rule-based' && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+              <Bot className="h-2.5 w-2.5" />
+              Rule-based
+            </span>
+          )}
+          {message.source === 'ai' && message.latency_ms && message.latency_ms > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+              <Clock className="h-2.5 w-2.5" />
+              {message.latency_ms < 1000
+                ? `${message.latency_ms}ms`
+                : `${(message.latency_ms / 1000).toFixed(1)}s`}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

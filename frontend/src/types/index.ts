@@ -74,7 +74,12 @@ export interface Holding {
   asset_class?: string
   currency?: string
   // Provenance — which provider sourced current_price (null = default/mock)
-  data_source?: 'live' | 'mock_fallback' | 'uploaded' | null
+  // 'live'        — yfinance returned a valid price
+  // 'db_only'     — yfinance unavailable, using DB-stored price
+  // 'unavailable' — yfinance failed and no DB price; using average_cost as fallback
+  // 'mock_fallback' — deprecated, kept for legacy mock-mode support
+  // 'uploaded'    — price came from uploaded file
+  data_source?: 'live' | 'db_only' | 'unavailable' | 'mock_fallback' | 'uploaded' | null
   // Derived (computed on frontend)
   market_value?: number
   pnl?: number
@@ -294,6 +299,26 @@ export interface NewsArticle {
   sentiment:    NewsSentiment
 }
 
+/** API response envelope from GET /api/v1/news/ */
+export interface NewsResponse {
+  articles:        NewsArticle[]
+  total:           number
+  source:          string
+  event_types:     string[]
+  /** True when mode is live and no news API is configured — show explicit message */
+  live_unavailable: boolean
+  scaffolded:      boolean
+}
+
+/** API response envelope from GET /api/v1/news/events */
+export interface EventsResponse {
+  events:          CorporateEvent[]
+  total:           number
+  source:          string
+  live_unavailable: boolean
+  scaffolded:      boolean
+}
+
 /** Upcoming corporate event — earnings date, dividend record date, AGM, etc. */
 export interface CorporateEvent {
   ticker:     string
@@ -395,18 +420,22 @@ export interface QuantDateRange {
 }
 
 export interface QuantMeta {
-  provider_mode:    string | null
-  period:           string
-  valid_tickers:    string[]
-  invalid_tickers:  string[]
-  data_points:      number
-  date_range:       QuantDateRange | null
-  benchmark_ticker: string
-  benchmark_name:   string
-  benchmark_source: string | null
-  risk_free_rate:   number
-  cached:           boolean
-  error?:           string | null
+  provider_mode:       string | null
+  period:              string
+  valid_tickers:       string[]
+  invalid_tickers:     string[]
+  /** Per-ticker data source, e.g. {"TCS.NS": "yfinance", "WIPRO.NS": "unavailable"} */
+  ticker_status:       Record<string, string>
+  data_points:         number
+  date_range:          QuantDateRange | null
+  benchmark_ticker:    string
+  benchmark_name:      string
+  benchmark_source:    string | null
+  /** False when benchmark fetch failed in live mode — beta/alpha/IR will be null */
+  benchmark_available: boolean
+  risk_free_rate:      number
+  cached:              boolean
+  error?:              string | null
 }
 
 export interface QuantFullResponse {
@@ -506,6 +535,8 @@ export interface OptimizationMeta {
   period:                  string
   valid_tickers:           string[]
   invalid_tickers:         string[]
+  /** Per-ticker price-history source: "yfinance" | "mock" | "unavailable" */
+  ticker_status:           Record<string, string>
   n_observations:          number
   expected_returns_method: string | null
   covariance_method:       string | null
@@ -715,6 +746,112 @@ export interface BrokerSyncResponse {
   last_sync_at:    string | null
   message:         string
   scaffolded:      boolean
+}
+
+// ─── AI Advisor ──────────────────────────────────────────────────────────────
+
+/** Which LLM provider is powering the advisor */
+export type AdvisorProviderName = 'claude' | 'openai' | 'none'
+
+/** Response from GET /advisor/status */
+export interface AdvisorStatus {
+  available:  boolean
+  provider:   AdvisorProviderName
+  model:      string | null
+  message:    string
+  ai_enabled: boolean
+}
+
+/** Context metadata included with each AI response */
+export interface AdvisorContextSummary {
+  holdings_count:     number
+  snapshots_count:    number
+  sectors_count:      number
+  has_recent_changes: boolean
+}
+
+/** Response from POST /advisor/ask */
+export interface AIAdvisorResponse {
+  query:            string
+  summary:          string
+  insights:         string[]
+  recommendations:  string[]
+  follow_ups:       string[]
+  category:         string
+
+  provider:         AdvisorProviderName | 'fallback'
+  model:            string | null
+  latency_ms:       number
+  fallback_used:    boolean
+  error_message:    string | null
+  context_summary:  AdvisorContextSummary | null
+}
+
+/** Request body for POST /advisor/ask */
+export interface AdvisorQueryRequest {
+  query:                string
+  portfolio_id?:        number | null
+  include_snapshots?:   boolean
+  include_optimization?: boolean
+}
+
+// Context payload types (for debug endpoint GET /advisor/context/{id})
+
+export interface HoldingBrief {
+  ticker:     string
+  name:       string
+  weight_pct: number
+  value:      number
+  pnl_pct:    number
+  sector:     string
+}
+
+export interface SectorBrief {
+  sector:       string
+  weight_pct:   number
+  num_holdings: number
+}
+
+export interface SnapshotBrief {
+  id:           number
+  label:        string | null
+  captured_at:  string
+  total_value:  number
+  num_holdings: number
+}
+
+export interface PortfolioRecentChanges {
+  days_apart:      number
+  value_delta:     number
+  value_delta_pct: number
+  added_tickers:   string[]
+  removed_tickers: string[]
+  increased_count: number
+  decreased_count: number
+}
+
+export interface PortfolioContextPayload {
+  portfolio_id:          number
+  portfolio_name:        string
+  source:                string
+  total_value:           number
+  total_cost:            number
+  total_pnl:             number
+  total_pnl_pct:         number
+  num_holdings:          number
+  top_holdings:          HoldingBrief[]
+  sector_allocation:     SectorBrief[]
+  risk_profile:          string
+  hhi:                   number
+  diversification_score: number
+  max_holding_ticker:    string
+  max_holding_weight:    number
+  top3_weight:           number
+  num_sectors:           number
+  snapshot_count:        number
+  snapshots:             SnapshotBrief[]
+  recent_changes:        PortfolioRecentChanges | null
+  built_at:              string
 }
 
 // ─── Action Center ────────────────────────────────────────────────────────────

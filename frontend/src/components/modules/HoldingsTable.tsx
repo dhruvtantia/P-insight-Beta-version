@@ -25,6 +25,7 @@ import { useRouter }                       from 'next/navigation'
 import { ArrowUp, ArrowDown, ArrowUpDown,
          X, GitCompareArrows }            from 'lucide-react'
 import { TooltipHelp }                    from '@/components/common/TooltipHelp'
+import { DataSourceBadge }                from '@/components/common/DataSourceBadge'
 import { formatCurrency, SECTOR_COLORS,
          DEFAULT_SECTOR_COLOR }           from '@/constants'
 import { cn }                             from '@/lib/utils'
@@ -299,9 +300,16 @@ export function HoldingsTable({
                       {formatCurrency(h.average_cost)}
                     </td>
 
-                    {/* Current Price */}
-                    <td className="px-4 py-3 text-xs text-slate-800 text-right tabular-nums font-medium">
-                      {h.current_price !== null ? formatCurrency(h.current_price) : <span className="text-slate-300">—</span>}
+                    {/* Current Price + data source indicator */}
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {h.data_source && (
+                          <DataSourceBadge source={h.data_source} dotOnly />
+                        )}
+                        <span className="text-xs text-slate-800 tabular-nums font-medium">
+                          {h.current_price !== null ? formatCurrency(h.current_price) : <span className="text-slate-300">—</span>}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Market Value */}

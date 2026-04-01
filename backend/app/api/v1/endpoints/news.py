@@ -1,6 +1,6 @@
 """
-News & Events API Endpoints — Phase 1
----------------------------------------
+News & Events API Endpoints — Phase 1 (Scaffold)
+-------------------------------------------------
 Returns financial news and upcoming corporate events relevant to portfolio holdings.
 
 Endpoints:
@@ -14,7 +14,13 @@ Endpoints:
     &tickers=TCS.NS,INFY.NS     (optional)
     &event_type=earnings        (optional)
 
-Phase 2: Replace MockDataProvider with live NewsAPI / Bloomberg / yfinance provider.
+Live mode behaviour:
+  LiveAPIProvider.get_news()   → always returns []  (no NewsAPI key configured)
+  LiveAPIProvider.get_events() → always returns []  (no corporate calendar API)
+  Responses include live_unavailable=True so the UI can display an explicit
+  "No news source configured for live mode" message rather than a generic empty state.
+
+Phase 2: Wire a NewsAPI / Bloomberg / yfinance.news key to LiveAPIProvider.get_news().
 """
 
 from fastapi import APIRouter, Query
@@ -74,11 +80,18 @@ async def get_news(
         event_type=event_type,
     )
 
+    is_live = provider.mode_name == "live"
+
     return {
-        "articles":   articles,
-        "total":      len(articles),
-        "source":     provider.mode_name,
-        "event_types": EVENT_TYPES,
+        "articles":        articles,
+        "total":           len(articles),
+        "source":          provider.mode_name,
+        "event_types":     EVENT_TYPES,
+        # Explicit unavailability signal — avoids silent empty-state confusion in live mode.
+        # When True, the UI should show "No news source configured for live mode"
+        # rather than "No news found".
+        "live_unavailable": is_live and len(articles) == 0,
+        "scaffolded":       is_live,
     }
 
 
@@ -111,8 +124,13 @@ async def get_events(
         event_type=event_type,
     )
 
+    is_live = provider.mode_name == "live"
+
     return {
-        "events": events,
-        "total":  len(events),
-        "source": provider.mode_name,
+        "events":          events,
+        "total":           len(events),
+        "source":          provider.mode_name,
+        # Explicit unavailability signal — same logic as /news/.
+        "live_unavailable": is_live and len(events) == 0,
+        "scaffolded":       is_live,
     }

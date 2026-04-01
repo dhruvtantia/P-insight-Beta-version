@@ -21,9 +21,7 @@ Design principles:
 
 from __future__ import annotations
 
-import json
 import logging
-import math
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Optional
@@ -336,23 +334,13 @@ class PortfolioContextBuilder:
         snap_old: Snapshot,
     ) -> Optional[RecentChangesCtx]:
         """
-        Lightweight delta between two snapshots using their holdings_json.
-        Returns None if JSON is unavailable.
+        Lightweight delta between two snapshots using their SnapshotHolding records.
+        Falls back to value-only comparison if holding records are empty.
         """
         try:
-            new_holdings_raw = snap_new.holdings_json
-            old_holdings_raw = snap_old.holdings_json
-
-            # holdings_json might not exist in older snapshots
-            if not new_holdings_raw or not old_holdings_raw:
-                return None
-
-            new_h: dict[str, dict] = {
-                h["ticker"]: h for h in json.loads(new_holdings_raw)
-            }
-            old_h: dict[str, dict] = {
-                h["ticker"]: h for h in json.loads(old_holdings_raw)
-            }
+            # Build ticker → SnapshotHolding maps from the selectin-loaded relationships
+            new_h: dict[str, object] = {h.ticker: h for h in (snap_new.holdings or [])}
+            old_h: dict[str, object] = {h.ticker: h for h in (snap_old.holdings or [])}
 
             added   = sorted(set(new_h) - set(old_h))
             removed = sorted(set(old_h) - set(new_h))
@@ -361,23 +349,23 @@ class PortfolioContextBuilder:
             decreased = 0
             common    = set(new_h) & set(old_h)
             for ticker in common:
-                new_qty = new_h[ticker].get("quantity", 0)
-                old_qty = old_h[ticker].get("quantity", 0)
+                new_qty = getattr(new_h[ticker], "quantity", 0) or 0
+                old_qty = getattr(old_h[ticker], "quantity", 0) or 0
                 if new_qty > old_qty:
                     increased += 1
                 elif new_qty < old_qty:
                     decreased += 1
 
-            val_new    = float(snap_new.total_value or 0)
-            val_old    = float(snap_old.total_value or 0)
-            val_delta  = val_new - val_old
+            val_new       = float(snap_new.total_value or 0)
+            val_old       = float(snap_old.total_value or 0)
+            val_delta     = val_new - val_old
             val_delta_pct = (val_delta / val_old * 100) if val_old > 0 else 0.0
 
             # Days apart
             days = 0
             if snap_new.captured_at and snap_old.captured_at:
-                diff  = snap_new.captured_at - snap_old.captured_at
-                days  = max(0, diff.days)
+                diff = snap_new.captured_at - snap_old.captured_at
+                days = max(0, diff.days)
 
             return RecentChangesCtx(
                 days_apart      = days,

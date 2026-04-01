@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     news,
     frontier,
     ai_chat,
+    advisor,
     live,
     quant,
     optimization,
@@ -33,6 +34,7 @@ api_router.include_router(peers.router)
 api_router.include_router(news.router)
 api_router.include_router(frontier.router)
 api_router.include_router(ai_chat.router)
+api_router.include_router(advisor.router)
 api_router.include_router(live.router)
 api_router.include_router(quant.router)
 api_router.include_router(optimization.router)

@@ -45,7 +45,7 @@ export default function NewsPage() {
   // ── News data ─────────────────────────────────────────────────────────────
   // We only pass eventType to the API (server-side filter).
   // Ticker is filtered client-side for instant chip switching.
-  const { articles, events, loading, error, refetch } = useNews({
+  const { articles, events, loading, error, refetch, liveUnavailable } = useNews({
     eventType: eventTypeFilter ?? undefined,
   })
 
@@ -151,6 +151,7 @@ export default function NewsPage() {
           events={events}
           tickerFilter={tickerFilter}
           eventTypeFilter={eventTypeFilter}
+          liveUnavailable={liveUnavailable}
         />
       )}
     </div>

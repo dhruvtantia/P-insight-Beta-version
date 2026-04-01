@@ -3,8 +3,12 @@ Benchmark Data Provider — NIFTY 50 (^NSEI)
 -------------------------------------------
 Fetches or generates benchmark price history for risk-relative metrics.
 
-Live mode:  yfinance → ^NSEI (NIFTY 50 index)
+Live mode:  yfinance → ^NSEI (NIFTY 50 index).
+            Returns source="unavailable" with empty data[] on any failure —
+            never silently substitutes mock/synthetic data in live mode.
+
 Mock mode:  Synthetic GBM series, seeded for reproducibility.
+            Only ever called when mode=="mock".
 
 Cache: in-process, 1-hour TTL for live data.
 """
@@ -22,10 +26,10 @@ BENCHMARK_NAME   = "NIFTY 50"
 BENCHMARK_TTL    = 3_600.0   # 1 hour
 
 # Mock parameters (calibrated to realistic NIFTY 50 long-run stats)
-NIFTY_DRIFT        = 0.13 / 252       # ~13% annualised return
-NIFTY_SIGMA        = 0.175 / (252**0.5)  # ~17.5% annualised volatility
-NIFTY_BASE_PRICE   = 19_500.0         # approximate recent NIFTY level
-NIFTY_MOCK_SEED    = 20_240           # fixed seed for reproducibility
+NIFTY_DRIFT       = 0.13 / 252            # ~13% annualised return
+NIFTY_SIGMA       = 0.175 / (252 ** 0.5)  # ~17.5% annualised volatility
+NIFTY_BASE_PRICE  = 19_500.0              # approximate recent NIFTY level
+NIFTY_MOCK_SEED   = 20_240                # fixed seed for reproducibility
 
 _CACHE: dict[str, tuple[dict, float]] = {}
 
@@ -41,17 +45,17 @@ def _to_cache(key: str, data: dict) -> None:
     _CACHE[key] = (data, time.time())
 
 
-# ─── Mock benchmark ───────────────────────────────────────────────────────────
+# ─── Mock benchmark (mock mode only) ─────────────────────────────────────────
 
 def generate_mock_benchmark(period: str = "1y") -> dict:
     """
     Deterministic synthetic NIFTY 50 series using GBM.
-    Seeded → same data on every call. Suitable for reproducible mock analytics.
+    Seeded → same data on every call. Used only in mock mode.
+    Never called from fetch_benchmark_live().
     """
     n_target = {"1y": 252, "6mo": 126, "3mo": 63, "2y": 504}.get(period, 252)
     rng = np.random.default_rng(seed=NIFTY_MOCK_SEED)
 
-    # Generate enough calendar days to find n_target trading days
     today = date.today()
     records = []
     price = NIFTY_BASE_PRICE
@@ -61,14 +65,14 @@ def generate_mock_benchmark(period: str = "1y") -> dict:
     while day_count < n_target:
         cal_day += 1
         d = today - timedelta(days=(n_target * 2) - cal_day)
-        if d > today or d.weekday() >= 5:   # skip weekends and future dates
+        if d > today or d.weekday() >= 5:
             continue
         ret = rng.normal(NIFTY_DRIFT, NIFTY_SIGMA)
         price = price * (1 + ret)
         records.append({"date": d.isoformat(), "close": round(float(price), 2)})
         day_count += 1
 
-    # Scale so the last point is near NIFTY_BASE_PRICE (anchors mock to known level)
+    # Scale so the last point is near NIFTY_BASE_PRICE
     if records:
         scale = NIFTY_BASE_PRICE / records[-1]["close"]
         for r in records:
@@ -88,7 +92,8 @@ def generate_mock_benchmark(period: str = "1y") -> dict:
 def fetch_benchmark_live(period: str = "1y") -> dict:
     """
     Fetch NIFTY 50 history from Yahoo Finance.
-    Falls back to mock on any error.
+    Returns source="unavailable" with empty data[] on any failure — does NOT
+    fall back to synthetic / mock data.
     """
     cache_key = f"{BENCHMARK_TICKER}_{period}"
     cached = _from_cache(cache_key)
@@ -122,16 +127,31 @@ def fetch_benchmark_live(period: str = "1y") -> dict:
         return result
 
     except ImportError:
-        logger.warning("yfinance not installed — using mock benchmark")
-        return generate_mock_benchmark(period)
+        logger.warning("yfinance not installed — benchmark unavailable in live mode")
+        return {
+            "ticker": BENCHMARK_TICKER,
+            "name":   BENCHMARK_NAME,
+            "period": period,
+            "data":   [],
+            "source": "unavailable",
+            "error":  "yfinance not installed",
+        }
     except Exception as e:
-        logger.warning(f"Benchmark fetch failed ({e}) — using mock benchmark")
-        return generate_mock_benchmark(period)
+        logger.warning(f"Benchmark fetch failed ({e}) — benchmark unavailable in live mode")
+        return {
+            "ticker": BENCHMARK_TICKER,
+            "name":   BENCHMARK_NAME,
+            "period": period,
+            "data":   [],
+            "source": "unavailable",
+            "error":  str(e),
+        }
 
 
 def get_benchmark(mode: str = "mock", period: str = "1y") -> dict:
     """
     Public entry point. Routes to live or mock based on provider mode.
+    In live mode, failure means source="unavailable" — never mock.
     """
     if mode == "live":
         return fetch_benchmark_live(period)
