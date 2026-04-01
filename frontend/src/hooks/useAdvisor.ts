@@ -1,38 +1,46 @@
 /**
- * useAdvisor — aggregates all portfolio data and manages advisor chat state
- * --------------------------------------------------------------------------
+ * useAdvisor — AI-aware portfolio advisor hook
+ * ---------------------------------------------
  *
- * Data pipeline:
+ * Data pipeline (unchanged from rule-based version):
  *   usePortfolio  → holdings, sectors, summary
  *   useFundamentals(holdings)  → enrichedHoldings, weightedMetrics
  *   useWatchlist  → watchlistItems
  *   computeRiskSnapshot  → riskSnapshot (derived, no API)
  *
- * Chat state:
- *   messages[]  — AdvisorChatMessage[] (user text | advisor AdvisorResponse)
- *   isThinking  — brief 400ms simulated "thinking" for better UX
- *   sendQuery() — adds user message, calls routeQuery(), appends response
+ * AI integration (new):
+ *   On mount → GET /advisor/status → sets aiEnabled + provider name
+ *   sendQuery:
+ *     If AI available  → POST /advisor/ask → parse AIAdvisorResponse
+ *                        → convert to AdvisorResponse for existing UI
+ *     If AI unavailable or fallback_used → local routeQuery() (unchanged)
  *
- * Future AI integration:
- *   Replace routeQuery(query, engineInput) with:
- *     await claudeApi.ask(query, engineInput)   ← same AdvisorResponse type
- *   Zero changes to this hook or any UI component.
+ * Zero UI changes required: AdvisorChatBubble + advisor/page.tsx consume
+ * the same AdvisorResponse type regardless of AI vs rule-based path.
+ *
+ * New public fields:
+ *   aiEnabled    — true when an LLM provider is configured
+ *   provider     — 'claude' | 'openai' | 'none'
+ *   lastLatencyMs — latency of the last AI call (0 for rule-based)
  */
 
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import { usePortfolio }              from '@/hooks/usePortfolio'
-import { useFundamentals }           from '@/hooks/useFundamentals'
-import { useWatchlist }              from '@/hooks/useWatchlist'
-import { useOptimization }           from '@/hooks/useOptimization'
-import { computeRiskSnapshot }       from '@/lib/risk'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { usePortfolio }        from '@/hooks/usePortfolio'
+import { useFundamentals }     from '@/hooks/useFundamentals'
+import { useWatchlist }        from '@/hooks/useWatchlist'
+import { useOptimization }     from '@/hooks/useOptimization'
+import { usePortfolios }       from '@/hooks/usePortfolios'
+import { computeRiskSnapshot } from '@/lib/risk'
+import { advisorApi }          from '@/services/api'
 import {
   routeQuery,
   getSuggestedQuestions,
   type AdvisorResponse,
   type AdvisorEngineInput,
 } from '@/lib/advisor'
+import type { AdvisorProviderName } from '@/types'
 
 // ─── Message types ────────────────────────────────────────────────────────────
 
@@ -43,9 +51,13 @@ export interface UserChatMessage {
 }
 
 export interface AdvisorChatMessage {
-  role:      'advisor'
-  content:   AdvisorResponse
-  timestamp: string
+  role:        'advisor'
+  content:     AdvisorResponse
+  timestamp:   string
+  /** Which path generated this response */
+  source:      'ai' | 'rule-based'
+  latency_ms?: number
+  provider?:   string
 }
 
 export type ChatMessage = UserChatMessage | AdvisorChatMessage
@@ -59,9 +71,52 @@ interface UseAdvisorResult {
   clearMessages:      () => void
   suggestedQuestions: string[]
   engineInput:        AdvisorEngineInput
-  ready:              boolean   // false while portfolio is still loading
+  ready:              boolean
   portfolioLoading:   boolean
   portfolioError:     string | null
+  /** true when an LLM API key is configured on the backend */
+  aiEnabled:          boolean
+  /** which provider is active: 'claude' | 'openai' | 'none' */
+  provider:           AdvisorProviderName
+  /** latency of the last AI call in ms (0 for rule-based) */
+  lastLatencyMs:      number
+}
+
+// ─── AI response → AdvisorResponse adapter ───────────────────────────────────
+
+import type { AIAdvisorResponse } from '@/types'
+
+function aiToAdvisorResponse(ai: AIAdvisorResponse, query: string): AdvisorResponse {
+  /**
+   * Convert the flat AIAdvisorResponse (summary + string arrays) into the
+   * structured AdvisorResponse used by AdvisorChatBubble.
+   */
+  const cat = (ai.category ?? 'general') as AdvisorResponse['category']
+
+  const items: AdvisorResponse['items'] = [
+    ...ai.insights.map((text) => ({
+      type:        'insight'  as const,
+      category:    cat,
+      title:       text.length > 90 ? text.slice(0, 90) + '…' : text,
+      explanation: text,
+      confidence:  'high'     as const,
+    })),
+    ...ai.recommendations.map((text) => ({
+      type:      'suggestion' as const,
+      category:  cat,
+      action:    text.length > 90 ? text.slice(0, 90) + '…' : text,
+      rationale: text,
+      priority:  'medium'    as const,
+    })),
+  ]
+
+  return {
+    query,
+    category:  cat,
+    summary:   ai.summary || 'No summary available.',
+    items,
+    followUps: ai.follow_ups ?? [],
+  }
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -69,9 +124,10 @@ interface UseAdvisorResult {
 export function useAdvisor(): UseAdvisorResult {
   // ── Data sources ────────────────────────────────────────────────────────────
   const { holdings, sectors, summary, loading: portfolioLoading, error: portfolioError } = usePortfolio()
-  const { enrichedHoldings, weightedMetrics }  = useFundamentals(holdings)
-  const { items: watchlistItems }               = useWatchlist()
-  const { data: optData }                       = useOptimization()
+  const { enrichedHoldings, weightedMetrics } = useFundamentals(holdings)
+  const { items: watchlistItems }             = useWatchlist()
+  const { data: optData }                     = useOptimization()
+  const { activePortfolioId }                 = usePortfolios()
 
   const riskSnapshot = useMemo(
     () => computeRiskSnapshot(holdings, sectors, summary),
@@ -96,8 +152,8 @@ export function useAdvisor(): UseAdvisorResult {
             weight: +(w * 100).toFixed(1),
           })),
       },
-      minVariance: mv ? { volatility: mv.volatility, sharpeRatio: mv.sharpe_ratio } : null,
-      currentSharpe:    cur?.sharpe_ratio ?? null,
+      minVariance:      mv  ? { volatility: mv.volatility, sharpeRatio: mv.sharpe_ratio } : null,
+      currentSharpe:    cur ? cur.sharpe_ratio : null,
       rebalanceActions: optData.rebalance?.length ?? 0,
       period:           optData.meta?.period,
     }
@@ -116,16 +172,37 @@ export function useAdvisor(): UseAdvisorResult {
     [holdings, enrichedHoldings, sectors, weightedMetrics, riskSnapshot, watchlistItems, optimizationSummary],
   )
 
+  // ── AI provider state ─────────────────────────────────────────────────────
+  const [aiEnabled,     setAiEnabled]     = useState(false)
+  const [provider,      setProvider]      = useState<AdvisorProviderName>('none')
+  const [lastLatencyMs, setLastLatencyMs] = useState(0)
+  const statusFetched = useRef(false)
+
+  useEffect(() => {
+    if (statusFetched.current) return
+    statusFetched.current = true
+
+    advisorApi.status()
+      .then((s) => {
+        setAiEnabled(s.available)
+        setProvider(s.provider)
+      })
+      .catch(() => {
+        // Backend unreachable or error — silently stay rule-based
+        setAiEnabled(false)
+        setProvider('none')
+      })
+  }, [])
+
   // ── Chat state ──────────────────────────────────────────────────────────────
-  const [messages,    setMessages]    = useState<ChatMessage[]>([])
-  const [isThinking,  setIsThinking]  = useState(false)
+  const [messages,   setMessages]   = useState<ChatMessage[]>([])
+  const [isThinking, setIsThinking] = useState(false)
 
   // ── Send query ──────────────────────────────────────────────────────────────
   const sendQuery = useCallback(
-    (query: string) => {
+    async (query: string) => {
       if (!query.trim() || isThinking) return
 
-      // Append user message immediately
       const userMsg: UserChatMessage = {
         role:      'user',
         content:   query.trim(),
@@ -134,25 +211,64 @@ export function useAdvisor(): UseAdvisorResult {
       setMessages((prev) => [...prev, userMsg])
       setIsThinking(true)
 
-      // Brief artificial delay so the UI feels responsive rather than instant
-      // Replace this setTimeout with: const response = await claudeApi.ask(...)
-      setTimeout(() => {
-        const response = routeQuery(query, engineInput)
-        const advisorMsg: AdvisorChatMessage = {
-          role:      'advisor',
-          content:   response,
-          timestamp: new Date().toISOString(),
+      const appendAdvisor = (
+        response:   AdvisorResponse,
+        source:     'ai' | 'rule-based',
+        latencyMs?: number,
+        prov?:      string,
+      ) => {
+        const msg: AdvisorChatMessage = {
+          role:       'advisor',
+          content:    response,
+          timestamp:  new Date().toISOString(),
+          source,
+          latency_ms: latencyMs,
+          provider:   prov,
         }
-        setMessages((prev) => [...prev, advisorMsg])
+        setMessages((prev) => [...prev, msg])
+      }
+
+      try {
+        if (aiEnabled) {
+          // ── AI path ────────────────────────────────────────────────────────
+          const aiResp = await advisorApi.ask(
+            query,
+            activePortfolioId ?? null,
+            true,   // include_snapshots
+            false,  // include_optimization (expensive — skip unless query demands it)
+          )
+
+          if (!aiResp.fallback_used && aiResp.summary) {
+            setLastLatencyMs(aiResp.latency_ms)
+            appendAdvisor(
+              aiToAdvisorResponse(aiResp, query),
+              'ai',
+              aiResp.latency_ms,
+              aiResp.provider,
+            )
+            setIsThinking(false)
+            return
+          }
+          // fallback_used=true or empty summary → fall through to rule-based
+        }
+
+        // ── Rule-based path (always available, zero dependencies) ─────────────
+        await new Promise<void>((res) => setTimeout(res, 380))
+        appendAdvisor(routeQuery(query, engineInput), 'rule-based')
+      } catch (err) {
+        // Any unexpected error → rule-based safety net
+        console.warn('[useAdvisor] AI path failed, falling back:', err)
+        appendAdvisor(routeQuery(query, engineInput), 'rule-based')
+      } finally {
         setIsThinking(false)
-      }, 420)
+      }
     },
-    [engineInput, isThinking],
+    [aiEnabled, activePortfolioId, engineInput, isThinking],
   )
 
   const clearMessages = useCallback(() => setMessages([]), [])
 
-  // ── Suggested questions (context-aware) ─────────────────────────────────────
+  // ── Suggested questions ──────────────────────────────────────────────────────
   const suggestedQuestions = useMemo(
     () => getSuggestedQuestions(engineInput),
     [engineInput],
@@ -168,5 +284,8 @@ export function useAdvisor(): UseAdvisorResult {
     ready:          !portfolioLoading && holdings.length > 0,
     portfolioLoading,
     portfolioError,
+    aiEnabled,
+    provider,
+    lastLatencyMs,
   }
 }

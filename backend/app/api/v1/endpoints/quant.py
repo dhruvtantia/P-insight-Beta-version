@@ -135,13 +135,24 @@ def _to_response(raw: dict) -> QuantFullResponse:
     ]
 
     # ── meta ──────────────────────────────────────────────────────────────────
-    meta_raw  = raw.get("meta", {})
-    dr_raw    = meta_raw.get("date_range")
+    meta_raw   = raw.get("meta", {})
+    dr_raw     = meta_raw.get("date_range")
     date_range = DateRange(**dr_raw) if isinstance(dr_raw, dict) else None
-    meta = QuantMeta(
-        **{k: meta_raw.get(k) for k in QuantMeta.model_fields if k != "date_range"},
-        date_range=date_range,
-    )
+
+    # Build kwargs: use field default when the key is absent from meta_raw
+    # (important for new fields like ticker_status/benchmark_available
+    #  that may be absent from older cached entries)
+    from pydantic.fields import FieldInfo
+    meta_kwargs: dict = {}
+    for k, field_info in QuantMeta.model_fields.items():
+        if k == "date_range":
+            continue
+        raw_val = meta_raw.get(k)
+        if raw_val is None and field_info.default is not None:
+            raw_val = field_info.default
+        meta_kwargs[k] = raw_val
+
+    meta = QuantMeta(**meta_kwargs, date_range=date_range)
 
     return QuantFullResponse(
         metrics      = MetricsBlock(portfolio=portfolio_metrics, benchmark=benchmark_metrics),

@@ -18,8 +18,15 @@ ENV/
 *.db
 *.sqlite3
 
-# Poetry
-poetry.lock
+# Python tooling / testing
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
 
 # Node / Next.js
 node_modules/

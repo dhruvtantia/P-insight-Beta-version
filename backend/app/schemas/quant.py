@@ -81,18 +81,22 @@ class DateRange(BaseModel):
 # ─── Meta block ──────────────────────────────────────────────────────────────
 
 class QuantMeta(BaseModel):
-    provider_mode:    Optional[str]          = None
-    period:           str                    = "1y"
-    valid_tickers:    list[str]              = []
-    invalid_tickers:  list[str]              = []
-    data_points:      int                    = 0
-    date_range:       Optional[DateRange]    = None
-    benchmark_ticker: str                    = "^NSEI"
-    benchmark_name:   str                    = "NIFTY 50"
-    benchmark_source: Optional[str]          = None
-    risk_free_rate:   float                  = 0.065
-    cached:           bool                   = False
-    error:            Optional[str]          = None
+    provider_mode:       Optional[str]             = None
+    period:              str                       = "1y"
+    valid_tickers:       list[str]                 = []
+    invalid_tickers:     list[str]                 = []
+    # per-ticker data source: e.g. {"TCS.NS": "yfinance", "WIPRO.NS": "unavailable"}
+    ticker_status:       dict[str, str]            = {}
+    data_points:         int                       = 0
+    date_range:          Optional[DateRange]       = None
+    benchmark_ticker:    str                       = "^NSEI"
+    benchmark_name:      str                       = "NIFTY 50"
+    benchmark_source:    Optional[str]             = None
+    # False when benchmark fetch failed in live mode (beta/alpha/IR will be null)
+    benchmark_available: bool                      = True
+    risk_free_rate:      float                     = 0.065
+    cached:              bool                      = False
+    error:               Optional[str]             = None
 
 
 # ─── Full response ────────────────────────────────────────────────────────────
