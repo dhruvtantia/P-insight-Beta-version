@@ -9,65 +9,104 @@ import {
   GitCompare,
   PieChart,
   Activity,
-  TrendingUp,
   Star,
   Users,
   Newspaper,
-  Bot,
+  MessageCircle,
   BarChart3,
   BarChart2,
   Bug,
-  MessageCircle,
-  GitFork,
   Upload,
-  Wifi,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  label: string
+  href:  string
+  Icon:  React.ElementType
+  /** Short badge rendered inline after the label. Use "BETA" or "SCAFFOLD". */
+  badge?: 'BETA' | 'SCAFFOLD'
+}
+
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
 // ─── Navigation groups ────────────────────────────────────────────────────────
+//
+//  Primary workflow (reliable in uploaded/live mode):
+//    Dashboard → Holdings → Fundamentals → Risk → Peer Compare
+//  Data management:
+//    Portfolios, Upload, What Changed, Watchlist
+//  Explore (mostly functional):
+//    Sectors, News & Events (mock in non-live), Advisor (rule-based or AI)
+//  Labs (BETA / experimental — clearly labelled):
+//    Optimizer, Simulator, Brokers
+//
+//  Not in nav (scaffold): AI Chat (/ai-chat), Efficient Frontier (/frontier)
 
-const NAV_GROUPS = [
+const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Overview',
+    // Core daily workflow — all items reliable in uploaded/live mode
+    label: 'Portfolio',
     items: [
-      { label: 'Dashboard',   href: '/dashboard',   Icon: LayoutDashboard },
-      { label: 'Holdings',    href: '/holdings',    Icon: Briefcase       },
-      { label: 'Portfolios',   href: '/portfolios',  Icon: FolderOpen      },
-      { label: 'What Changed', href: '/changes',    Icon: GitCompare      },
-      { label: 'Upload',       href: '/upload',     Icon: Upload          },
-      { label: 'Brokers',      href: '/brokers',    Icon: Wifi            },
+      { label: 'Dashboard',    href: '/dashboard',    Icon: LayoutDashboard },
+      { label: 'Holdings',     href: '/holdings',     Icon: Briefcase       },
+      { label: 'Fundamentals', href: '/fundamentals', Icon: BarChart2       },
+      { label: 'Risk',         href: '/risk',         Icon: Activity        },
+      { label: 'Peer Compare', href: '/peers',        Icon: Users           },
     ],
   },
   {
-    label: 'Analysis',
+    // Portfolio management
+    label: 'Manage',
     items: [
-      { label: 'Sectors',        href: '/sectors',      Icon: PieChart   },
-      { label: 'Risk',           href: '/risk',          Icon: Activity   },
-      { label: 'Optimize',       href: '/optimize',      Icon: TrendingUp },
-      { label: 'Fundamentals',   href: '/fundamentals',  Icon: BarChart2  },
+      { label: 'Portfolios',   href: '/portfolios', Icon: FolderOpen },
+      { label: 'Upload',       href: '/upload',     Icon: Upload     },
+      { label: 'What Changed', href: '/changes',    Icon: GitCompare },
+      { label: 'Watchlist',    href: '/watchlist',  Icon: Star       },
     ],
   },
   {
-    label: 'Research',
+    // Explore — functional but not always live-data backed
+    label: 'Explore',
     items: [
-      { label: 'Watchlist',     href: '/watchlist', Icon: Star      },
-      { label: 'Peer Compare',  href: '/peers',     Icon: Users     },
-      { label: 'News & Events', href: '/news',      Icon: Newspaper },
+      { label: 'Sectors',       href: '/sectors',  Icon: PieChart       },
+      { label: 'News & Events', href: '/news',     Icon: Newspaper      },
+      { label: 'Advisor',       href: '/advisor',  Icon: MessageCircle  },
     ],
   },
-  {
-    label: 'Intelligence',
-    items: [
-      { label: 'Advisor',    href: '/advisor',   Icon: MessageCircle },
-      { label: 'Simulator',  href: '/simulate',  Icon: GitFork       },
-      { label: 'AI Chat',    href: '/ai-chat',   Icon: Bot           },
-    ],
-  },
-] as const
+  // Labs (Optimizer /optimize, Simulator /simulate, Brokers /brokers,
+  //       Efficient Frontier /frontier) are intentionally hidden from the main
+  //       navigation until they are stable.  The route code is NOT deleted —
+  //       navigate directly by URL if you need to test them.
+]
 
-const DEV_ITEMS = [
+const DEV_ITEMS: NavItem[] = [
   { label: 'Diagnostics', href: '/debug', Icon: Bug },
-] as const
+]
+
+// ─── Badge component ──────────────────────────────────────────────────────────
+
+function NavBadge({ type }: { type: 'BETA' | 'SCAFFOLD' }) {
+  const styles =
+    type === 'BETA'
+      ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+      : 'bg-slate-600/40 text-slate-400 border-slate-600/40'
+  return (
+    <span
+      className={cn(
+        'ml-auto shrink-0 rounded px-1 py-px text-[8px] font-bold uppercase tracking-wider border leading-tight',
+        styles
+      )}
+    >
+      {type}
+    </span>
+  )
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -79,7 +118,7 @@ interface SidebarProps {
 export function Sidebar({ width }: SidebarProps) {
   const pathname = usePathname()
 
-  const renderLink = (href: string, label: string, Icon: React.ElementType) => {
+  const renderLink = ({ href, label, Icon, badge }: NavItem) => {
     const isActive = pathname === href || pathname.startsWith(href + '/')
     return (
       <li key={href}>
@@ -98,7 +137,8 @@ export function Sidebar({ width }: SidebarProps) {
               isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'
             )}
           />
-          <span className="truncate">{label}</span>
+          <span className="truncate flex-1">{label}</span>
+          {badge && <NavBadge type={badge} />}
         </Link>
       </li>
     )
@@ -130,7 +170,7 @@ export function Sidebar({ width }: SidebarProps) {
               {group.label}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map(({ label, href, Icon }) => renderLink(href, label, Icon))}
+              {group.items.map((item) => renderLink(item))}
             </ul>
           </div>
         ))}
@@ -141,7 +181,7 @@ export function Sidebar({ width }: SidebarProps) {
             Developer
           </p>
           <ul className="space-y-0.5">
-            {DEV_ITEMS.map(({ label, href, Icon }) => renderLink(href, label, Icon))}
+            {DEV_ITEMS.map((item) => renderLink(item))}
           </ul>
         </div>
       </nav>
@@ -149,7 +189,7 @@ export function Sidebar({ width }: SidebarProps) {
       {/* Footer */}
       <div className="border-t border-slate-800 px-4 py-3 shrink-0">
         <p className="text-[10px] text-slate-600 text-center">
-          P-Insight v0.5 · Broker Sync
+          P-Insight v0.5 · Portfolio Analytics
         </p>
       </div>
     </aside>

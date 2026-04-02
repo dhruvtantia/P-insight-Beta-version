@@ -7,11 +7,15 @@ Used as the default mode for local development and demos.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
 from app.data_providers.base import BaseDataProvider
 from app.schemas.portfolio import HoldingBase
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 MOCK_DATA_PATH = Path(__file__).parent.parent.parent / "mock_data"
 
@@ -166,45 +170,15 @@ class MockDataProvider(BaseDataProvider):
         event_type: Optional[str] = None,
     ) -> list[dict]:
         """
-        Return news articles filtered by ticker list and optional event_type.
-
-        Filtering logic:
-          - If tickers is non-empty, only articles whose 'tickers' list overlaps
-            with the requested tickers list are returned.
-          - If event_type is provided, only articles of that type are returned.
-          - Articles are returned newest-first (by published_at).
+        Returns real news from NewsAPI when NEWS_API_KEY is configured.
+        Returns an empty list when the key is absent — no fake articles are shown.
         """
-        data = self._load_portfolio()
-        news: list[dict] = data.get("news", [])
-
-        ticker_set = set(t.upper() for t in tickers) if tickers else set()
-
-        # Ensure all articles have the new fields (backward-compat for old data)
-        normalised: list[dict] = []
-        for item in news:
-            normalised.append({
-                "event_type": "company_update",
-                "sentiment":  "neutral",
-                **item,
-            })
-
-        # Filter by tickers (if list provided)
-        if ticker_set:
-            normalised = [
-                a for a in normalised
-                if set(t.upper() for t in a.get("tickers", [])) & ticker_set
-            ]
-
-        # Filter by event_type (if provided)
-        if event_type:
-            normalised = [
-                a for a in normalised
-                if a.get("event_type") == event_type
-            ]
-
-        # Sort newest-first
-        normalised.sort(key=lambda a: a.get("published_at", ""), reverse=True)
-        return normalised
+        if settings.NEWS_API_KEY:
+            # Delegate to the shared NewsAPI helper (same as live mode)
+            from app.data_providers.live_provider import _fetch_newsapi_articles
+            return _fetch_newsapi_articles(tickers, event_type)
+        logger.debug("MockDataProvider.get_news: NEWS_API_KEY not configured; returning []")
+        return []
 
     async def get_events(
         self,
@@ -212,22 +186,10 @@ class MockDataProvider(BaseDataProvider):
         event_type: Optional[str] = None,
     ) -> list[dict]:
         """
-        Return upcoming corporate events filtered by ticker list and optional type.
-        Events are sorted by date ascending (soonest first).
+        Corporate events require a live events API — not available in mock mode.
+        Returns empty list rather than static fake events.
         """
-        data = self._load_portfolio()
-        events: list[dict] = data.get("events", [])
-
-        ticker_set = set(t.upper() for t in tickers) if tickers else set()
-
-        if ticker_set:
-            events = [e for e in events if e.get("ticker", "").upper() in ticker_set]
-
-        if event_type:
-            events = [e for e in events if e.get("event_type") == event_type]
-
-        events.sort(key=lambda e: e.get("date", ""))
-        return events
+        return []
 
     async def get_peers(self, ticker: str) -> list[str]:
         """

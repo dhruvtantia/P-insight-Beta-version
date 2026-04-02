@@ -122,6 +122,8 @@ export interface FinancialRatio {
   sector: string | null
   industry: string | null
   source: string
+  /** Set when source === 'unavailable'; describes why data could not be fetched. */
+  error?: string | null
 
   // Valuation
   pe_ratio: number | null
@@ -488,6 +490,28 @@ export interface LiveProviderStatus {
     fund_ttl_seconds: number
     cached_price_tickers: CachedPriceTicker[]
   } | null
+}
+
+// ─── Live Index Types ─────────────────────────────────────────────────────────
+
+/** A single market index quote from GET /live/indices */
+export interface IndexQuote {
+  symbol:     string
+  name:       string
+  /** Present when unavailable is false */
+  value?:     number
+  change?:    number
+  change_pct?: number
+  unavailable: boolean
+  /** Reason code when unavailable: 'live_api_disabled' | 'yfinance_not_installed' | 'fetch_error' | 'download_error' */
+  reason?: string
+}
+
+export interface IndicesResponse {
+  indices:            IndexQuote[]
+  live_api_enabled:   boolean
+  yfinance_available?: boolean
+  source?:            string
 }
 
 // ─── API Response Wrappers ────────────────────────────────────────────────────

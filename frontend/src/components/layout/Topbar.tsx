@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import { DataModeToggle } from '@/components/common/DataModeToggle'
 import { PortfolioSwitcher } from '@/components/portfolio/PortfolioSwitcher'
+import { IndexTicker } from '@/components/layout/IndexTicker'
 
 // Map route paths to human-readable page titles
 const PAGE_TITLES: Record<string, string> = {
@@ -48,6 +49,11 @@ export function Topbar({ onRefresh, sidebarWidth = 240 }: TopbarProps) {
         <p className="text-xs text-slate-500 leading-none mt-0.5">
           Portfolio Analytics Platform
         </p>
+      </div>
+
+      {/* Centre — Live index strip (hidden on small screens) */}
+      <div className="hidden lg:flex items-center">
+        <IndexTicker />
       </div>
 
       {/* Right Controls */}

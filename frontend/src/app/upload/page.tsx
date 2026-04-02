@@ -28,6 +28,7 @@ import {
 import { UploadDropzone } from '@/components/upload/UploadDropzone'
 import { ColumnMapper, type ColumnMappingState } from '@/components/upload/ColumnMapper'
 import { PortfolioPreviewTable } from '@/components/upload/PortfolioPreviewTable'
+import { useDataModeStore } from '@/store/dataModeStore'
 import { cn } from '@/lib/utils'
 
 // ─── API base URL ─────────────────────────────────────────────────────────────
@@ -45,20 +46,25 @@ interface ParseResult {
   high_confidence:  boolean
   preview_rows:     Record<string, unknown>[]
   row_count:        number
+  missing_optional: string[]    // optional cols absent — will be enriched post-import
+  required_fields:  string[]
+  optional_fields:  string[]
 }
 
 interface ConfirmResult {
-  success:         boolean
-  filename:        string
-  holdings_parsed: number
-  rows_skipped:    number
-  skipped_details: Array<{ row_index: number; raw_ticker: string; error: string }>
-  message:         string
+  success:          boolean
+  filename:         string
+  holdings_parsed:  number
+  rows_skipped:     number
+  skipped_details:  Array<{ row_index: number; raw_ticker: string; error: string }>
+  enriched_count:   number
+  enrichment_note:  string | null
+  message:          string
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
-const STEPS = ['Upload file', 'Map columns', 'Preview', 'Import'] as const
+const STEPS = ['Choose file', 'Map columns', 'Review data', 'Import'] as const
 
 function StepIndicator({ current }: { current: WizardStep }) {
   const stepIndex = {
@@ -107,6 +113,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
 
 export default function UploadPage() {
   const router = useRouter()
+  const { setMode } = useDataModeStore()
 
   const [step,         setStep]         = useState<WizardStep>('drop')
   const [file,         setFile]         = useState<File | null>(null)
@@ -175,6 +182,7 @@ export default function UploadPage() {
       }
       const data: ConfirmResult = await res.json()
       setConfirmResult(data)
+      setMode('uploaded')   // auto-activate uploaded data mode
       setStep('done')
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Import failed')
@@ -196,8 +204,9 @@ export default function UploadPage() {
   }, [])
 
   // ── Required fields check ───────────────────────────────────────────────────
+  // name / sector / current_price are optional — enrichment fills them post-import
 
-  const REQUIRED = ['ticker', 'name', 'quantity', 'average_cost']
+  const REQUIRED = ['ticker', 'quantity', 'average_cost']
   const missingRequired = REQUIRED.filter((f) => !mapping[f])
   const canProceed = missingRequired.length === 0
 
@@ -209,7 +218,10 @@ export default function UploadPage() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900">Upload Portfolio</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Import your holdings from a CSV or Excel file. We'll auto-detect the columns.
+          Import your holdings from a broker CSV or Excel export. Columns are
+          auto-detected. Only <strong>ticker</strong>, <strong>quantity</strong>,
+          and <strong>average cost</strong> are required — sector and company
+          name are filled automatically.
         </p>
       </div>
 
@@ -224,6 +236,24 @@ export default function UploadPage() {
               disabled={loading}
               error={step === 'error' ? errorMsg : null}
             />
+
+            {/* Detailed error block (only shown in error step) */}
+            {step === 'error' && errorMsg && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                <p className="font-semibold mb-1 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" /> What went wrong
+                </p>
+                <p className="text-red-600 mb-2">{errorMsg}</p>
+                <p className="text-red-500">
+                  {errorMsg.toLowerCase().includes('fetch') || errorMsg.toLowerCase().includes('network')
+                    ? 'Check that the backend service is running and reachable.'
+                    : errorMsg.toLowerCase().includes('required')
+                    ? 'Your file is missing one or more required columns: ticker, quantity, average cost. Check the column names and try again.'
+                    : 'Try a different file, or check that it is a valid CSV or Excel file with at least ticker, quantity, and average cost columns.'}
+                </p>
+              </div>
+            )}
+
             {loading && (
               <div className="flex items-center gap-3 text-sm text-slate-500 mt-2">
                 <div className="h-4 w-4 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin shrink-0" />
@@ -241,9 +271,25 @@ export default function UploadPage() {
               <div>
                 <p className="font-semibold">Some columns could not be auto-detected</p>
                 <p className="mt-0.5">
-                  Review the mapping below and correct any mismatches before continuing.
+                  Review the mapping below. Required fields must be mapped;
+                  optional fields (sector, company name, current price) can be
+                  left unmapped — they will be filled automatically after import.
                 </p>
               </div>
+            </div>
+
+            {/* Field legend */}
+            <div className="flex flex-wrap gap-3 text-[10px]">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
+                <span className="text-slate-600 font-medium">Required:</span>
+                <span className="text-slate-500">ticker, quantity, average cost</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
+                <span className="text-slate-600 font-medium">Optional:</span>
+                <span className="text-slate-500">name, sector, current price</span>
+              </span>
             </div>
 
             <ColumnMapper
@@ -252,6 +298,18 @@ export default function UploadPage() {
               ambiguous={parseResult.ambiguous_fields}
               onChange={setMapping}
             />
+
+            {/* Optional fields notice */}
+            {parseResult.missing_optional.length > 0 && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 flex items-start gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium">Missing optional columns: </span>
+                  {parseResult.missing_optional.join(', ')}.
+                  These will be filled automatically from Yahoo Finance after import.
+                </span>
+              </div>
+            )}
 
             {/* Preview with current mapping */}
             {parseResult.preview_rows.length > 0 && (
@@ -291,7 +349,9 @@ export default function UploadPage() {
 
             {!canProceed && (
               <p className="text-xs text-red-500 -mt-2">
-                Map all required fields first: {missingRequired.join(', ')}
+                Map all required fields first: {missingRequired.map((f) =>
+                  f === 'average_cost' ? 'average cost (buy price)' : f
+                ).join(', ')}
               </p>
             )}
           </>
@@ -312,12 +372,27 @@ export default function UploadPage() {
               rowCount={parseResult.row_count}
             />
 
+            {/* Optional-fields enrichment notice */}
+            {parseResult.missing_optional.length > 0 && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 flex items-start gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium">
+                    Optional fields not found in your file:{' '}
+                  </span>
+                  {parseResult.missing_optional.join(', ')}.
+                  P-Insight will attempt to fill these from Yahoo Finance after import.
+                  Your portfolio will be usable even if enrichment fails.
+                </span>
+              </div>
+            )}
+
             <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs text-indigo-700">
               <p className="font-semibold mb-0.5">What happens next</p>
               <p>
-                All {parseResult.row_count} row{parseResult.row_count !== 1 ? 's' : ''} will be imported.
-                After import, switch the <span className="font-semibold">Data Mode</span> toggle in
-                the top-bar to <span className="font-semibold">Uploaded</span> to activate your data.
+                All {parseResult.row_count} row{parseResult.row_count !== 1 ? 's' : ''} will be imported
+                and the app will automatically switch to <span className="font-semibold">Uploaded</span> mode.
+                You can then go straight to the Dashboard to see your portfolio.
               </p>
             </div>
 
@@ -353,21 +428,28 @@ export default function UploadPage() {
 
         {/* ── STEP: done ───────────────────────────────────────────────────── */}
         {step === 'done' && confirmResult && (
-          <div className="flex flex-col items-center gap-6 py-8 text-center">
+          <div className="flex flex-col items-center gap-5 py-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
               <CheckCircle2 className="h-9 w-9 text-emerald-500" />
             </div>
 
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Import successful</h2>
+              <h2 className="text-lg font-bold text-slate-900">Import complete</h2>
               <p className="text-sm text-slate-500 mt-1">{confirmResult.message}</p>
             </div>
 
-            <div className="flex gap-4 text-sm">
+            {/* Stats row */}
+            <div className="flex flex-wrap justify-center gap-4 text-sm">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3">
                 <p className="text-2xl font-bold text-emerald-700">{confirmResult.holdings_parsed}</p>
                 <p className="text-xs text-emerald-600 mt-0.5">Holdings imported</p>
               </div>
+              {confirmResult.enriched_count > 0 && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3">
+                  <p className="text-2xl font-bold text-indigo-700">{confirmResult.enriched_count}</p>
+                  <p className="text-xs text-indigo-600 mt-0.5">Auto-enriched</p>
+                </div>
+              )}
               {confirmResult.rows_skipped > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3">
                   <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_skipped}</p>
@@ -376,9 +458,19 @@ export default function UploadPage() {
               )}
             </div>
 
+            {/* Enrichment note */}
+            {confirmResult.enrichment_note && (
+              <div className="w-full rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700 text-left">
+                <p>{confirmResult.enrichment_note}</p>
+              </div>
+            )}
+
+            {/* Skipped details */}
             {confirmResult.skipped_details.length > 0 && (
               <div className="w-full rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
-                <p className="font-semibold mb-1">Skipped rows</p>
+                <p className="font-semibold mb-1">
+                  Skipped rows — missing required fields (ticker / quantity / average cost)
+                </p>
                 <ul className="space-y-1">
                   {confirmResult.skipped_details.slice(0, 5).map((d, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -390,11 +482,12 @@ export default function UploadPage() {
               </div>
             )}
 
-            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-700 text-left w-full">
-              <p className="font-semibold">Next step</p>
-              <p className="text-xs text-indigo-600 mt-1">
-                Switch the <strong>Data Mode</strong> toggle in the top-bar from{' '}
-                <em>Mock</em> to <strong>Uploaded</strong> to use your portfolio data.
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 text-left w-full">
+              <p className="font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Data mode switched to Uploaded
+              </p>
+              <p className="text-xs text-emerald-600 mt-1">
+                Your portfolio is now active. Head to the Dashboard to see your holdings and analytics.
               </p>
             </div>
 

@@ -84,9 +84,15 @@ async def health_check():
     """
     Liveness probe — returns 200 if the process is running.
     Load balancers and uptime monitors can hit this endpoint.
+
+    Also exposes boolean API-key configuration flags (true = key is set,
+    false = key is empty/missing) so the debug panel can show which optional
+    features are available without exposing the key values themselves.
     """
+    from app.data_providers.live_provider import YFINANCE_AVAILABLE
+
     return {
-        "status": "healthy",
+        "status":  "healthy",
         "app":     settings.APP_NAME,
         "version": settings.APP_VERSION,
         "env":     settings.APP_ENV,
@@ -94,6 +100,16 @@ async def health_check():
             "live_api":    settings.LIVE_API_ENABLED,
             "broker_sync": settings.BROKER_SYNC_ENABLED,
             "ai_chat":     settings.AI_CHAT_ENABLED,
+            "yfinance":    YFINANCE_AVAILABLE,
+        },
+        # Boolean flags only — key values are never exposed
+        "api_keys": {
+            "anthropic":      bool(settings.ANTHROPIC_API_KEY),
+            "openai":         bool(settings.OPENAI_API_KEY),
+            "news_api":       bool(settings.NEWS_API_KEY),
+            "alpha_vantage":  bool(settings.ALPHA_VANTAGE_API_KEY),
+            "fmp":            bool(settings.FINANCIAL_MODELING_PREP_API_KEY),
+            "zerodha":        bool(settings.ZERODHA_API_KEY),
         },
     }
 

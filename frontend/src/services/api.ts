@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn } from '@/types'
 
 // ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
 export interface RefreshResponse {
@@ -132,12 +132,14 @@ export const newsApi = {
     if (options?.tickers?.length)  params.set('tickers', options.tickers.join(','))
     if (options?.eventType)        params.set('event_type', options.eventType)
     return apiFetch<{
-      articles:        NewsArticle[]
-      total:           number
-      source:          string
-      event_types:     string[]
-      live_unavailable: boolean
-      scaffolded:      boolean
+      articles:            NewsArticle[]
+      total:               number
+      source:              string
+      event_types:         string[]
+      live_unavailable:    boolean
+      news_unavailable:    boolean
+      news_key_configured: boolean
+      scaffolded:          boolean
     }>(`/api/v1/news/?${params.toString()}`)
   },
 
@@ -149,11 +151,12 @@ export const newsApi = {
     if (options?.tickers?.length) params.set('tickers', options.tickers.join(','))
     if (options?.eventType)       params.set('event_type', options.eventType)
     return apiFetch<{
-      events:          CorporateEvent[]
-      total:           number
-      source:          string
+      events:           CorporateEvent[]
+      total:            number
+      source:           string
       live_unavailable: boolean
-      scaffolded:      boolean
+      news_unavailable: boolean
+      scaffolded:       boolean
     }>(`/api/v1/news/events?${params.toString()}`)
   },
 }
@@ -217,6 +220,14 @@ export const liveApi = {
    */
   getProviderStatus: () =>
     apiFetch<LiveProviderStatus>('/api/v1/live/status'),
+
+  /**
+   * Fetch live price + change for NIFTY 50 and SENSEX.
+   * Returns { indices: IndexQuote[], live_api_enabled, yfinance_available }
+   * Each IndexQuote has: symbol, name, value?, change?, change_pct?, unavailable, reason?
+   */
+  getIndices: () =>
+    apiFetch<IndicesResponse>('/api/v1/live/indices'),
 }
 
 // ─── Optimization API ─────────────────────────────────────────────────────────
@@ -440,5 +451,12 @@ export const advisorApi = {
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
 export const systemApi = {
-  health: () => apiFetch<{ status: string; features: Record<string, boolean> }>('/health'),
+  health: () => apiFetch<{
+    status:   string
+    app:      string
+    version:  string
+    env:      string
+    features: Record<string, boolean>
+    api_keys: Record<string, boolean>
+  }>('/health'),
 }

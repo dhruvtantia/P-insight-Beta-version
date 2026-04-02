@@ -20,8 +20,8 @@ import { useEffect, useState }   from 'react'
 import { CheckCircle, XCircle,
          RefreshCw, Filter,
          GitFork, Wifi, Layers,
-         FolderOpen,
-         TrendingUp }            from 'lucide-react'
+         FolderOpen, Key,
+         TrendingUp, Activity }  from 'lucide-react'
 import { usePortfolio }          from '@/hooks/usePortfolio'
 import { useFundamentals }       from '@/hooks/useFundamentals'
 import { useNews }               from '@/hooks/useNews'
@@ -36,7 +36,8 @@ import { useDataModeStore }      from '@/store/dataModeStore'
 import { useFilterStore }        from '@/store/filterStore'
 import { usePortfolioStore }     from '@/store/portfolioStore'
 import { computeRiskSnapshot }   from '@/lib/risk'
-import { systemApi, brokerApi, advisorApi }  from '@/services/api'
+import { systemApi, brokerApi, advisorApi } from '@/services/api'
+import { useIndices }               from '@/hooks/useIndices'
 import { cn }                    from '@/lib/utils'
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ function ApiHealthSection() {
             {loading
               ? 'Checking backend…'
               : ok
-              ? 'Backend reachable at localhost:8000'
+              ? `Backend reachable at ${process.env.NEXT_PUBLIC_API_URL ?? 'localhost:8000'}`
               : `Backend unreachable: ${error}`
             }
           </span>
@@ -448,6 +449,115 @@ function ProviderStatusSection() {
             </SubSection>
           )}
         </>
+      )}
+    </DiagSection>
+  )
+}
+
+// ─── 2c. API Key Configuration ───────────────────────────────────────────────
+// Shows which optional API keys are configured (boolean only — never exposes values).
+
+const API_KEY_LABELS: Record<string, { label: string; purpose: string }> = {
+  anthropic:     { label: 'Anthropic',     purpose: 'AI advisor & chat' },
+  openai:        { label: 'OpenAI',        purpose: 'Alternative AI model' },
+  news_api:      { label: 'NewsAPI',       purpose: 'Portfolio news feed' },
+  fmp:           { label: 'FMP',           purpose: 'Fundamentals & peer fallback (250 req/day free)' },
+  alpha_vantage: { label: 'Alpha Vantage', purpose: 'Alternative price data' },
+  zerodha:       { label: 'Zerodha',       purpose: 'Broker sync (Kite Connect)' },
+}
+
+function ApiKeysSection() {
+  const [apiKeys, setApiKeys]   = useState<Record<string, boolean> | null>(null)
+  const [features, setFeatures] = useState<Record<string, boolean> | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState<string | null>(null)
+
+  const check = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await systemApi.health()
+      setApiKeys(res.api_keys ?? null)
+      setFeatures(res.features ?? null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not reach /health')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { check() }, [])
+
+  const configuredCount = apiKeys ? Object.values(apiKeys).filter(Boolean).length : 0
+  const totalCount      = apiKeys ? Object.keys(apiKeys).length : 0
+  const badge = loading
+    ? 'checking…'
+    : error
+    ? 'ERROR'
+    : `${configuredCount}/${totalCount} configured`
+  const badgeOk = !loading && !error && configuredCount > 0
+
+  return (
+    <DiagSection title="API Key Configuration" badge={badge} badgeOk={badgeOk} icon={Key}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] text-slate-400">
+          Keys are never exposed — only configured/missing status shown.
+        </span>
+        <button
+          onClick={check}
+          disabled={loading}
+          className="text-xs text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {loading && <LoadingRow />}
+      {error   && <ErrorRow message={error} />}
+
+      {apiKeys && !loading && (
+        <div className="space-y-1.5">
+          {Object.entries(API_KEY_LABELS).map(([key, { label, purpose }]) => {
+            const isSet = apiKeys[key] === true
+            return (
+              <div key={key} className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  {isSet
+                    ? <CheckCircle className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                    : <XCircle    className="h-3 w-3 text-slate-300  flex-shrink-0" />
+                  }
+                  <span className="text-[10px] font-mono text-slate-700">{label}</span>
+                  <span className="text-[10px] text-slate-400">— {purpose}</span>
+                </div>
+                <span className={cn(
+                  'text-[9px] font-semibold rounded-full px-1.5 py-0.5',
+                  isSet
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100  text-slate-400'
+                )}>
+                  {isSet ? 'configured' : 'not set'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {features && !loading && (
+        <SubSection label="yfinance (no API key needed)">
+          <div className="flex items-center gap-1.5">
+            {features.yfinance
+              ? <CheckCircle className="h-3 w-3 text-emerald-500" />
+              : <XCircle    className="h-3 w-3 text-red-400" />
+            }
+            <span className="text-[10px] text-slate-600">
+              {features.yfinance
+                ? 'yfinance installed — live prices & fundamentals available'
+                : 'yfinance not installed — run: poetry add yfinance httpx'
+              }
+            </span>
+          </div>
+        </SubSection>
       )}
     </DiagSection>
   )
@@ -1253,6 +1363,66 @@ function ScaffoldedModulesSection() {
   )
 }
 
+// ─── Index Status Section ─────────────────────────────────────────────────────
+
+function IndexStatusSection() {
+  const { indices, loading, error, lastFetchAt } = useIndices()
+
+  const allOk = indices.length > 0 && indices.every((i) => !i.unavailable)
+  const badge = loading
+    ? 'fetching…'
+    : error
+    ? 'ERROR'
+    : allOk
+    ? `${indices.length}/${indices.length} live`
+    : `${indices.filter((i) => !i.unavailable).length}/${indices.length} live`
+
+  return (
+    <DiagSection title="Market Index Status (NIFTY / SENSEX)" badge={badge} badgeOk={allOk} icon={Activity}>
+      {loading && <LoadingRow />}
+      {error && !loading && <ErrorRow message={`Backend unreachable: ${error}`} />}
+
+      {!loading && indices.length === 0 && !error && (
+        <p className="text-[10px] text-slate-400 italic">
+          No index data — check that LIVE_API_ENABLED=true in .env and the backend is running.
+        </p>
+      )}
+
+      {!loading && indices.map((idx) => (
+        <div key={idx.symbol} className="flex items-center justify-between py-0.5">
+          <div className="flex items-center gap-1.5">
+            {idx.unavailable
+              ? <XCircle    className="h-3 w-3 text-red-400 flex-shrink-0" />
+              : <CheckCircle className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+            }
+            <span className="text-[10px] font-mono text-slate-700">{idx.name}</span>
+            <span className="text-[10px] text-slate-400">({idx.symbol})</span>
+          </div>
+          {idx.unavailable ? (
+            <span className="text-[9px] text-red-500 font-semibold">
+              {idx.reason ?? 'unavailable'}
+            </span>
+          ) : (
+            <span className="text-[10px] font-mono text-slate-700 tabular-nums">
+              {idx.value?.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              {' '}
+              <span className={idx.change != null && idx.change >= 0 ? 'text-emerald-600' : 'text-red-500'}>
+                ({idx.change != null && idx.change >= 0 ? '+' : ''}{idx.change_pct?.toFixed(2)}%)
+              </span>
+            </span>
+          )}
+        </div>
+      ))}
+
+      {lastFetchAt && (
+        <p className="text-[9px] text-slate-300 mt-1">
+          Last fetched: {lastFetchAt.toLocaleTimeString()} · polls every 60s
+        </p>
+      )}
+    </DiagSection>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function SystemDiagnosticsPanel() {
@@ -1265,6 +1435,8 @@ export function SystemDiagnosticsPanel() {
       <BrokerConnectionsSection />
       <AIAdvisorSection />
       <ProviderStatusSection />
+      <ApiKeysSection />
+      <IndexStatusSection />
       <QuantAnalyticsSection />
       <OptimizationSection />
       <ScaffoldedModulesSection />

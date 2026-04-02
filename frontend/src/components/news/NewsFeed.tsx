@@ -56,7 +56,7 @@ export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter, live
       {liveUnavailable ? (
         <LiveUnavailableState />
       ) : filtered.length === 0 ? (
-        <EmptyState />
+        <EmptyState hasFilter={!!(tickerFilter || eventTypeFilter)} />
       ) : (
         <div className="space-y-3">
           {filtered.map((a, i) => (
@@ -146,12 +146,23 @@ function EventRow({ event }: { event: CorporateEvent }) {
 
 // ─── Empty states ─────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ hasFilter }: { hasFilter?: boolean }) {
   return (
     <div className="card px-6 py-10 text-center">
       <Inbox className="mx-auto h-8 w-8 text-slate-200 mb-2" />
-      <p className="text-sm font-medium text-slate-400">No articles match this filter</p>
-      <p className="text-xs text-slate-300 mt-1">Try removing a stock or event type filter.</p>
+      {hasFilter ? (
+        <>
+          <p className="text-sm font-medium text-slate-400">No articles match this filter</p>
+          <p className="text-xs text-slate-300 mt-1">Try removing a stock or event type filter.</p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm font-medium text-slate-400">No articles available</p>
+          <p className="text-xs text-slate-300 mt-1">
+            No news was returned for your portfolio holdings.
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -160,10 +171,12 @@ function LiveUnavailableState() {
   return (
     <div className="card px-6 py-10 text-center">
       <WifiOff className="mx-auto h-8 w-8 text-amber-300 mb-2" />
-      <p className="text-sm font-medium text-slate-500">No news source configured for live mode</p>
+      <p className="text-sm font-medium text-slate-500">News data unavailable</p>
       <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-        Live mode is active but no NewsAPI key has been wired up yet.
-        News is only available in mock mode. Phase 2: connect a NewsAPI or yfinance news key.
+        No news could be retrieved. Add a{' '}
+        <code className="font-mono bg-slate-100 px-1 rounded">NEWS_API_KEY</code> to your{' '}
+        <code className="font-mono bg-slate-100 px-1 rounded">.env</code> file and restart the
+        backend to enable real portfolio news.
       </p>
     </div>
   )

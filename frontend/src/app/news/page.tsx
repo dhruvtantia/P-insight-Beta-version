@@ -29,6 +29,7 @@ import { Newspaper, AlertCircle,
          Minus }                        from 'lucide-react'
 import { usePortfolio }                from '@/hooks/usePortfolio'
 import { useNews }                     from '@/hooks/useNews'
+import { useDataModeStore }            from '@/store/dataModeStore'
 import { NewsFilterBar }               from '@/components/news/NewsFilterBar'
 import { NewsFeed }                    from '@/components/news/NewsFeed'
 import { cn }                          from '@/lib/utils'
@@ -37,6 +38,9 @@ import type { NewsEventType }          from '@/types'
 export default function NewsPage() {
   // ── Portfolio (for ticker options in FilterBar) ───────────────────────────
   const { holdings, loading: holdingsLoading } = usePortfolio()
+
+  // ── Current data mode ─────────────────────────────────────────────────────
+  const { mode } = useDataModeStore()
 
   // ── Filters — managed in page state ───────────────────────────────────────
   const [tickerFilter,    setTickerFilter]    = useState<string | null>(null)
@@ -96,15 +100,23 @@ export default function NewsPage() {
         </button>
       </div>
 
-      {/* ── Data source note ─────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-        <Info className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-        <p className="text-xs text-slate-500">
-          <span className="font-semibold text-slate-600">Mock data mode.</span>{' '}
-          Articles and events are curated static content for development. Live news via
-          NewsAPI / Bloomberg will be added in Phase 2.
-        </p>
-      </div>
+      {/* ── Data source note — shown when NEWS_API_KEY is not configured ─── */}
+      {/* news_unavailable (mapped to liveUnavailable) is true for all modes  */}
+      {/* when no articles are returned and NEWS_API_KEY is absent.           */}
+      {liveUnavailable && !loading && !error && (
+        <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <Info className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-slate-500">
+            <span className="font-semibold text-slate-600">News data unavailable.</span>{' '}
+            Add <code className="bg-slate-100 px-1 rounded text-slate-700">NEWS_API_KEY</code> to
+            your <code>.env</code> file to enable real portfolio news from NewsAPI.
+            Get a free key at{' '}
+            <a href="https://newsapi.org" target="_blank" rel="noopener noreferrer"
+               className="text-indigo-500 hover:underline">newsapi.org</a>{' '}
+            (100 requests/day on the free tier).
+          </p>
+        </div>
+      )}
 
       {/* ── Error ────────────────────────────────────────────────────────── */}
       {error && (

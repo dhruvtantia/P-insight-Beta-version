@@ -264,6 +264,60 @@ class PortfolioManagerService:
         )
         return p, pre_snap_id, post_snap_id
 
+    # ─── Post-import enrichment persistence ──────────────────────────────────
+
+    def patch_holdings_enrichment(
+        self,
+        portfolio_id: int,
+        enrichments: list[dict],
+    ) -> int:
+        """
+        Persist yfinance-enriched sector and company name back to the DB so that
+        the data survives backend restarts (via _restore_from_db_holdings).
+
+        enrichments: list of dicts with {ticker, sector?, name?}.
+          Only non-None values are written — existing DB values are never
+          overwritten with None.
+
+        Returns the count of DB records actually updated.
+        """
+        if not enrichments:
+            return 0
+
+        updated = 0
+        holdings_q = (
+            self.db.query(Holding)
+            .filter(Holding.portfolio_id == portfolio_id)
+        )
+        holdings_by_ticker: dict[str, Holding] = {
+            h.ticker: h for h in holdings_q.all()
+        }
+
+        for patch in enrichments:
+            ticker = patch.get("ticker")
+            if not ticker:
+                continue
+            db_h = holdings_by_ticker.get(ticker)
+            if db_h is None:
+                continue
+            changed = False
+            if patch.get("sector") and not db_h.sector:
+                db_h.sector = patch["sector"]
+                changed = True
+            if patch.get("name") and (not db_h.name or db_h.name == db_h.ticker):
+                db_h.name = patch["name"]
+                changed = True
+            if changed:
+                updated += 1
+
+        if updated:
+            self.db.commit()
+            logger.info(
+                "Patched %d/%d holdings with enrichment data (portfolio_id=%s)",
+                updated, len(enrichments), portfolio_id,
+            )
+        return updated
+
     # ─── Create manual portfolio ──────────────────────────────────────────────
 
     def create_manual(self, name: str, description: Optional[str] = None) -> Portfolio:

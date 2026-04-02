@@ -62,9 +62,10 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
       ])
       setArticles(newsRes.articles)
       setEvents(eventsRes.events)
-      // Signal the UI when live mode has no news source configured
+      // Signal the UI when no news is available (any mode — key missing or API failed).
+      // news_unavailable covers all modes; live_unavailable is legacy (live mode only).
       setLiveUnavailable(
-        !!(newsRes.live_unavailable || eventsRes.live_unavailable)
+        !!(newsRes.news_unavailable ?? newsRes.live_unavailable)
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load news.')

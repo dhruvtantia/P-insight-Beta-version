@@ -38,7 +38,6 @@ import { TopHoldingsChart }                from '@/components/charts/TopHoldings
 import { RiskSnapshotCard }                from '@/components/risk/RiskSnapshotCard'
 import { PortfolioAdvisorPanel }           from '@/components/advisor/PortfolioAdvisorPanel'
 import { ActionCenter }                    from '@/components/action/ActionCenter'
-import { WhatChangedStrip }               from '@/components/dashboard/WhatChangedStrip'
 import { computeRiskSnapshot }             from '@/lib/risk'
 import { cn }                              from '@/lib/utils'
 
@@ -52,29 +51,9 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-red-700 text-sm">Failed to load portfolio data</p>
           <p className="text-sm text-red-600 mt-1 break-words">{message}</p>
-          <div className="mt-3 space-y-1 text-xs text-red-500">
-            <p className="font-medium">Troubleshooting:</p>
-            <ul className="list-disc list-inside space-y-0.5 ml-1">
-              <li>
-                Start the backend:{' '}
-                <code className="bg-red-100 px-1 rounded font-mono">
-                  poetry run uvicorn main:app --reload --port 8000
-                </code>
-              </li>
-              <li>
-                Health check:{' '}
-                <code className="bg-red-100 px-1 rounded font-mono">
-                  curl http://localhost:8000/health
-                </code>
-              </li>
-              <li>
-                Verify{' '}
-                <code className="bg-red-100 px-1 rounded font-mono">NEXT_PUBLIC_API_URL</code>{' '}
-                in{' '}
-                <code className="bg-red-100 px-1 rounded font-mono">frontend/.env.local</code>
-              </li>
-            </ul>
-          </div>
+          <p className="mt-2 text-xs text-red-500">
+            Please check that the backend service is running and reachable, then try again.
+          </p>
         </div>
         <button
           onClick={onRetry}
@@ -250,13 +229,14 @@ export default function DashboardPage() {
       {error && <ErrorBanner message={error} onRetry={refetch} />}
 
       {!error && (
-        <div className="space-y-8">
+        <div className="space-y-0">
 
           {/* ══════════════════════════════════════════════════════════════════
               SECTION 1 — PORTFOLIO SUMMARY
               Capital invested · current value · total return · daily change
+              Primary focal point — kept at top with extra bottom spacing.
           ══════════════════════════════════════════════════════════════════ */}
-          <section>
+          <section className="pb-8">
             <SectionHeading
               icon={TrendingUp}
               title="Portfolio Summary"
@@ -269,7 +249,7 @@ export default function DashboardPage() {
               SECTION 2 — ALLOCATION OVERVIEW
               Sector breakdown · top holdings · holdings preview
           ══════════════════════════════════════════════════════════════════ */}
-          <section>
+          <section className="border-t border-slate-100 pt-8 pb-8">
             <SectionHeading
               icon={PieChart}
               title="Allocation Overview"
@@ -277,8 +257,8 @@ export default function DashboardPage() {
               action={{ label: 'Full holdings', href: '/holdings' }}
             />
 
-            {/* Charts row */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
+            {/* Charts row — sector donut left, top holdings bar right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
               <div className="lg:col-span-5">
                 <SectorAllocationChart
                   sectors={sectors}
@@ -292,7 +272,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Holdings preview (cross-filtered) */}
+            {/* Holdings preview (cross-filtered by sector click) */}
             <HoldingsTable
               holdings={holdings}
               loading={loading}
@@ -307,7 +287,7 @@ export default function DashboardPage() {
               SECTION 3 — RISK SUMMARY
               Volatility · Sharpe · drawdown · diversification
           ══════════════════════════════════════════════════════════════════ */}
-          <section>
+          <section className="border-t border-slate-100 pt-8 pb-8">
             <SectionHeading
               icon={Activity}
               title="Risk Summary"
@@ -316,7 +296,7 @@ export default function DashboardPage() {
             />
 
             {/* 4-tile metric grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
               <RiskTile
                 label="Volatility"
                 value={qm?.annualized_volatility}
@@ -347,35 +327,30 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* Full risk card below the tiles */}
+            {/* Full risk snapshot card */}
             <RiskSnapshotCard snapshot={riskSnapshot} loading={loading} compact />
           </section>
 
           {/* ══════════════════════════════════════════════════════════════════
               SECTION 4 — INSIGHTS
-              Action Center · What Changed · Advisor
+              Recommended actions · AI advisor snapshot
           ══════════════════════════════════════════════════════════════════ */}
-          <section>
+          <section className="border-t border-slate-100 pt-8">
             <SectionHeading
               icon={Brain}
               title="Insights"
-              subtitle="Actions, recent changes, and portfolio advice"
+              subtitle="Recommended actions and portfolio advice"
               action={{ label: 'Open advisor', href: '/advisor' }}
             />
 
             {/* Action Center — recommended actions */}
-            <div className="mb-4">
+            <div className="mb-5">
               <ActionCenter
                 holdings={holdings}
                 summary={summary}
                 maxItems={3}
                 compact
               />
-            </div>
-
-            {/* What Changed strip */}
-            <div className="mb-4">
-              <WhatChangedStrip />
             </div>
 
             {/* Advisor panel */}

@@ -334,30 +334,58 @@ export function FundamentalsTable({ holdings, loading = false }: Props) {
                     </div>
                   </td>
 
-                  {/* Metric columns */}
-                  {COLUMNS.map((col) => {
-                    const val = col.getValue(h)
-                    const { status } = col.getStatus(val)
-                    const text = col.format(val)
-                    const isNull = val === null
+                  {/* Metric columns — show "unavailable" row when yfinance has no data */}
+                  {(() => {
+                    const fundSource = h.fundamentals?.source
+                    const isUnavailable = fundSource === 'unavailable'
+                    const allNull = !isUnavailable && COLUMNS.filter(c => c.group !== 'identity')
+                      .every(c => c.getValue(h) === null)
 
-                    return (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          'px-3 py-3 text-right tabular-nums',
-                          GROUP_BG[col.group],
-                          isNull
-                            ? 'text-slate-300'
-                            : status !== 'neutral'
-                              ? STATUS_TEXT[status as keyof typeof STATUS_TEXT]
-                              : 'text-slate-700'
-                        )}
-                      >
-                        {text}
-                      </td>
-                    )
-                  })}
+                    if (isUnavailable || allNull) {
+                      return (
+                        <>
+                          {/* Weight column */}
+                          <td className={cn('px-3 py-3 text-right tabular-nums', GROUP_BG['identity'])}>
+                            {h.weight != null ? `${h.weight.toFixed(1)}%` : '—'}
+                          </td>
+                          {/* Span remaining columns with unavailable message */}
+                          <td
+                            colSpan={COLUMNS.length - 1}
+                            className="px-4 py-3 text-[10px] text-slate-400 italic"
+                          >
+                            {isUnavailable
+                              ? `Fundamentals unavailable${h.fundamentals?.error ? ': ' + h.fundamentals.error : ''}`
+                              : 'Fundamentals not yet loaded — switch to Live or Uploaded mode'
+                            }
+                          </td>
+                        </>
+                      )
+                    }
+
+                    return COLUMNS.map((col) => {
+                      const val = col.getValue(h)
+                      const { status } = col.getStatus(val)
+                      const text = col.format(val)
+                      const isNull = val === null
+
+                      return (
+                        <td
+                          key={col.key}
+                          className={cn(
+                            'px-3 py-3 text-right tabular-nums',
+                            GROUP_BG[col.group],
+                            isNull
+                              ? 'text-slate-300'
+                              : status !== 'neutral'
+                                ? STATUS_TEXT[status as keyof typeof STATUS_TEXT]
+                                : 'text-slate-700'
+                          )}
+                        >
+                          {text}
+                        </td>
+                      )
+                    })
+                  })()}
                 </tr>
               )
             })}
@@ -367,8 +395,9 @@ export function FundamentalsTable({ holdings, loading = false }: Props) {
 
       <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50">
         <p className="text-[10px] text-slate-400">
-          Phase 1 — Mock data representative of Indian large-cap equities circa early 2025.
-          Null (—) fields are not applicable for that business type (e.g. banks have no D/E or operating margin).
+          Data sourced from Yahoo Finance (yfinance). Null (—) fields are not applicable for that business type
+          (e.g. banks have no meaningful D/E or operating margin).
+          Switch to <strong>Uploaded</strong> or <strong>Live</strong> mode to see real data.
         </p>
       </div>
     </div>

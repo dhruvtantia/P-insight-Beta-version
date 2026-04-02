@@ -11,6 +11,12 @@ Detection strategy (priority order):
   3. Substring containment (the canonical alias appears inside the column name)
 
 Returns a DetectionResult with per-role mappings and a confidence flag.
+
+Required fields (upload will be rejected if these are absent):
+  ticker, quantity, average_cost
+
+Optional fields (upload proceeds without them; enrichment fills them later):
+  name, current_price, sector
 """
 
 from __future__ import annotations
@@ -27,105 +33,85 @@ from typing import Optional
 # before comparison.
 
 COLUMN_ALIASES: dict[str, list[str]] = {
+    # ── Required ──────────────────────────────────────────────────────────────
     "ticker": [
-        "ticker",
-        "symbol",
-        "stock_symbol",
-        "scrip",
-        "stock_code",
-        "nse_symbol",
-        "bse_symbol",
-        "isin",
-        "script",
-        "nse_code",
-        "trading_symbol",
-        "instrument",
-        "equity",
-        "share",
-        "stock",
-        "code",
-    ],
-    "name": [
-        "name",
-        "company_name",
-        "company",
-        "stock_name",
-        "instrument_name",
-        "security_name",
-        "security",
-        "description",
-        "full_name",
-        "issuer",
+        # Generic
+        "ticker", "symbol", "stock_symbol", "scrip", "stock_code",
+        # Indian exchange-specific
+        "nse_symbol", "bse_symbol", "nse_code", "bse_code",
+        "trading_symbol", "tradingsymbol",
+        # Broker-specific (Zerodha, Groww, Kite, Angel, Upstox, HDFC Sec)
+        "instrument", "instrument_name", "instrument_symbol",
+        "script", "scrip_code", "scrip_symbol",
+        "equity", "share", "stock", "code",
+        "isin",                          # ISIN can be mapped to ticker as fallback
+        "security_id", "security_code",
+        "asset", "asset_code",
     ],
     "quantity": [
-        "quantity",
-        "qty",
-        "shares",
-        "no_of_shares",
-        "number_of_shares",
-        "num_shares",
-        "units",
-        "holdings",
-        "holding",
-        "volume",
-        "lots",
-        "balance_units",
-        "net_qty",
+        "quantity", "qty", "shares", "no_of_shares", "number_of_shares",
+        "num_shares", "units", "holdings", "holding", "volume",
+        "lots", "balance_units", "net_qty",
+        # Broker-specific
+        "net_quantity", "available_quantity", "closingbalance",
+        "closing_balance", "held_quantity", "total_qty",
+        "shares_held", "shares_owned",
+        "position_qty", "position_quantity",
     ],
     "average_cost": [
-        "average_cost",
-        "avg_cost",
-        "average_price",
-        "avg_price",
-        "buy_price",
-        "purchase_price",
-        "cost_price",
-        "invested_price",
-        "average_buy_price",
-        "avg_buy_price",
-        "cost_per_share",
-        "price_per_share",
-        "invested_at",
-        "cost",
-        "buy_avg",
+        "average_cost", "avg_cost", "average_price", "avg_price",
+        "buy_price", "purchase_price", "cost_price", "invested_price",
+        "average_buy_price", "avg_buy_price",
+        "cost_per_share", "price_per_share", "invested_at",
+        "cost", "buy_avg",
+        # Broker-specific
+        "avg_purchase_price", "average_purchase_price",
+        "average_traded_price", "avg_traded_price",
+        "buying_price", "bought_at",
+        "cost_basis", "book_value_per_share",
+        "weighted_avg_price", "wap",
+    ],
+    # ── Optional ──────────────────────────────────────────────────────────────
+    "name": [
+        "name", "company_name", "company", "stock_name",
+        "instrument_name", "security_name", "security",
+        "description", "full_name", "issuer",
+        # Broker-specific
+        "company_fullname", "asset_name", "scrip_name",
     ],
     "current_price": [
-        "current_price",
-        "ltp",
-        "last_traded_price",
-        "last_price",
-        "market_price",
-        "cmp",
-        "close_price",
-        "closing_price",
-        "current_market_price",
-        "present_price",
-        "price",
+        "current_price", "ltp", "last_traded_price", "last_price",
+        "market_price", "cmp", "close_price", "closing_price",
+        "current_market_price", "present_price", "price",
+        # Broker-specific
+        "last_trade_price", "last_close_price", "current_value_per_share",
+        "live_price", "latest_price", "mkt_price",
     ],
     "sector": [
-        "sector",
-        "industry",
-        "sector_name",
-        "industry_name",
-        "category",
-        "segment",
-        "sub_sector",
-        "gics_sector",
-        "classification",
+        "sector", "industry", "sector_name", "industry_name",
+        "category", "segment", "sub_sector",
+        "gics_sector", "classification",
+        # Broker / fund-specific
+        "asset_class", "product_type", "fund_category",
     ],
 }
 
 # Ordered so that required fields are listed first for display purposes
 CANONICAL_FIELDS_ORDER = [
     "ticker",
-    "name",
     "quantity",
     "average_cost",
-    "current_price",
-    "sector",
+    "name",           # optional — fallback to ticker if absent
+    "current_price",  # optional — filled by enrichment or left as None
+    "sector",         # optional — filled by enrichment if absent
 ]
 
-REQUIRED_FIELDS = {"ticker", "name", "quantity", "average_cost"}
+# Minimum columns required for a row to be accepted.
+# 'name' is intentionally NOT required — the normaliser falls back to the ticker.
+REQUIRED_FIELDS = {"ticker", "quantity", "average_cost"}
+
+# Optional fields — import proceeds without them; enrichment fills them post-import
+OPTIONAL_FIELDS = {"name", "current_price", "sector"}
 
 
 # ─── Normalisation helper ─────────────────────────────────────────────────────

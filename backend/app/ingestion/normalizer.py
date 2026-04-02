@@ -98,6 +98,10 @@ def normalize_to_holdings(
     """
     Convert every row in `df` to a HoldingBase.
 
+    Only rows that fail REQUIRED field validation (ticker, quantity, average_cost)
+    are skipped. Missing optional fields (name, current_price, sector) are
+    accepted with None / fallback values — post-import enrichment fills them in.
+
     Returns:
       holdings:  list of successfully parsed HoldingBase objects
       skipped:   list of dicts with {row_index, raw_ticker, error} for failed rows
@@ -110,20 +114,20 @@ def normalize_to_holdings(
 
         if row.get("_error"):
             skipped.append({
-                "row_index": idx,
+                "row_index":  int(idx),       # type: ignore[arg-type]
                 "raw_ticker": row.get("ticker"),
-                "error": row["_error"],
+                "error":      row["_error"],
             })
             continue
 
         try:
             h = HoldingBase(
                 ticker=row["ticker"],
-                name=row["name"],
+                name=row["name"],             # normaliser guarantees non-None fallback
                 quantity=row["quantity"],
                 average_cost=row["average_cost"],
                 current_price=row.get("current_price"),
-                sector=row.get("sector"),
+                sector=row.get("sector"),     # None is fine — enrichment handles it
                 asset_class="Equity",
                 currency="INR",
                 data_source="uploaded",
@@ -131,12 +135,18 @@ def normalize_to_holdings(
             holdings.append(h)
         except Exception as exc:
             skipped.append({
-                "row_index": idx,
+                "row_index":  int(idx),       # type: ignore[arg-type]
                 "raw_ticker": row.get("ticker"),
-                "error": str(exc),
+                "error":      str(exc),
             })
 
     return holdings, skipped
+
+
+def missing_optional_columns(column_mapping: dict[str, Optional[str]]) -> list[str]:
+    """Return the list of optional canonical fields that were not detected."""
+    from app.ingestion.column_detector import OPTIONAL_FIELDS
+    return [f for f in OPTIONAL_FIELDS if column_mapping.get(f) is None]
 
 
 # ─── Internal row mapper ──────────────────────────────────────────────────────

@@ -29,11 +29,12 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional
 
-from app.ingestion.column_detector import detect_columns, REQUIRED_FIELDS
+from app.ingestion.column_detector import detect_columns, REQUIRED_FIELDS, OPTIONAL_FIELDS
 from app.ingestion.normalizer import (
     read_file_as_dataframe,
     preview_rows,
     normalize_to_holdings,
+    missing_optional_columns,
 )
 from app.data_providers.file_provider import FileDataProvider, UPLOADS_PATH
 
@@ -49,12 +50,15 @@ MAX_FILE_SIZE_MB = 10
 
 class ParseResponse(BaseModel):
     """Result of the /parse step — returned to the frontend for mapping/preview."""
-    column_names:     list[str]                      # all original column names
-    detected_mapping: dict[str, Optional[str]]       # canonical → original col (None = not found)
-    ambiguous_fields: list[str]                      # fields matched via substring (less certain)
-    high_confidence:  bool                           # True = all required cols auto-detected
-    preview_rows:     list[dict]                     # first ~6 rows in canonical form
-    row_count:        int                            # total data rows in file
+    column_names:          list[str]               # all original column names
+    detected_mapping:      dict[str, Optional[str]] # canonical → original col (None = not found)
+    ambiguous_fields:      list[str]               # fields matched via substring (less certain)
+    high_confidence:       bool                    # True = all required cols auto-detected
+    preview_rows:          list[dict]              # first ~6 rows in canonical form
+    row_count:             int                     # total data rows in file
+    missing_optional:      list[str]               # optional cols absent from file (will be enriched)
+    required_fields:       list[str]               # for UI display
+    optional_fields:       list[str]               # for UI display
 
 
 class ConfirmResponse(BaseModel):
@@ -63,7 +67,9 @@ class ConfirmResponse(BaseModel):
     filename:         str
     holdings_parsed:  int
     rows_skipped:     int
-    skipped_details:  list[dict]                     # [{row_index, raw_ticker, error}, ...]
+    skipped_details:  list[dict]                   # [{row_index, raw_ticker, error}, ...]
+    enriched_count:   int                          # holdings enriched with live sector/name data
+    enrichment_note:  Optional[str]                # human-readable enrichment summary
     message:          str
 
 
@@ -124,6 +130,7 @@ async def parse_upload(file: UploadFile = File(...)) -> ParseResponse:
 
     # Build a best-effort preview using whatever mapping was detected
     rows = preview_rows(df, result.mapping, n=6)
+    absent_optional = missing_optional_columns(result.mapping)
 
     return ParseResponse(
         column_names=col_names,
@@ -132,6 +139,9 @@ async def parse_upload(file: UploadFile = File(...)) -> ParseResponse:
         high_confidence=result.confidence,
         preview_rows=rows,
         row_count=len(df),
+        missing_optional=absent_optional,
+        required_fields=sorted(REQUIRED_FIELDS),
+        optional_fields=sorted(OPTIONAL_FIELDS),
     )
 
 
@@ -159,6 +169,7 @@ async def confirm_upload(
         raise HTTPException(status_code=422, detail=f"Invalid column_mapping JSON: {exc}")
 
     # Validate required fields are present in the mapping
+    # Required: ticker, quantity, average_cost.  name/sector/current_price are optional.
     missing_required = [
         f for f in REQUIRED_FIELDS
         if col_map.get(f) is None
@@ -166,7 +177,13 @@ async def confirm_upload(
     if missing_required:
         raise HTTPException(
             status_code=422,
-            detail=f"Required columns are not mapped: {missing_required}",
+            detail=(
+                f"Required columns are not mapped: {missing_required}. "
+                f"These columns must be present: ticker (or symbol/scrip/instrument), "
+                f"quantity (or qty/shares/units), "
+                f"average_cost (or avg_price/buy_price/cost_per_share). "
+                f"Company name and sector are optional."
+            ),
         )
 
     tmp_path = await _save_temp(file)
@@ -194,16 +211,11 @@ async def confirm_upload(
             ),
         )
 
-    # 1. Update the in-memory FileDataProvider cache (serves 'uploaded' data mode immediately)
-    import app.data_providers.file_provider as _fp_module
-    _fp_module._uploaded_holdings = list(holdings)
-
-    # 2. Persist to the database as a real Portfolio record
+    # ── 1. Persist to the database as a real Portfolio record ─────────────────
     #    Also creates an initial snapshot so the upload shows in history.
     filename = file.filename or "upload"
     portfolio_id: Optional[int] = None
     try:
-        from sqlalchemy import create_engine
         from app.db.database import SessionLocal
         from app.services.portfolio_manager import PortfolioManagerService
         from app.services.snapshot_service import SnapshotService
@@ -221,7 +233,131 @@ async def confirm_upload(
     except Exception as exc:
         logger.warning("Could not persist upload to DB (in-memory cache is still live): %s", exc)
 
-    # 3. Also save a canonical CSV as a fallback for non-DB restore
+    # ── 2. Post-import enrichment ─────────────────────────────────────────────
+    # For holdings where sector or name is missing, attempt to fetch from
+    # yfinance fundamentals. Import is never blocked by enrichment failures.
+    # NOTE: enrichment must happen BEFORE we update the in-memory cache so that
+    #       the cache gets the already-enriched holdings.
+    enriched_count = 0
+    needs_enrichment = [
+        (i, h) for i, h in enumerate(holdings)
+        if not h.sector or h.name == h.ticker
+    ]
+
+    unenriched_tickers: list[str] = []
+    if needs_enrichment:
+        from app.data_providers.live_provider import (
+            YFINANCE_AVAILABLE,
+            _fetch_fundamentals_single,
+            _fetch_fmp_fundamentals,
+            _fund_from_cache,
+            _store_fund,
+        )
+        for idx, h in needs_enrichment:
+            try:
+                if not YFINANCE_AVAILABLE:
+                    logger.warning(
+                        "Enrichment skipped for %s: yfinance is not installed", h.ticker
+                    )
+                    unenriched_tickers.append(h.ticker)
+                    break
+                cached = _fund_from_cache(h.ticker)
+                fund = cached if cached else _fetch_fundamentals_single(h.ticker)
+                if fund and fund.get("source") != "yfinance_error":
+                    updates: dict = {}
+                    if not h.sector and fund.get("sector"):
+                        updates["sector"] = fund["sector"]
+                    if h.name == h.ticker and (fund.get("name") or fund.get("longName")):
+                        updates["name"] = fund.get("name") or fund.get("longName")
+                    if updates:
+                        holdings[idx] = h.model_copy(update=updates)
+                        enriched_count += 1
+                        # Cache fundamentals so subsequent fetches are instant
+                        resolved = fund.get("resolved_ticker", h.ticker)
+                        _store_fund(resolved, fund)
+                        if resolved != h.ticker:
+                            _store_fund(h.ticker, fund)
+                    else:
+                        # yfinance returned data but sector/name still missing — log explicitly
+                        missing_fields = []
+                        if not h.sector and not fund.get("sector"):
+                            missing_fields.append("sector")
+                        if h.name == h.ticker and not fund.get("name"):
+                            missing_fields.append("name")
+                        if missing_fields:
+                            logger.warning(
+                                "Enrichment incomplete for %s: yfinance returned data but "
+                                "missing fields: %s (source=%s)",
+                                h.ticker, missing_fields, fund.get("source", "unknown"),
+                            )
+                            unenriched_tickers.append(h.ticker)
+                else:
+                    logger.warning(
+                        "Enrichment failed for %s: no data returned from yfinance or FMP",
+                        h.ticker,
+                    )
+                    unenriched_tickers.append(h.ticker)
+            except Exception as exc:
+                logger.warning("Enrichment exception for %s: %s", h.ticker, exc)
+                unenriched_tickers.append(h.ticker)
+        logger.info(
+            "Enrichment completed: %d/%d holdings enriched; unenriched: %s",
+            enriched_count, len(needs_enrichment),
+            unenriched_tickers if unenriched_tickers else "none",
+        )
+
+    # ── 3a. Persist enriched sector/name back to the DB ──────────────────────
+    # DB was saved in step 1 (before enrichment) so bare tickers/missing names
+    # are on disk. Patch only the enriched rows now so that after a backend
+    # restart _restore_from_db_holdings loads the correct sector/name.
+    if enriched_count > 0 and portfolio_id is not None:
+        try:
+            from app.db.database import SessionLocal
+            from app.services.portfolio_manager import PortfolioManagerService
+            patch_session = SessionLocal()
+            try:
+                patch_mgr = PortfolioManagerService(patch_session)
+                enrichment_patches = [
+                    {
+                        "ticker":  holdings[idx].ticker,
+                        "sector":  holdings[idx].sector,
+                        "name":    holdings[idx].name,
+                    }
+                    for idx, _ in needs_enrichment
+                    if holdings[idx].sector or holdings[idx].name != holdings[idx].ticker
+                ]
+                patch_mgr.patch_holdings_enrichment(portfolio_id, enrichment_patches)
+            finally:
+                patch_session.close()
+        except Exception as exc:
+            logger.warning("Could not persist enrichment to DB (in-memory cache is still live): %s", exc)
+
+    # ── 3b. Update the in-memory FileDataProvider cache ──────────────────────
+    # Done AFTER enrichment so the cache gets the enriched (sector/name-patched) holdings.
+    import app.data_providers.file_provider as _fp_module
+    _fp_module._uploaded_holdings = list(holdings)
+
+    enrichment_note: Optional[str] = None
+    if needs_enrichment:
+        if enriched_count > 0 and not unenriched_tickers:
+            enrichment_note = (
+                f"{enriched_count} of {len(needs_enrichment)} holding(s) were automatically "
+                f"enriched with sector/company data from Yahoo Finance."
+            )
+        elif enriched_count > 0 and unenriched_tickers:
+            enrichment_note = (
+                f"{enriched_count} of {len(needs_enrichment)} holding(s) enriched. "
+                f"Sector/name unavailable for: {', '.join(unenriched_tickers)}. "
+                f"Check the debug panel for details."
+            )
+        else:
+            enrichment_note = (
+                f"{len(needs_enrichment)} holding(s) are missing sector or company name. "
+                f"Enrichment failed for: {', '.join(unenriched_tickers) if unenriched_tickers else 'all'}. "
+                f"Check the debug panel — sector will show as unavailable in the UI."
+            )
+
+    # ── 4. Save canonical CSV ─────────────────────────────────────────────────
     UPLOADS_PATH.mkdir(parents=True, exist_ok=True)
     out_path = UPLOADS_PATH / "portfolio_uploaded.csv"
     import pandas as pd
@@ -240,8 +376,8 @@ async def confirm_upload(
     ]
     pd.DataFrame(rows_data).to_csv(out_path, index=False)
     logger.info(
-        "Upload confirmed: %d holdings, %d skipped, portfolio_id=%s",
-        len(holdings), len(skipped), portfolio_id,
+        "Upload confirmed: %d holdings, %d skipped, %d enriched, portfolio_id=%s",
+        len(holdings), len(skipped), enriched_count, portfolio_id,
     )
 
     return ConfirmResponse(
@@ -250,8 +386,10 @@ async def confirm_upload(
         holdings_parsed=len(holdings),
         rows_skipped=len(skipped),
         skipped_details=skipped[:10],
+        enriched_count=enriched_count,
+        enrichment_note=enrichment_note,
         message=(
-            f"Successfully imported {len(holdings)} holding(s). "
-            + (f"{len(skipped)} row(s) skipped." if skipped else "All rows imported.")
+            f"Successfully imported {len(holdings)} holding(s)."
+            + (f" {len(skipped)} row(s) skipped." if skipped else " All rows imported.")
         ),
     )
