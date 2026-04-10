@@ -8,12 +8,12 @@
  * States:
  *   loading      → skeleton pulse
  *   unavailable  → "Indices unavailable" chip (never shows zeros or mock values)
- *   live         → value · ▲/▼ change (abs + %)
+ *   live         → value · ▲/▼ change (abs + %) + "Last updated HH:MM" timestamp
  *
  * Polls every 60 s via useIndices().
  */
 
-import { TrendingUp, TrendingDown, WifiOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, WifiOff, Clock } from 'lucide-react'
 import { useIndices } from '@/hooks/useIndices'
 import type { IndexQuote } from '@/types'
 import { cn } from '@/lib/utils'
@@ -81,7 +81,7 @@ function IndexSkeleton() {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function IndexTicker() {
-  const { indices, loading, error } = useIndices()
+  const { indices, loading, error, lastFetchAt } = useIndices()
 
   if (loading) return <IndexSkeleton />
 
@@ -95,11 +95,21 @@ export function IndexTicker() {
     )
   }
 
+  const timeLabel = lastFetchAt
+    ? lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    : null
+
   return (
     <div className="flex items-center gap-2">
       {indices.map((idx) => (
         <IndexChip key={idx.symbol} index={idx} />
       ))}
+      {timeLabel && (
+        <div className="hidden lg:flex items-center gap-1 text-[10px] text-slate-400 ml-1">
+          <Clock className="h-2.5 w-2.5" />
+          <span>{timeLabel}</span>
+        </div>
+      )}
     </div>
   )
 }

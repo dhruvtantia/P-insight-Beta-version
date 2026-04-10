@@ -17,6 +17,7 @@ from app.api.v1.endpoints import (
     ai_chat,
     advisor,
     live,
+    market,
     quant,
     optimization,
     upload,
@@ -27,6 +28,7 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter(prefix="/api/v1")
 
+api_router.include_router(market.router)       # market landing page data (no auth required)
 api_router.include_router(portfolio.router)
 api_router.include_router(analytics.router)
 api_router.include_router(watchlist.router)

@@ -35,7 +35,7 @@ from typing import Optional
 COLUMN_ALIASES: dict[str, list[str]] = {
     # ── Required ──────────────────────────────────────────────────────────────
     "ticker": [
-        # Generic
+        # Most explicit ticker identifiers (highest priority)
         "ticker", "symbol", "stock_symbol", "scrip", "stock_code",
         # Indian exchange-specific
         "nse_symbol", "bse_symbol", "nse_code", "bse_code",
@@ -47,6 +47,10 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "isin",                          # ISIN can be mapped to ticker as fallback
         "security_id", "security_code",
         "asset", "asset_code",
+        # Standalone generic column headers — used when no explicit ticker column exists
+        # NOTE: processed before "name" in CANONICAL_FIELDS_ORDER so these are safe
+        "security",                      # e.g. "Security" in some broker exports
+        "company",                       # e.g. "Company" in simplified exports
     ],
     "quantity": [
         "quantity", "qty", "shares", "no_of_shares", "number_of_shares",
@@ -64,7 +68,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "average_buy_price", "avg_buy_price",
         "cost_per_share", "price_per_share", "invested_at",
         "cost", "buy_avg",
-        # Broker-specific
+        # Spec-specified synonyms
         "avg_purchase_price", "average_purchase_price",
         "average_traded_price", "avg_traded_price",
         "buying_price", "bought_at",

@@ -20,12 +20,13 @@ Both endpoints accept multipart/form-data.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional
 
@@ -36,6 +37,7 @@ from app.ingestion.normalizer import (
     normalize_to_holdings,
     missing_optional_columns,
 )
+from app.ingestion.sector_enrichment import enrich_holdings
 from app.data_providers.file_provider import FileDataProvider, UPLOADS_PATH
 
 logger = logging.getLogger(__name__)
@@ -147,6 +149,7 @@ async def parse_upload(file: UploadFile = File(...)) -> ParseResponse:
 
 @router.post("/confirm", response_model=ConfirmResponse, summary="Import portfolio from upload")
 async def confirm_upload(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     column_mapping: str = Form(..., description="JSON object: canonical_field → original_column_name"),
 ) -> ConfirmResponse:
@@ -234,82 +237,18 @@ async def confirm_upload(
         logger.warning("Could not persist upload to DB (in-memory cache is still live): %s", exc)
 
     # ── 2. Post-import enrichment ─────────────────────────────────────────────
-    # For holdings where sector or name is missing, attempt to fetch from
-    # yfinance fundamentals. Import is never blocked by enrichment failures.
+    # Runs the full fallback chain: yfinance → FMP → static map → "Unknown"
+    # Import is never blocked by enrichment failures.
     # NOTE: enrichment must happen BEFORE we update the in-memory cache so that
     #       the cache gets the already-enriched holdings.
-    enriched_count = 0
-    needs_enrichment = [
-        (i, h) for i, h in enumerate(holdings)
-        if not h.sector or h.name == h.ticker
-    ]
-
-    unenriched_tickers: list[str] = []
-    if needs_enrichment:
-        from app.data_providers.live_provider import (
-            YFINANCE_AVAILABLE,
-            _fetch_fundamentals_single,
-            _fetch_fmp_fundamentals,
-            _fund_from_cache,
-            _store_fund,
-        )
-        for idx, h in needs_enrichment:
-            try:
-                if not YFINANCE_AVAILABLE:
-                    logger.warning(
-                        "Enrichment skipped for %s: yfinance is not installed", h.ticker
-                    )
-                    unenriched_tickers.append(h.ticker)
-                    break
-                cached = _fund_from_cache(h.ticker)
-                fund = cached if cached else _fetch_fundamentals_single(h.ticker)
-                if fund and fund.get("source") != "yfinance_error":
-                    updates: dict = {}
-                    if not h.sector and fund.get("sector"):
-                        updates["sector"] = fund["sector"]
-                    if h.name == h.ticker and (fund.get("name") or fund.get("longName")):
-                        updates["name"] = fund.get("name") or fund.get("longName")
-                    if updates:
-                        holdings[idx] = h.model_copy(update=updates)
-                        enriched_count += 1
-                        # Cache fundamentals so subsequent fetches are instant
-                        resolved = fund.get("resolved_ticker", h.ticker)
-                        _store_fund(resolved, fund)
-                        if resolved != h.ticker:
-                            _store_fund(h.ticker, fund)
-                    else:
-                        # yfinance returned data but sector/name still missing — log explicitly
-                        missing_fields = []
-                        if not h.sector and not fund.get("sector"):
-                            missing_fields.append("sector")
-                        if h.name == h.ticker and not fund.get("name"):
-                            missing_fields.append("name")
-                        if missing_fields:
-                            logger.warning(
-                                "Enrichment incomplete for %s: yfinance returned data but "
-                                "missing fields: %s (source=%s)",
-                                h.ticker, missing_fields, fund.get("source", "unknown"),
-                            )
-                            unenriched_tickers.append(h.ticker)
-                else:
-                    logger.warning(
-                        "Enrichment failed for %s: no data returned from yfinance or FMP",
-                        h.ticker,
-                    )
-                    unenriched_tickers.append(h.ticker)
-            except Exception as exc:
-                logger.warning("Enrichment exception for %s: %s", h.ticker, exc)
-                unenriched_tickers.append(h.ticker)
-        logger.info(
-            "Enrichment completed: %d/%d holdings enriched; unenriched: %s",
-            enriched_count, len(needs_enrichment),
-            unenriched_tickers if unenriched_tickers else "none",
-        )
+    # Run in a thread so the async event loop is not blocked by yfinance I/O.
+    holdings, enriched_count, enrichment_note = await asyncio.to_thread(
+        enrich_holdings, holdings
+    )
 
     # ── 3a. Persist enriched sector/name back to the DB ──────────────────────
     # DB was saved in step 1 (before enrichment) so bare tickers/missing names
-    # are on disk. Patch only the enriched rows now so that after a backend
-    # restart _restore_from_db_holdings loads the correct sector/name.
+    # are on disk. Patch only the enriched rows now.
     if enriched_count > 0 and portfolio_id is not None:
         try:
             from app.db.database import SessionLocal
@@ -318,13 +257,8 @@ async def confirm_upload(
             try:
                 patch_mgr = PortfolioManagerService(patch_session)
                 enrichment_patches = [
-                    {
-                        "ticker":  holdings[idx].ticker,
-                        "sector":  holdings[idx].sector,
-                        "name":    holdings[idx].name,
-                    }
-                    for idx, _ in needs_enrichment
-                    if holdings[idx].sector or holdings[idx].name != holdings[idx].ticker
+                    {"ticker": h.ticker, "sector": h.sector, "name": h.name}
+                    for h in holdings
                 ]
                 patch_mgr.patch_holdings_enrichment(portfolio_id, enrichment_patches)
             finally:
@@ -337,25 +271,16 @@ async def confirm_upload(
     import app.data_providers.file_provider as _fp_module
     _fp_module._uploaded_holdings = list(holdings)
 
-    enrichment_note: Optional[str] = None
-    if needs_enrichment:
-        if enriched_count > 0 and not unenriched_tickers:
-            enrichment_note = (
-                f"{enriched_count} of {len(needs_enrichment)} holding(s) were automatically "
-                f"enriched with sector/company data from Yahoo Finance."
-            )
-        elif enriched_count > 0 and unenriched_tickers:
-            enrichment_note = (
-                f"{enriched_count} of {len(needs_enrichment)} holding(s) enriched. "
-                f"Sector/name unavailable for: {', '.join(unenriched_tickers)}. "
-                f"Check the debug panel for details."
-            )
-        else:
-            enrichment_note = (
-                f"{len(needs_enrichment)} holding(s) are missing sector or company name. "
-                f"Enrichment failed for: {', '.join(unenriched_tickers) if unenriched_tickers else 'all'}. "
-                f"Check the debug panel — sector will show as unavailable in the UI."
-            )
+    # ── 3c. Background quant cache pre-warm ──────────────────────────────────
+    # Fire-and-forget: compute quant analytics now so /risk and /quant are fast
+    # on the user's first visit after upload.  Errors are swallowed inside
+    # pre_warm_cache() — they must never surface to the upload response.
+    try:
+        from app.analytics.quant_service import pre_warm_cache
+        from app.data_providers.file_provider import FileDataProvider
+        background_tasks.add_task(pre_warm_cache, FileDataProvider(), "1y")
+    except Exception as exc:
+        logger.warning("Could not schedule quant pre-warm (non-fatal): %s", exc)
 
     # ── 4. Save canonical CSV ─────────────────────────────────────────────────
     UPLOADS_PATH.mkdir(parents=True, exist_ok=True)

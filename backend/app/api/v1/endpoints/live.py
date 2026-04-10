@@ -15,6 +15,7 @@ Routes:
   GET /live/indices                          → NIFTY 50 + SENSEX last price + change
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
@@ -155,6 +156,95 @@ _INDICES: list[tuple[str, str]] = [
 ]
 
 
+def _fetch_indices_sync() -> dict:
+    """
+    Synchronous worker that downloads NIFTY 50 and SENSEX from yfinance.
+    Called via asyncio.to_thread() so the event loop is never blocked.
+    """
+    import yfinance as yf
+    import pandas as pd
+
+    label_map = {sym: label for sym, label in _INDICES}
+
+    def _series_for_sym(sym: str, close_df) -> list:
+        if close_df is None:
+            raise ValueError("no close data in batch")
+        if isinstance(close_df, pd.Series):
+            return list(close_df.dropna().values)
+        if sym in close_df.columns:
+            return list(close_df[sym].dropna().values)
+        raise ValueError(f"{sym} not found in batch close_df columns")
+
+    def _parse_entry(sym: str, series: list) -> dict:
+        if not series:
+            raise ValueError("empty price series")
+        current    = float(series[-1])
+        prev       = float(series[-2]) if len(series) >= 2 else current
+        change     = current - prev
+        change_pct = (change / prev * 100) if prev else 0.0
+        return {
+            "symbol": sym, "name": label_map[sym], "unavailable": False,
+            "value":      round(current, 2),
+            "change":     round(change, 2),
+            "change_pct": round(change_pct, 2),
+        }
+
+    def _fetch_single(sym: str) -> dict:
+        try:
+            raw   = yf.download(sym, period="5d", interval="1d",
+                                 progress=False, auto_adjust=True)
+            if raw.empty:
+                raise ValueError("empty result")
+            close = raw.get("Close")
+            if close is None:
+                raise ValueError("no Close column")
+            series = (list(close.dropna().values)
+                      if isinstance(close, pd.Series)
+                      else list(close.iloc[:, 0].dropna().values))
+            return _parse_entry(sym, series)
+        except Exception as exc:
+            logger.warning("Individual index fetch failed for %s: %s", sym, exc)
+            return {"symbol": sym, "name": label_map[sym], "unavailable": True,
+                    "reason": f"fetch_error: {exc}"}
+
+    symbols      = [sym for sym, _ in _INDICES]
+    indices_out: list = []
+    batch_ok     = False
+
+    try:
+        raw      = yf.download(symbols, period="5d", interval="1d",
+                               progress=False, auto_adjust=True, threads=True)
+        close_df = raw.get("Close") if not raw.empty else None
+
+        for sym in symbols:
+            try:
+                series = _series_for_sym(sym, close_df)
+                indices_out.append(_parse_entry(sym, series))
+            except Exception as exc:
+                logger.warning("Batch parse failed for %s (%s) — retrying", sym, exc)
+                indices_out.append(None)
+
+        batch_ok = True
+    except Exception as exc:
+        logger.warning("Index batch download failed (%s) — per-symbol fallback", exc)
+        indices_out = [None] * len(symbols)
+
+    for i, (sym, entry) in enumerate(zip(symbols, indices_out)):
+        if entry is None:
+            indices_out[i] = _fetch_single(sym)
+
+    n_ok = sum(1 for e in indices_out if not e.get("unavailable"))
+    logger.info("Index fetch complete: %d/%d available (batch=%s)", n_ok, len(symbols), batch_ok)
+    return {
+        "indices":          indices_out,
+        "live_api_enabled": True,
+        "yfinance_available": True,
+        "source":           "yfinance",
+        "batch_ok":         batch_ok,
+        "available_count":  n_ok,
+    }
+
+
 @router.get("/indices", summary="Live NIFTY 50 and SENSEX prices with change")
 async def get_live_indices() -> dict:
     """
@@ -195,98 +285,9 @@ async def get_live_indices() -> dict:
             "source": "none",
         }
 
-    import yfinance as yf
-    label_map = {sym: label for sym, label in _INDICES}
-
-    def _series_for_sym(sym: str, close_df) -> "list[float]":
-        """Extract a list of close prices for sym from a batch download result."""
-        if close_df is None:
-            raise ValueError("no close data in batch")
-        # Batch download may return a DataFrame (MultiIndex top-level = "Close")
-        # where columns are ticker symbols, or a plain Series when only 1 ticker.
-        import pandas as pd
-        if isinstance(close_df, pd.Series):
-            return list(close_df.dropna().values)
-        if sym in close_df.columns:
-            return list(close_df[sym].dropna().values)
-        raise ValueError(f"{sym} not found in batch close_df columns")
-
-    def _parse_entry(sym: str, series: "list[float]") -> dict:
-        if not series:
-            raise ValueError("empty price series")
-        current = float(series[-1])
-        prev    = float(series[-2]) if len(series) >= 2 else current
-        change     = current - prev
-        change_pct = (change / prev * 100) if prev else 0.0
-        return {
-            "symbol": sym, "name": label_map[sym], "unavailable": False,
-            "value":      round(current, 2),
-            "change":     round(change, 2),
-            "change_pct": round(change_pct, 2),
-        }
-
-    def _fetch_single(sym: str) -> dict:
-        """Individual per-symbol download — used as fallback."""
-        try:
-            raw = yf.download(sym, period="5d", interval="1d",
-                              progress=False, auto_adjust=True)
-            if raw.empty:
-                raise ValueError("empty result")
-            close = raw.get("Close")
-            if close is None:
-                raise ValueError("no Close column")
-            import pandas as pd
-            series = list(close.dropna().values) if isinstance(close, pd.Series) else list(close.iloc[:, 0].dropna().values)
-            return _parse_entry(sym, series)
-        except Exception as exc:
-            logger.warning("Individual index fetch failed for %s: %s", sym, exc)
-            return {"symbol": sym, "name": label_map[sym], "unavailable": True,
-                    "reason": f"fetch_error: {exc}"}
-
-    # ── Attempt batch download ────────────────────────────────────────────────
-    symbols = [sym for sym, _ in _INDICES]
-    indices_out: list[dict] = []
-    batch_ok = False
-
-    try:
-        raw = yf.download(
-            symbols, period="5d", interval="1d",
-            progress=False, auto_adjust=True, threads=True,
-        )
-        close_df = raw.get("Close") if (not raw.empty) else None
-
-        for sym in symbols:
-            try:
-                series = _series_for_sym(sym, close_df)
-                indices_out.append(_parse_entry(sym, series))
-            except Exception as exc:
-                logger.warning("Batch parse failed for %s (%s) — will retry individually", sym, exc)
-                indices_out.append(None)   # placeholder; filled below
-
-        batch_ok = True
-    except Exception as exc:
-        logger.warning("Index batch download failed (%s) — falling back to per-symbol", exc)
-        indices_out = [None] * len(symbols)
-
-    # ── Fill any None placeholders with individual fetches ────────────────────
-    for i, (sym, entry) in enumerate(zip(symbols, indices_out)):
-        if entry is None:
-            indices_out[i] = _fetch_single(sym)
-
-    n_ok = sum(1 for e in indices_out if not e.get("unavailable"))
-    logger.info(
-        "Index fetch complete: %d/%d available (batch=%s)",
-        n_ok, len(symbols), batch_ok,
-    )
-
-    return {
-        "indices":            indices_out,
-        "live_api_enabled":   True,
-        "yfinance_available": True,
-        "source":             "yfinance",
-        "batch_ok":           batch_ok,
-        "available_count":    n_ok,
-    }
+    # Run all yf.download() calls in a thread — they are blocking I/O and must
+    # not run on the asyncio event loop.
+    return await asyncio.to_thread(_fetch_indices_sync)
 
 
 # ─── GET /live/status ─────────────────────────────────────────────────────────

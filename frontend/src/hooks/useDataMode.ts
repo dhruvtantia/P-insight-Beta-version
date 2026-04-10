@@ -16,6 +16,7 @@ interface UseDataModeReturn {
   setMode: (mode: DataMode) => void
   currentConfig: DataModeConfig | undefined
   allModes: DataModeConfig[]
+  /** @deprecated mock mode has been removed. Always false. */
   isMock: boolean
   isUploaded: boolean
   isLive: boolean
@@ -31,7 +32,7 @@ export function useDataMode(): UseDataModeReturn {
     setMode,
     currentConfig,
     allModes: DATA_MODES,
-    isMock: mode === 'mock',
+    isMock: false,   // mock mode is disabled
     isUploaded: mode === 'uploaded',
     isLive: mode === 'live',
     isBroker: mode === 'broker',

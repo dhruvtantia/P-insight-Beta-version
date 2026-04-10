@@ -4,12 +4,6 @@ import { DataModeConfig } from '@/types'
 
 export const DATA_MODES: DataModeConfig[] = [
   {
-    value: 'mock',
-    label: 'Mock Data',
-    description: 'Use built-in sample Indian equity portfolio',
-    enabled: true,
-  },
-  {
     value: 'uploaded',
     label: 'Uploaded Portfolio',
     description: 'Use your uploaded Excel or CSV file',

@@ -26,19 +26,36 @@ export interface RefreshResponse {
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 // ─── Base Fetch Utility ───────────────────────────────────────────────────────
+// All API calls are given a 15-second hard timeout so that a slow or blocked
+// backend endpoint never leaves the UI in an indefinite loading state.
+
+const API_TIMEOUT_MS = 15_000
 
 async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail ?? `API error: ${response.status}`)
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }))
+      throw new Error(error.detail ?? `API error: ${response.status}`)
+    }
+
+    return response.json()
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${API_TIMEOUT_MS / 1000}s (${endpoint})`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
   }
-
-  return response.json()
 }
 
 function withMode(endpoint: string, mode: DataMode): string {

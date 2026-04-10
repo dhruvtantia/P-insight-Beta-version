@@ -353,10 +353,7 @@ export function FundamentalsTable({ holdings, loading = false }: Props) {
                             colSpan={COLUMNS.length - 1}
                             className="px-4 py-3 text-[10px] text-slate-400 italic"
                           >
-                            {isUnavailable
-                              ? `Fundamentals unavailable${h.fundamentals?.error ? ': ' + h.fundamentals.error : ''}`
-                              : 'Fundamentals not yet loaded — switch to Live or Uploaded mode'
-                            }
+                            Data unavailable from provider
                           </td>
                         </>
                       )

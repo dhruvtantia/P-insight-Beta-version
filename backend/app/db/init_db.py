@@ -135,8 +135,11 @@ def init_db() -> None:
     # 2. Add new columns to existing tables (idempotent ALTER TABLE)
     _run_column_migrations()
 
-    # 3. Seed the default mock portfolio if the DB is empty
-    _seed_mock_portfolio()
+    # 3. Mock portfolio seeding intentionally disabled.
+    #    _seed_mock_portfolio() previously created a source="mock" Portfolio row
+    #    on fresh installs, which interfered with the data-mode routing logic
+    #    (GET /portfolio returned 0 holdings while the portfolio selector showed
+    #    a "Demo Portfolio" entry).  The function body is kept for reference.
 
     # 4. Restore the most-recent uploaded portfolio into memory
     try:

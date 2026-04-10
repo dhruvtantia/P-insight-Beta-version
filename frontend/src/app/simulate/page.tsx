@@ -425,7 +425,7 @@ function SimulatePageInner() {
             <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
             <p className="text-[11px] text-slate-400 leading-relaxed">
               Simulation is for analysis only — no trades are executed.
-              Fundamentals are from the same mock data used across the app.
+              Fundamentals are sourced from Yahoo Finance when available.
             </p>
           </div>
         </div>

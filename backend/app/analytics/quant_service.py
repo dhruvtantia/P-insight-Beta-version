@@ -64,6 +64,25 @@ def _cache_set(key: str, data: dict) -> None:
     _QUANT_CACHE[key] = (data, _time.time())
 
 
+# ─── Cache pre-warmer (called from BackgroundTasks after upload) ───────────────
+
+async def pre_warm_cache(provider: "BaseDataProvider", period: str = "1y") -> None:
+    """
+    Fire-and-forget coroutine: compute quant analytics in the background
+    immediately after a portfolio is uploaded so the first visit to /quant
+    or /risk is fast instead of triggering a fresh 30-60s yfinance fetch.
+
+    Called from upload.py confirm endpoint via FastAPI BackgroundTasks.
+    Errors are caught and logged — they must never crash the upload response.
+    """
+    try:
+        svc = QuantAnalyticsService(provider)
+        await svc.compute_all(period=period)
+        logger.info("Quant cache pre-warmed: mode=%s period=%s", provider.mode_name, period)
+    except Exception as exc:
+        logger.warning("Quant cache pre-warm failed (non-fatal): %s", exc)
+
+
 # ─── Main service class ───────────────────────────────────────────────────────
 
 class QuantAnalyticsService:

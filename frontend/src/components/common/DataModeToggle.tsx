@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check, Lock, Database, Upload, Wifi, Link } from 'lucide-react'
+import { ChevronDown, Check, Lock, Upload, Wifi, Link } from 'lucide-react'
 import { useDataMode } from '@/hooks/useDataMode'
 import { cn } from '@/lib/utils'
 import type { DataMode } from '@/types'
 
 const MODE_ICONS: Record<DataMode, React.ElementType> = {
-  mock:     Database,
   uploaded: Upload,
   live:     Wifi,
   broker:   Link,
 }
 
 const MODE_COLORS: Record<DataMode, string> = {
-  mock:     'text-indigo-600 bg-indigo-50',
   uploaded: 'text-emerald-600 bg-emerald-50',
   live:     'text-emerald-600 bg-emerald-50',
   broker:   'text-rose-600 bg-rose-50',
@@ -22,8 +20,8 @@ const MODE_COLORS: Record<DataMode, string> = {
 
 /**
  * DataModeToggle — the global data source switcher in the Topbar.
- * Mock, Uploaded, and Live API are all selectable.
- * Broker Sync is still disabled (Phase 3).
+ * Uploaded and Live API are selectable. Broker Sync is Phase 3.
+ * Mock mode has been removed.
  */
 export function DataModeToggle() {
   const { mode, setMode, allModes, currentConfig } = useDataMode()

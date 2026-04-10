@@ -17,12 +17,13 @@
 
 import { useState, useMemo }                     from 'react'
 import { useRouter }                              from 'next/navigation'
-import { Trash2, ChevronUp, ChevronDown, ChevronsUpDown, GitFork } from 'lucide-react'
+import { Trash2, ChevronUp, ChevronDown, ChevronsUpDown, GitFork, Clock } from 'lucide-react'
 import { WatchlistTagBadge }                      from './WatchlistTagBadge'
 import { SECTOR_COLORS, DEFAULT_SECTOR_COLOR }    from '@/constants'
 import { formatCurrency }                         from '@/constants'
 import { cn }                                     from '@/lib/utils'
 import type { WatchlistItem }                     from '@/types'
+import { useWatchlistPrices }                     from '@/hooks/useWatchlistPrices'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ function relativeDate(iso: string): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
 }
 
-type SortKey = 'ticker' | 'tag' | 'added_at' | 'sector' | 'target_price'
+type SortKey = 'ticker' | 'tag' | 'added_at' | 'sector' | 'target_price' | 'live_price'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,10 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
   const [sortKey, setSortKey]   = useState<SortKey>('added_at')
   const [sortAsc, setSortAsc]   = useState(false)            // newest first by default
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  // Live prices — auto-refresh every 60 s, independent of data mode
+  const tickers = useMemo(() => items.map((i) => i.ticker), [items])
+  const { prices: livePrices, lastFetchAt, yfinanceAvailable } = useWatchlistPrices(tickers)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -70,9 +75,10 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
       if (sortKey === 'added_at')     cmp = new Date(a.added_at).getTime() - new Date(b.added_at).getTime()
       if (sortKey === 'sector')       cmp = (a.sector ?? '').localeCompare(b.sector ?? '')
       if (sortKey === 'target_price') cmp = (a.target_price ?? -Infinity) - (b.target_price ?? -Infinity)
+      if (sortKey === 'live_price')   cmp = (livePrices[a.ticker] ?? -Infinity) - (livePrices[b.ticker] ?? -Infinity)
       return sortAsc ? cmp : -cmp
     })
-  }, [items, sortKey, sortAsc])
+  }, [items, sortKey, sortAsc, livePrices])
 
   function handleDeleteClick(ticker: string) {
     if (confirmDelete === ticker) {
@@ -95,7 +101,15 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
           <h3 className="text-sm font-semibold text-slate-800">Watchlist</h3>
           <p className="text-xs text-slate-400 mt-0.5">{items.length} stock{items.length !== 1 ? 's' : ''} tracked</p>
         </div>
-        <p className="text-[11px] text-slate-400 hidden sm:block">Click column headers to sort</p>
+        <div className="flex items-center gap-3">
+          {lastFetchAt && yfinanceAvailable && (
+            <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400">
+              <Clock className="h-3 w-3" />
+              <span>Prices updated {lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          )}
+          <p className="text-[11px] text-slate-400 hidden sm:block">Click column headers to sort</p>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -114,6 +128,9 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
               {/* Sector — sortable */}
               <Th label="Sector" sortKey="sector" current={sortKey} asc={sortAsc} onSort={handleSort}
                   className="text-left" />
+              {/* Live Price — sortable */}
+              <Th label="Live ₹" sortKey="live_price" current={sortKey} asc={sortAsc} onSort={handleSort}
+                  className="w-[110px]" align="right" />
               {/* Target Price — sortable */}
               <Th label="Target ₹" sortKey="target_price" current={sortKey} asc={sortAsc} onSort={handleSort}
                   className="w-[110px]" align="right" />
@@ -173,6 +190,24 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
                     ) : (
                       <span className="text-slate-300 text-xs">—</span>
                     )}
+                  </td>
+
+                  {/* Live Price */}
+                  <td className="px-4 py-3 text-right tabular-nums text-xs">
+                    {(() => {
+                      const lp = livePrices[item.ticker]
+                      if (!yfinanceAvailable) {
+                        return <span className="text-slate-300" title="yfinance unavailable">—</span>
+                      }
+                      if (lp !== undefined) {
+                        return (
+                          <span className="font-semibold text-emerald-700">
+                            ₹{lp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        )
+                      }
+                      return <span className="text-slate-300 text-[10px] italic">Loading…</span>
+                    })()}
                   </td>
 
                   {/* Target Price */}

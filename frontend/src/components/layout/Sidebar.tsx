@@ -17,6 +17,7 @@ import {
   BarChart2,
   Bug,
   Upload,
+  TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -50,18 +51,24 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    // Core daily workflow — all items reliable in uploaded/live mode
+    // Market is the default landing page — shown first
+    label: 'Overview',
+    items: [
+      { label: 'Market', href: '/market', Icon: TrendingUp },
+    ],
+  },
+  {
+    // Portfolio workspace — Tier 1 core: all must work
     label: 'Portfolio',
     items: [
       { label: 'Dashboard',    href: '/dashboard',    Icon: LayoutDashboard },
       { label: 'Holdings',     href: '/holdings',     Icon: Briefcase       },
       { label: 'Fundamentals', href: '/fundamentals', Icon: BarChart2       },
       { label: 'Risk',         href: '/risk',         Icon: Activity        },
-      { label: 'Peer Compare', href: '/peers',        Icon: Users           },
     ],
   },
   {
-    // Portfolio management
+    // Portfolio management — Tier 1
     label: 'Manage',
     items: [
       { label: 'Portfolios',   href: '/portfolios', Icon: FolderOpen },
@@ -71,18 +78,21 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // Explore — functional but not always live-data backed
+    // Explore — Tier 2: helpful but not critical
+    // Peer Compare, News, and Advisor are secondary workflows.
     label: 'Explore',
     items: [
-      { label: 'Sectors',       href: '/sectors',  Icon: PieChart       },
-      { label: 'News & Events', href: '/news',     Icon: Newspaper      },
-      { label: 'Advisor',       href: '/advisor',  Icon: MessageCircle  },
+      { label: 'Peer Compare',  href: '/peers',    Icon: Users         },
+      { label: 'News & Events', href: '/news',     Icon: Newspaper     },
+      { label: 'Advisor',       href: '/advisor',  Icon: MessageCircle },
     ],
   },
-  // Labs (Optimizer /optimize, Simulator /simulate, Brokers /brokers,
-  //       Efficient Frontier /frontier) are intentionally hidden from the main
-  //       navigation until they are stable.  The route code is NOT deleted —
-  //       navigate directly by URL if you need to test them.
+  // Hidden from nav (route code NOT deleted — navigate directly by URL):
+  //   /sectors   (Sector Allocation — redundant with dashboard)
+  //   /optimize  (Optimizer — Tier 3)
+  //   /simulate  (Simulator — Tier 3)
+  //   /brokers   (Broker Sync — Tier 3, scaffold)
+  //   /frontier  (Efficient Frontier — Tier 3, scaffold)
 ]
 
 const DEV_ITEMS: NavItem[] = [
@@ -175,15 +185,17 @@ export function Sidebar({ width }: SidebarProps) {
           </div>
         ))}
 
-        {/* Developer tools */}
-        <div>
-          <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-700">
-            Developer
-          </p>
-          <ul className="space-y-0.5">
-            {DEV_ITEMS.map((item) => renderLink(item))}
-          </ul>
-        </div>
+        {/* Developer tools — only visible in development mode */}
+        {process.env.NODE_ENV === 'development' && (
+          <div>
+            <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-700">
+              Developer
+            </p>
+            <ul className="space-y-0.5">
+              {DEV_ITEMS.map((item) => renderLink(item))}
+            </ul>
+          </div>
+        )}
       </nav>
 
       {/* Footer */}

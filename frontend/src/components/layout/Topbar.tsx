@@ -8,6 +8,7 @@ import { IndexTicker } from '@/components/layout/IndexTicker'
 
 // Map route paths to human-readable page titles
 const PAGE_TITLES: Record<string, string> = {
+  '/market':       'Market Overview',
   '/dashboard':    'Dashboard',
   '/holdings':     'Holdings',
   '/sectors':      'Sector Allocation',

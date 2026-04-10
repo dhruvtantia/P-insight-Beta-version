@@ -51,7 +51,7 @@ export interface RiskSnapshot {
 
 // ─── Data Mode ────────────────────────────────────────────────────────────────
 
-export type DataMode = 'mock' | 'uploaded' | 'live' | 'broker'
+export type DataMode = 'uploaded' | 'live' | 'broker'
 
 export interface DataModeConfig {
   value: DataMode

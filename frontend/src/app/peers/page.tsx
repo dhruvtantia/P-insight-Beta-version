@@ -97,9 +97,9 @@ export default function PeersPage() {
       <div className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
         <Info className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
         <p className="text-xs text-slate-500">
-          <span className="font-semibold text-slate-600">Mock data mode.</span>{' '}
-          Peer fundamentals are static reference values for development and demo.
-          Live data via yfinance / FMP will be added in Phase 2.
+          Peer fundamentals are sourced from Yahoo Finance.
+          Coverage depends on whether the ticker is listed on Yahoo Finance.
+          Switch to <span className="font-medium text-slate-600">Live</span> mode for real-time data.
         </p>
       </div>
 
@@ -202,8 +202,8 @@ function NoPeersState({ ticker }: { ticker: string }) {
     <div className="card px-6 py-10 text-center">
       <p className="text-sm font-semibold text-slate-500">No peers configured for {base}</p>
       <p className="text-xs text-slate-400 mt-1">
-        Add entries to the <code className="bg-slate-100 px-1 rounded">peer_map</code> in{' '}
-        <code className="bg-slate-100 px-1 rounded">mock_provider.py</code> to enable comparison.
+        Peers are resolved via Yahoo Finance sector classification.
+        If no peers appear, the ticker may not be recognised or sector data is unavailable.
       </p>
     </div>
   )

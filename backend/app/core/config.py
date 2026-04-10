@@ -11,7 +11,6 @@ For production, set APP_ENV=production and override dangerous defaults
 """
 
 from pydantic_settings import BaseSettings
-from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -53,7 +52,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./p_insight.db"
 
     # ─── Data Mode ───────────────────────────────────────────────────────────
-    DEFAULT_DATA_MODE: Literal["mock", "uploaded", "live", "broker"] = "mock"
+    # Stored as a plain str so that a stale .env value (e.g. "mock") never causes
+    # a pydantic ValidationError that crashes the entire backend on startup.
+    # The routing layer (core/dependencies.py) enforces the valid values at request
+    # time and returns a 400 error for anything unsupported.
+    DEFAULT_DATA_MODE: str = "uploaded"
 
     # ─── Feature Flags ───────────────────────────────────────────────────────
     LIVE_API_ENABLED:          bool = True

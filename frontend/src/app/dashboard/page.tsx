@@ -22,14 +22,14 @@
 'use client'
 
 import { useMemo }                         from 'react'
+import { useRouter }                       from 'next/navigation'
 import {
   RefreshCw, AlertCircle,
-  Activity, Brain, Briefcase, PieChart,
-  TrendingUp, TrendingDown,
+  Activity, Brain, PieChart,
+  TrendingUp, Upload,
 } from 'lucide-react'
 import { usePortfolio }                    from '@/hooks/usePortfolio'
 import { useDataMode }                     from '@/hooks/useDataMode'
-import { useQuantAnalytics }               from '@/hooks/useQuantAnalytics'
 import { useFilterStore }                  from '@/store/filterStore'
 import { PortfolioSummaryCards }           from '@/components/modules/PortfolioSummaryCards'
 import { HoldingsTable }                   from '@/components/modules/HoldingsTable'
@@ -146,6 +146,40 @@ function RiskTile({
   )
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyPortfolioState() {
+  const router = useRouter()
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center gap-6">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-100">
+        <Upload className="h-7 w-7 text-indigo-500" />
+      </div>
+      <div className="max-w-sm">
+        <h2 className="text-lg font-bold text-slate-800">No portfolio uploaded yet</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Upload a CSV or Excel file with your holdings to see your portfolio analytics, risk metrics, and sector breakdown.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={() => router.push('/upload')}
+          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          <Upload className="h-4 w-4" />
+          Upload Portfolio
+        </button>
+        <button
+          onClick={() => router.push('/market')}
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+        >
+          View Market Overview
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -163,22 +197,18 @@ export default function DashboardPage() {
     [holdings, sectors, summary]
   )
 
-  // Quant metrics for risk section
-  const { data: quantData, loading: quantLoading } = useQuantAnalytics()
-  const qm = quantData?.metrics?.portfolio
-
-  // Risk status helpers
-  const volStatus  = (v: number | null | undefined) =>
-    v == null ? 'neutral' : v < 15 ? 'good' : v < 25 ? 'warn' : 'bad'
-  const sharpeStatus = (s: number | null | undefined) =>
-    s == null ? 'neutral' : s >= 1.5 ? 'good' : s >= 0.8 ? 'warn' : 'bad'
-  const ddStatus   = (d: number | null | undefined) =>
-    d == null ? 'neutral' : Math.abs(d) < 10 ? 'good' : Math.abs(d) < 20 ? 'warn' : 'bad'
-  const divStatus  = (d: number | null | undefined) =>
-    d == null ? 'neutral' : d >= 7 ? 'good' : d >= 4 ? 'warn' : 'bad'
+  // Concentration status helpers (derived from riskSnapshot — zero extra API calls)
+  const maxHoldingStatus = (w: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>
+    w == null ? 'neutral' : w >= 35 ? 'bad' : w >= 20 ? 'warn' : 'good'
+  const top3Status = (w: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>
+    w == null ? 'neutral' : w >= 60 ? 'bad' : w >= 45 ? 'warn' : 'good'
+  const hhiStatus = (h: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>
+    h == null ? 'neutral' : h >= 0.25 ? 'bad' : h >= 0.12 ? 'warn' : 'good'
+  const divStatus  = (d: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>
+    d == null ? 'neutral' : d >= 65 ? 'good' : d >= 40 ? 'warn' : 'bad'
 
   return (
-    <div className="space-y-8 max-w-[1400px]">
+    <div className="space-y-6 max-w-[1400px]">
 
       {/* ── Status bar ───────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -228,7 +258,12 @@ export default function DashboardPage() {
       {/* ── Error ────────────────────────────────────────────────────────── */}
       {error && <ErrorBanner message={error} onRetry={refetch} />}
 
-      {!error && (
+      {/* ── Empty state — no portfolio uploaded ──────────────────────────── */}
+      {!error && !loading && holdings.length === 0 && (
+        <EmptyPortfolioState />
+      )}
+
+      {!error && (loading || holdings.length > 0) && (
         <div className="space-y-0">
 
           {/* ══════════════════════════════════════════════════════════════════
@@ -236,7 +271,7 @@ export default function DashboardPage() {
               Capital invested · current value · total return · daily change
               Primary focal point — kept at top with extra bottom spacing.
           ══════════════════════════════════════════════════════════════════ */}
-          <section className="pb-8">
+          <section className="pb-6">
             <SectionHeading
               icon={TrendingUp}
               title="Portfolio Summary"
@@ -249,7 +284,7 @@ export default function DashboardPage() {
               SECTION 2 — ALLOCATION OVERVIEW
               Sector breakdown · top holdings · holdings preview
           ══════════════════════════════════════════════════════════════════ */}
-          <section className="border-t border-slate-100 pt-8 pb-8">
+          <section className="border-t border-slate-100 pt-6 pb-6">
             <SectionHeading
               icon={PieChart}
               title="Allocation Overview"
@@ -258,8 +293,8 @@ export default function DashboardPage() {
             />
 
             {/* Charts row — sector donut left, top holdings bar right */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
-              <div className="lg:col-span-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5 mb-6">
+              <div className="xl:col-span-2">
                 <SectorAllocationChart
                   sectors={sectors}
                   loading={loading}
@@ -267,7 +302,7 @@ export default function DashboardPage() {
                   onSectorClick={toggleSector}
                 />
               </div>
-              <div className="lg:col-span-7">
+              <div className="xl:col-span-3">
                 <TopHoldingsChart holdings={holdings} loading={loading} limit={8} />
               </div>
             </div>
@@ -287,7 +322,7 @@ export default function DashboardPage() {
               SECTION 3 — RISK SUMMARY
               Volatility · Sharpe · drawdown · diversification
           ══════════════════════════════════════════════════════════════════ */}
-          <section className="border-t border-slate-100 pt-8 pb-8">
+          <section className="border-t border-slate-100 pt-6 pb-6">
             <SectionHeading
               icon={Activity}
               title="Risk Summary"
@@ -295,33 +330,33 @@ export default function DashboardPage() {
               action={{ label: 'Full risk analysis', href: '/risk' }}
             />
 
-            {/* 4-tile metric grid */}
+            {/* 4-tile metric grid — all sourced from riskSnapshot (no extra API calls) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
               <RiskTile
-                label="Volatility"
-                value={qm?.annualized_volatility}
+                label="Top Position"
+                value={riskSnapshot?.max_holding_weight}
                 unit="%"
-                status={volStatus(qm?.annualized_volatility)}
-                loading={quantLoading}
+                status={maxHoldingStatus(riskSnapshot?.max_holding_weight)}
+                loading={loading}
               />
               <RiskTile
-                label="Sharpe"
-                value={qm?.sharpe_ratio}
-                unit="x"
-                status={sharpeStatus(qm?.sharpe_ratio)}
-                loading={quantLoading}
+                label="Top 3 Combined"
+                value={riskSnapshot?.top3_weight}
+                unit="%"
+                status={top3Status(riskSnapshot?.top3_weight)}
+                loading={loading}
               />
               <RiskTile
-                label="Max Drawdown"
-                value={qm?.max_drawdown != null ? -Math.abs(qm.max_drawdown) : null}
-                unit="%"
-                status={ddStatus(qm?.max_drawdown)}
-                loading={quantLoading}
+                label="HHI (Concentration)"
+                value={riskSnapshot?.hhi}
+                unit=""
+                status={hhiStatus(riskSnapshot?.hhi)}
+                loading={loading}
               />
               <RiskTile
                 label="Diversification"
                 value={riskSnapshot?.diversification_score}
-                unit="/10"
+                unit="/100"
                 status={divStatus(riskSnapshot?.diversification_score)}
                 loading={loading}
               />
@@ -335,7 +370,7 @@ export default function DashboardPage() {
               SECTION 4 — INSIGHTS
               Recommended actions · AI advisor snapshot
           ══════════════════════════════════════════════════════════════════ */}
-          <section className="border-t border-slate-100 pt-8">
+          <section className="border-t border-slate-100 pt-6">
             <SectionHeading
               icon={Brain}
               title="Insights"

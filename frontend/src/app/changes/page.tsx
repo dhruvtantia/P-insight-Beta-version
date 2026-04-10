@@ -235,14 +235,30 @@ export default function ChangesPage(): React.ReactElement {
       {!isLoading && activePortfolioId !== null && tab === 'history' && (
         <div className="space-y-6">
 
-          {summaries.length < 2 && (
+          {summaries.length === 0 && (
+            <div className="rounded-xl border-2 border-dashed border-slate-200 py-16 text-center">
+              <Camera className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-slate-600 mb-1">No snapshots yet</p>
+              <p className="text-xs text-slate-400 max-w-xs mx-auto mb-5">
+                Snapshots capture your portfolio state at a point in time. Take your first snapshot now, then come back after making changes to track what evolved.
+              </p>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-2 hover:bg-indigo-700 transition-colors disabled:opacity-60"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                Take First Snapshot
+              </button>
+            </div>
+          )}
+
+          {summaries.length === 1 && (
             <div className="rounded-xl border-2 border-dashed border-slate-200 py-12 text-center">
               <TrendingUp className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-slate-500">
-                {summaries.length === 0 ? 'No snapshots yet' : 'Need at least 2 snapshots for history charts'}
-              </p>
+              <p className="text-sm font-medium text-slate-500">Need at least 2 snapshots for history charts</p>
               <p className="text-xs text-slate-400 mt-1">
-                Take a snapshot now, then come back after making changes to your portfolio.
+                You have 1 snapshot. Make some portfolio changes, then take another snapshot.
               </p>
             </div>
           )}

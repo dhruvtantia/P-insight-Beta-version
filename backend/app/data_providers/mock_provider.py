@@ -28,7 +28,11 @@ class MockDataProvider(BaseDataProvider):
 
     @property
     def is_available(self) -> bool:
-        return True  # Always available
+        return False  # Mock mode is intentionally disabled
+
+    @property
+    def unavailable_reason(self) -> str:
+        return "Mock data mode is disabled. Please upload a portfolio CSV or connect a broker account."
 
     def _load_portfolio(self) -> dict:
         path = MOCK_DATA_PATH / "portfolio.json"

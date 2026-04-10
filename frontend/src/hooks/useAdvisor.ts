@@ -2,13 +2,13 @@
  * useAdvisor — AI-aware portfolio advisor hook
  * ---------------------------------------------
  *
- * Data pipeline (unchanged from rule-based version):
+ * Data pipeline:
  *   usePortfolio  → holdings, sectors, summary
  *   useFundamentals(holdings)  → enrichedHoldings, weightedMetrics
  *   useWatchlist  → watchlistItems
  *   computeRiskSnapshot  → riskSnapshot (derived, no API)
  *
- * AI integration (new):
+ * AI integration:
  *   On mount → GET /advisor/status → sets aiEnabled + provider name
  *   sendQuery:
  *     If AI available  → POST /advisor/ask → parse AIAdvisorResponse
@@ -17,6 +17,13 @@
  *
  * Zero UI changes required: AdvisorChatBubble + advisor/page.tsx consume
  * the same AdvisorResponse type regardless of AI vs rule-based path.
+ *
+ * NOTE: useOptimization intentionally excluded.
+ *   It previously triggered GET /optimization/full on every /advisor page load.
+ *   Optimization data is not needed to have a conversation — the AI path sends
+ *   the query to the backend which can compute optimization context itself.
+ *   The rule-based path handles optimization queries with optimizationSummary=null.
+ *   For full optimization output, use /optimize directly.
  *
  * New public fields:
  *   aiEnabled    — true when an LLM provider is configured
@@ -30,7 +37,6 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { usePortfolio }        from '@/hooks/usePortfolio'
 import { useFundamentals }     from '@/hooks/useFundamentals'
 import { useWatchlist }        from '@/hooks/useWatchlist'
-import { useOptimization }     from '@/hooks/useOptimization'
 import { usePortfolios }       from '@/hooks/usePortfolios'
 import { useSnapshots }        from '@/hooks/useSnapshots'
 import { useDataModeStore }    from '@/store/dataModeStore'
@@ -84,7 +90,7 @@ interface UseAdvisorResult {
   lastLatencyMs:      number
   /** number of saved snapshots for the active portfolio */
   snapshotCount:      number
-  /** current data mode: 'mock' | 'live' | 'uploaded' | 'broker' */
+  /** current data mode: 'live' | 'uploaded' | 'broker' */
   dataMode:           string
 }
 
@@ -180,7 +186,6 @@ export function useAdvisor(): UseAdvisorResult {
   const { holdings, sectors, summary, loading: portfolioLoading, error: portfolioError } = usePortfolio()
   const { enrichedHoldings, weightedMetrics } = useFundamentals(holdings)
   const { items: watchlistItems }             = useWatchlist()
-  const { data: optData }                     = useOptimization()
   const { activePortfolioId }                 = usePortfolios()
   const { snapshots }                         = useSnapshots(activePortfolioId)
   const dataMode                              = useDataModeStore((s) => s.mode)
@@ -190,31 +195,10 @@ export function useAdvisor(): UseAdvisorResult {
     [holdings, sectors, summary],
   )
 
-  const optimizationSummary = useMemo(() => {
-    if (!optData?.max_sharpe) return null
-    const ms  = optData.max_sharpe
-    const mv  = optData.min_variance
-    const cur = optData.current
-    return {
-      maxSharpe: {
-        expectedReturn: ms.expected_return,
-        volatility:     ms.volatility,
-        sharpeRatio:    ms.sharpe_ratio,
-        topWeights:     Object.entries(ms.weights)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 3)
-          .map(([t, w]) => ({
-            ticker: t.replace(/\.(NS|BO|BSE)$/i, ''),
-            weight: +(w * 100).toFixed(1),
-          })),
-      },
-      minVariance:      mv  ? { volatility: mv.volatility, sharpeRatio: mv.sharpe_ratio } : null,
-      currentSharpe:    cur ? cur.sharpe_ratio : null,
-      rebalanceActions: optData.rebalance?.length ?? 0,
-      period:           optData.meta?.period,
-    }
-  }, [optData])
-
+  // optimizationSummary is intentionally null here.
+  // useOptimization was removed to avoid firing /optimization/full on every
+  // advisor page load. The AI path sends the query to the backend which handles
+  // optimization context independently. Rule-based path degrades gracefully.
   const engineInput: AdvisorEngineInput = useMemo(
     () => ({
       holdings,
@@ -223,9 +207,9 @@ export function useAdvisor(): UseAdvisorResult {
       weightedMetrics,
       riskSnapshot,
       watchlistItems,
-      optimizationSummary,
+      optimizationSummary: null,
     }),
-    [holdings, enrichedHoldings, sectors, weightedMetrics, riskSnapshot, watchlistItems, optimizationSummary],
+    [holdings, enrichedHoldings, sectors, weightedMetrics, riskSnapshot, watchlistItems],
   )
 
   // ── AI provider state ─────────────────────────────────────────────────────

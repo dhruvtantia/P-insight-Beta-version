@@ -148,11 +148,10 @@ def fetch_benchmark_live(period: str = "1y") -> dict:
         }
 
 
-def get_benchmark(mode: str = "mock", period: str = "1y") -> dict:
+def get_benchmark(mode: str = "uploaded", period: str = "1y") -> dict:
     """
-    Public entry point. Routes to live or mock based on provider mode.
-    In live mode, failure means source="unavailable" — never mock.
+    Public entry point. Always fetches live NIFTY 50 data.
+    Mock mode has been disabled — synthetic benchmark is no longer returned.
+    Failure means source="unavailable" with empty data[] — never synthetic fallback.
     """
-    if mode == "live":
-        return fetch_benchmark_live(period)
-    return generate_mock_benchmark(period)
+    return fetch_benchmark_live(period)

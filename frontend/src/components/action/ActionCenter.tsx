@@ -71,18 +71,7 @@ function generateActions(params: {
     ))
   }
 
-  // 2. Mock mode reminder
-  if (mode === 'mock') {
-    actions.push(makeAction(
-      'mock-mode',
-      'info',
-      'portfolio',
-      'Using demo data',
-      'You\'re viewing mock portfolio data. Upload your own holdings to see real insights.',
-      10,
-      { href: '/upload', cta: 'Switch to real data' }
-    ))
-  }
+  // 2. (mock mode reminder removed — mock mode no longer a valid data mode)
 
   // 3. Active portfolio has no snapshot
   if (activePortfolioId !== null) {

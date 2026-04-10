@@ -22,14 +22,21 @@ interface DataModeState {
 export const useDataModeStore = create<DataModeState>()(
   persist(
     (set, get) => ({
-      mode: 'mock' as DataMode,
+      // Default to 'uploaded' — mock mode is disabled
+      mode: 'uploaded' as DataMode,
 
-      // Feature flags — Phase 2: live API is now enabled
+      // Feature flags
       isLiveEnabled: true,
       isBrokerEnabled: false,
 
       setMode: (mode: DataMode) => {
         const state = get()
+
+        // Guard: reject any attempt to switch to deprecated mock mode
+        if ((mode as string) === 'mock') {
+          console.warn('Mock mode is disabled. Use uploaded or live mode.')
+          return
+        }
 
         if (mode === 'live' && !state.isLiveEnabled) {
           console.warn('Live API mode is not yet enabled.')
@@ -47,7 +54,16 @@ export const useDataModeStore = create<DataModeState>()(
     {
       name: 'p-insight-data-mode',
       // Only persist the mode selection, not the flags
+      // Migrate any stored 'mock' value to 'uploaded' on hydration
       partialize: (state) => ({ mode: state.mode }),
+      merge: (persisted: Partial<DataModeState>, current: DataModeState) => {
+        const stored = (persisted as { mode?: string }).mode
+        const safeModes: DataMode[] = ['uploaded', 'live', 'broker']
+        return {
+          ...current,
+          mode: safeModes.includes(stored as DataMode) ? (stored as DataMode) : 'uploaded',
+        }
+      },
     }
   )
 )
