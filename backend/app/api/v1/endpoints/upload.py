@@ -37,7 +37,7 @@ from app.ingestion.normalizer import (
     normalize_to_holdings,
     missing_optional_columns,
 )
-from app.ingestion.sector_enrichment import enrich_holdings
+from app.ingestion.sector_enrichment import enrich_holdings, EnrichmentRecord
 from app.data_providers.file_provider import FileDataProvider, UPLOADS_PATH
 
 logger = logging.getLogger(__name__)
@@ -65,14 +65,22 @@ class ParseResponse(BaseModel):
 
 class ConfirmResponse(BaseModel):
     """Result of the /confirm step — returned after saving the normalised portfolio."""
-    success:          bool
-    filename:         str
-    holdings_parsed:  int
-    rows_skipped:     int
-    skipped_details:  list[dict]                   # [{row_index, raw_ticker, error}, ...]
-    enriched_count:   int                          # holdings enriched with live sector/name data
-    enrichment_note:  Optional[str]                # human-readable enrichment summary
-    message:          str
+    success:                bool
+    filename:               str
+    # Row counts
+    rows_accepted:          int                    # rows successfully parsed
+    rows_rejected:          int                    # rows that failed parsing (missing required fields)
+    skipped_details:        list[dict]             # [{row_index, raw_ticker, error}, ...]
+    # Enrichment summary
+    rows_fully_enriched:    int                    # sector + name both resolved from external sources
+    rows_partially_enriched: int                   # one of sector/name resolved; other from file or unknown
+    rows_sector_unknown:    int                    # sector could not be resolved (shows "Unknown")
+    enriched_count:         int                    # total holdings that received any enrichment update
+    enrichment_note:        Optional[str]          # human-readable enrichment summary
+    enrichment_details:     list[dict]             # per-ticker: ticker, sector_status, name_status, sources
+    # Compatibility shim
+    holdings_parsed:        int                    # same as rows_accepted (kept for frontend compat)
+    message:                str
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -242,25 +250,21 @@ async def confirm_upload(
     # NOTE: enrichment must happen BEFORE we update the in-memory cache so that
     #       the cache gets the already-enriched holdings.
     # Run in a thread so the async event loop is not blocked by yfinance I/O.
-    holdings, enriched_count, enrichment_note = await asyncio.to_thread(
+    holdings, enrich_records, enriched_count, enrichment_note = await asyncio.to_thread(
         enrich_holdings, holdings
     )
 
-    # ── 3a. Persist enriched sector/name back to the DB ──────────────────────
+    # ── 3a. Persist enriched sector/name + metadata back to the DB ───────────
     # DB was saved in step 1 (before enrichment) so bare tickers/missing names
-    # are on disk. Patch only the enriched rows now.
-    if enriched_count > 0 and portfolio_id is not None:
+    # are on disk. Patch enriched rows now, including per-holding status fields.
+    if portfolio_id is not None:
         try:
             from app.db.database import SessionLocal
             from app.services.portfolio_manager import PortfolioManagerService
             patch_session = SessionLocal()
             try:
                 patch_mgr = PortfolioManagerService(patch_session)
-                enrichment_patches = [
-                    {"ticker": h.ticker, "sector": h.sector, "name": h.name}
-                    for h in holdings
-                ]
-                patch_mgr.patch_holdings_enrichment(portfolio_id, enrichment_patches)
+                patch_mgr.patch_holdings_enrichment(portfolio_id, enrich_records)
             finally:
                 patch_session.close()
         except Exception as exc:
@@ -300,19 +304,33 @@ async def confirm_upload(
         for h in holdings
     ]
     pd.DataFrame(rows_data).to_csv(out_path, index=False)
+    # ── Build enrichment summary stats ────────────────────────────────────────
+    rows_fully_enriched     = sum(1 for r in enrich_records if r.fully_enriched)
+    rows_partially_enriched = sum(1 for r in enrich_records if r.partially_enriched)
+    rows_sector_unknown     = sum(1 for r in enrich_records if r.sector_status == "unknown")
+    enrichment_details      = [r.to_dict() for r in enrich_records]
+
     logger.info(
-        "Upload confirmed: %d holdings, %d skipped, %d enriched, portfolio_id=%s",
-        len(holdings), len(skipped), enriched_count, portfolio_id,
+        "Upload confirmed: %d holdings, %d skipped, %d enriched "
+        "(fully=%d, partial=%d, unknown=%d), portfolio_id=%s",
+        len(holdings), len(skipped), enriched_count,
+        rows_fully_enriched, rows_partially_enriched, rows_sector_unknown,
+        portfolio_id,
     )
 
     return ConfirmResponse(
         success=True,
         filename=filename,
-        holdings_parsed=len(holdings),
-        rows_skipped=len(skipped),
+        rows_accepted=len(holdings),
+        rows_rejected=len(skipped),
         skipped_details=skipped[:10],
+        rows_fully_enriched=rows_fully_enriched,
+        rows_partially_enriched=rows_partially_enriched,
+        rows_sector_unknown=rows_sector_unknown,
         enriched_count=enriched_count,
         enrichment_note=enrichment_note,
+        enrichment_details=enrichment_details,
+        holdings_parsed=len(holdings),   # compat alias
         message=(
             f"Successfully imported {len(holdings)} holding(s)."
             + (f" {len(skipped)} row(s) skipped." if skipped else " All rows imported.")

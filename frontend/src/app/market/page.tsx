@@ -33,13 +33,18 @@ const REQUEST_TIMEOUT_MS  =  15_000   // 15 seconds
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface IndexEntry {
-  symbol:      string
-  name:        string
-  value?:      number
-  change?:     number
-  change_pct?: number
+  symbol:       string
+  name:         string
+  value?:       number
+  change?:      number
+  change_pct?:  number
   unavailable?: boolean
-  reason?:     string
+  reason?:      string
+  // New fields from hardened backend
+  status?:      'live' | 'last_close' | 'unavailable'
+  data_date?:   string   // YYYY-MM-DD — date of the last bar yfinance returned
+  last_updated?: string  // ISO-8601 UTC timestamp of the fetch
+  source?:      string
 }
 
 interface TickerEntry {
@@ -49,13 +54,22 @@ interface TickerEntry {
   change_pct: number
 }
 
+interface MarketStatus {
+  open:         boolean
+  note:         string
+  next_open?:   string
+  checked_at_ist: string
+}
+
 interface MarketOverview {
-  available:      boolean
-  main_indices:   IndexEntry[]
-  sector_indices: IndexEntry[]
-  top_gainers:    TickerEntry[]
-  top_losers:     TickerEntry[]
-  source:         string
+  available:       boolean
+  market_status?:  MarketStatus
+  main_indices:    IndexEntry[]
+  sector_indices:  IndexEntry[]
+  top_gainers:     TickerEntry[]
+  top_losers:      TickerEntry[]
+  fetched_at?:     string
+  source:          string
 }
 
 interface NewsArticle {
@@ -110,8 +124,28 @@ function Skeleton({ className }: { className?: string }) {
 
 // ─── Index Card ───────────────────────────────────────────────────────────────
 
+function StatusBadge({ status, dataDate }: { status?: string; dataDate?: string }) {
+  if (!status || status === 'unavailable') return null
+  if (status === 'live') {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse inline-block mr-0.5" />
+        Live
+      </span>
+    )
+  }
+  // last_close — show the date
+  const label = dataDate ? `As of ${dataDate}` : 'Last close'
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+      <Clock className="h-2.5 w-2.5" />
+      {label}
+    </span>
+  )
+}
+
 function IndexCard({ idx, large = false }: { idx: IndexEntry; large?: boolean }) {
-  if (idx.unavailable) {
+  if (idx.unavailable || idx.status === 'unavailable') {
     return (
       <div className={cn(
         'flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50',
@@ -119,14 +153,15 @@ function IndexCard({ idx, large = false }: { idx: IndexEntry; large?: boolean })
       )}>
         <WifiOff className="h-4 w-4 text-slate-300" />
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{idx.name}</span>
-        <span className="text-[10px] text-slate-300">unavailable</span>
+        <span className="text-[10px] text-slate-300">
+          {idx.reason ? idx.reason.replace(/_/g, ' ') : 'unavailable'}
+        </span>
       </div>
     )
   }
 
   const up  = (idx.change ?? 0) >= 0
   const Dir = up ? TrendingUp : TrendingDown
-  const valueColour  = up ? 'text-slate-800' : 'text-slate-800'
   const changeColour = up ? 'text-emerald-600' : 'text-red-500'
   const badgeBg      = up ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
 
@@ -142,11 +177,13 @@ function IndexCard({ idx, large = false }: { idx: IndexEntry; large?: boolean })
         )}>
           {idx.name}
         </span>
-        <Dir className={cn('h-3.5 w-3.5 shrink-0', changeColour)} />
+        <div className="flex items-center gap-1.5">
+          <StatusBadge status={idx.status} dataDate={idx.data_date} />
+          <Dir className={cn('h-3.5 w-3.5 shrink-0', changeColour)} />
+        </div>
       </div>
       <span className={cn(
-        'font-extrabold tabular-nums leading-none',
-        valueColour,
+        'font-extrabold tabular-nums leading-none text-slate-800',
         large ? 'text-3xl' : 'text-2xl',
       )}>
         {fmtNum(idx.value ?? 0)}
@@ -331,10 +368,11 @@ export default function MarketPage() {
     return () => clearInterval(timer)
   }, [fetchOverview, fetchNews])
 
-  const mainIndices   = overview?.main_indices   ?? []
-  const sectorIndices = overview?.sector_indices ?? []
-  const topGainers    = overview?.top_gainers    ?? []
-  const topLosers     = overview?.top_losers     ?? []
+  const mainIndices    = overview?.main_indices   ?? []
+  const sectorIndices  = overview?.sector_indices ?? []
+  const topGainers     = overview?.top_gainers    ?? []
+  const topLosers      = overview?.top_losers     ?? []
+  const marketStatus   = overview?.market_status
 
   return (
     // -m-6 counteracts the AppShell's p-6 wrapper so this page fills edge-to-edge
@@ -377,6 +415,27 @@ export default function MarketPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+        {/* ── Market status banner ──────────────────────────────────────────── */}
+        {!loading && marketStatus && (
+          <div className={cn(
+            'flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm',
+            marketStatus.open
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-slate-200 bg-slate-50 text-slate-600',
+          )}>
+            <span className={cn(
+              'h-2 w-2 rounded-full shrink-0',
+              marketStatus.open ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400',
+            )} />
+            <span className="font-medium">{marketStatus.note}</span>
+            {!marketStatus.open && marketStatus.next_open && (
+              <span className="text-slate-400 text-xs ml-1">
+                · Next open: {marketStatus.next_open}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── Main Indices ──────────────────────────────────────────────────── */}
         {loading ? (

@@ -1,28 +1,38 @@
 """
 Market Overview API Endpoint
 ------------------------------
-Provides live market summary data for the unauthenticated landing page
-shown when no portfolio has been uploaded yet.
+Provides live market summary data for the landing page.
 
 Routes:
-  GET /market/overview  — NIFTY 50 / SENSEX, sector indices, top gainers/losers
+  GET /market/overview  — NIFTY 50 / SENSEX / BANK NIFTY, sector indices,
+                          top gainers, top losers, headlines placeholder
 
-No portfolio or data-mode parameter required — this endpoint is intentionally
-public and mode-agnostic, always fetching from yfinance.
+Provider:
+  yfinance exclusively. No other live market data source is configured.
 
 Failure isolation:
-  - Each main index is fetched independently via yf.Ticker().history().
-    One failed index does not prevent others from rendering.
-  - Sector indices follow the same pattern.
-  - Gainers/losers fall back to an empty list on any error.
-  - All errors are logged with the specific reason; unavailable entries carry
-    a human-readable `reason` field for frontend debug display.
+  - Each main index is fetched independently via yf.Ticker(sym).history().
+    One failed / slow ticker cannot block others.
+  - All 11 indices (3 main + 8 sector) are fetched concurrently in a single
+    ThreadPoolExecutor — total latency ≈ slowest single ticker, not the sum.
+  - Gainers/losers: one batch yf.download() call, fails gracefully to [].
+  - Each entry carries status ("live" | "last_close" | "unavailable"),
+    last_updated (ISO-8601 UTC), data_date, and source so the frontend can
+    show exactly what it is displaying and why.
+
+Market hours:
+  NSE / BSE: Monday–Friday, 09:15–15:30 IST (UTC+05:30).
+  Holidays are NOT modelled — a holiday will be treated as "market open"
+  by the hours check, but yfinance will return the previous close, which
+  correctly sets status="last_close" because the bar date ≠ today.
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import time
-import concurrent.futures
+from datetime import datetime, timezone, timedelta, date as date_type, time as dt_time
+from typing import Optional
 
 from fastapi import APIRouter
 
@@ -30,15 +40,48 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market", tags=["Market"])
 
+# ─── Indian market timezone (UTC+05:30, no external library) ─────────────────
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+_MARKET_OPEN_IST  = dt_time(9, 15)
+_MARKET_CLOSE_IST = dt_time(15, 30)
+
+
+def _ist_now() -> datetime:
+    return datetime.now(_IST)
+
+
+def _is_market_open() -> bool:
+    """Return True if NSE is currently within its trading window (ignores holidays)."""
+    now = _ist_now()
+    if now.weekday() >= 5:          # Saturday=5, Sunday=6
+        return False
+    t = now.time()
+    return _MARKET_OPEN_IST <= t <= _MARKET_CLOSE_IST
+
+
+def _next_open_ist() -> str:
+    """Human-readable IST string for when the market next opens."""
+    now = _ist_now()
+    # Advance to the next weekday
+    delta = 1
+    while True:
+        candidate = now + timedelta(days=delta)
+        if candidate.weekday() < 5:
+            break
+        delta += 1
+    return candidate.strftime("%a %d %b, 09:15 IST")
+
+
 # ─── Index definitions ────────────────────────────────────────────────────────
 
-_MAIN_INDICES = [
+_MAIN_INDICES: list[tuple[str, str]] = [
     ("^NSEI",    "NIFTY 50"),
     ("^BSESN",   "SENSEX"),
     ("^NSEBANK", "BANK NIFTY"),
 ]
 
-_SECTOR_INDICES = [
+_SECTOR_INDICES: list[tuple[str, str]] = [
     ("^CNXIT",     "Nifty IT"),
     ("^CNXPHARMA", "Nifty Pharma"),
     ("^CNXFMCG",   "Nifty FMCG"),
@@ -49,8 +92,8 @@ _SECTOR_INDICES = [
     ("^CNXENERGY", "Nifty Energy"),
 ]
 
-# Large-cap NSE tickers to scan for gainers/losers
-_NIFTY50_TICKERS = [
+# NIFTY 50 universe for gainers / losers
+_NIFTY50_TICKERS: list[str] = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
     "HINDUNILVR.NS", "ITC.NS", "SBIN.NS", "BAJFINANCE.NS", "BHARTIARTL.NS",
     "KOTAKBANK.NS", "AXISBANK.NS", "LT.NS", "ASIANPAINT.NS", "HCLTECH.NS",
@@ -59,13 +102,14 @@ _NIFTY50_TICKERS = [
     "TECHM.NS", "ADANIENT.NS", "ADANIPORTS.NS", "COALINDIA.NS", "JSWSTEEL.NS",
 ]
 
-# In-process cache: (result, timestamp)
+# ─── Cache ────────────────────────────────────────────────────────────────────
+
 _OVERVIEW_CACHE: dict[str, tuple[dict, float]] = {}
-_CACHE_TTL = 120.0   # 2 minutes
-_TICKER_TIMEOUT = 8  # seconds — per-ticker yfinance timeout guard
+_CACHE_TTL      = 120.0   # 2 minutes
+_TICKER_TIMEOUT =   8     # seconds per-index
 
 
-def _from_cache(key: str) -> dict | None:
+def _from_cache(key: str) -> Optional[dict]:
     entry = _OVERVIEW_CACHE.get(key)
     if entry and (time.time() - entry[1]) < _CACHE_TTL:
         return entry[0]
@@ -76,93 +120,145 @@ def _to_cache(key: str, data: dict) -> None:
     _OVERVIEW_CACHE[key] = (data, time.time())
 
 
-# ─── Per-index fetch helpers ──────────────────────────────────────────────────
+# ─── Status helpers ───────────────────────────────────────────────────────────
+
+def _data_status(bar_date: Optional[date_type]) -> str:
+    """
+    Classify the data freshness.
+
+    live       — the bar's date is today AND market is currently open.
+    last_close — bar has a date but it's not from a live session right now.
+    unavailable — no bar date at all.
+    """
+    if bar_date is None:
+        return "unavailable"
+    today_ist = _ist_now().date()
+    if bar_date == today_ist and _is_market_open():
+        return "live"
+    return "last_close"
+
+
+# ─── Per-index fetch ──────────────────────────────────────────────────────────
 
 def _fetch_single_index(sym: str, name: str) -> dict:
     """
-    Fetch one index independently using yf.Ticker().history().
-    Returns a complete entry dict — never raises.
-    Shows previous close when the market is closed (no intraday bar yet).
+    Fetch one index independently.  Never raises — all errors produce an
+    unavailable entry with a human-readable `reason`.
+
+    Returns keys:
+      symbol, name, status, last_updated, data_date, source,
+      value, change, change_pct   (only when not unavailable)
+      unavailable, reason         (only when status == "unavailable")
     """
+    fetched_at = datetime.now(timezone.utc).isoformat()
     try:
         import yfinance as yf
 
-        def _do_fetch():
+        def _do():
             return yf.Ticker(sym).history(period="5d", interval="1d", auto_adjust=True)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_do_fetch)
-            hist = future.result(timeout=_TICKER_TIMEOUT)
+            fut  = ex.submit(_do)
+            hist = fut.result(timeout=_TICKER_TIMEOUT)
 
         if hist is None or hist.empty:
             return {
                 "symbol": sym, "name": name,
-                "unavailable": True,
+                "status": "unavailable", "unavailable": True,
                 "reason": "no_data_returned",
+                "last_updated": fetched_at, "source": "yfinance",
             }
 
-        closes = hist["Close"].dropna().tolist()
-        if not closes:
+        closes = hist["Close"].dropna()
+        if closes.empty:
             return {
                 "symbol": sym, "name": name,
-                "unavailable": True,
+                "status": "unavailable", "unavailable": True,
                 "reason": "empty_close_series",
+                "last_updated": fetched_at, "source": "yfinance",
             }
 
-        current = float(closes[-1])
-        prev    = float(closes[-2]) if len(closes) >= 2 else current
+        # bar_date — the date of the last available session bar
+        bar_date: Optional[date_type] = None
+        try:
+            bar_date = closes.index[-1].date()
+        except Exception:
+            pass
+
+        vals = closes.tolist()
+        current = float(vals[-1])
+        prev    = float(vals[-2]) if len(vals) >= 2 else current
         change     = current - prev
         change_pct = (change / prev * 100) if prev else 0.0
+        status     = _data_status(bar_date)
 
         return {
-            "symbol":     sym,
-            "name":       name,
-            "value":      round(current, 2),
-            "change":     round(change, 2),
-            "change_pct": round(change_pct, 2),
+            "symbol":      sym,
+            "name":        name,
+            "status":      status,
             "unavailable": False,
+            "value":       round(current, 2),
+            "change":      round(change, 2),
+            "change_pct":  round(change_pct, 2),
+            "data_date":   bar_date.isoformat() if bar_date else None,
+            "last_updated": fetched_at,
+            "source":      "yfinance",
         }
 
     except concurrent.futures.TimeoutError:
         reason = f"timeout_{_TICKER_TIMEOUT}s"
-        logger.warning("Index fetch timeout: %s (%s)", sym, reason)
-        return {"symbol": sym, "name": name, "unavailable": True, "reason": reason}
+        logger.warning("Market index timeout: %s (%s)", sym, reason)
+        return {
+            "symbol": sym, "name": name,
+            "status": "unavailable", "unavailable": True,
+            "reason": reason, "last_updated": fetched_at, "source": "yfinance",
+        }
     except ImportError:
-        return {"symbol": sym, "name": name, "unavailable": True, "reason": "yfinance_not_installed"}
+        return {
+            "symbol": sym, "name": name,
+            "status": "unavailable", "unavailable": True,
+            "reason": "yfinance_not_installed",
+            "last_updated": fetched_at, "source": "none",
+        }
     except Exception as exc:
-        reason = type(exc).__name__ + ": " + str(exc)[:120]
-        logger.warning("Index fetch error: %s — %s", sym, reason)
-        return {"symbol": sym, "name": name, "unavailable": True, "reason": reason}
+        reason = f"{type(exc).__name__}: {str(exc)[:120]}"
+        logger.warning("Market index error: %s — %s", sym, reason)
+        return {
+            "symbol": sym, "name": name,
+            "status": "unavailable", "unavailable": True,
+            "reason": reason, "last_updated": fetched_at, "source": "yfinance",
+        }
 
+
+# ─── Gainers / Losers ─────────────────────────────────────────────────────────
 
 def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
     """
-    Download a batch of NIFTY 50 tickers and derive top 5 gainers/losers.
-    Returns (gainers, losers) — both empty lists on any failure.
+    Batch yf.download() for the NIFTY 50 universe.
+    Returns (gainers, losers) — both [] on any failure.
     """
     try:
         import yfinance as yf
+        import pandas as pd
 
-        def _do_batch():
+        def _do():
             return yf.download(
                 _NIFTY50_TICKERS, period="5d", interval="1d",
                 progress=False, auto_adjust=True, threads=True,
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_do_batch)
-            raw = future.result(timeout=20)
+            fut = ex.submit(_do)
+            raw = fut.result(timeout=25)
 
         if raw is None or raw.empty:
-            logger.info("Gainers/losers: empty result from yfinance")
             return [], []
 
-        close = raw.get("Close") if not raw.empty else None
+        close = raw.get("Close")
         if close is None:
             return [], []
 
-        import pandas as pd
-        ticker_changes: list[dict] = []
+        changes: list[dict] = []
         for sym in _NIFTY50_TICKERS:
             try:
                 if isinstance(close, pd.Series):
@@ -171,23 +267,22 @@ def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
                     series = close[sym].dropna().tolist()
                 else:
                     continue
-
                 if len(series) >= 2:
-                    current = float(series[-1])
+                    curr    = float(series[-1])
                     prev    = float(series[-2])
-                    chg_pct = (current - prev) / prev * 100 if prev else 0.0
-                    ticker_changes.append({
+                    chg_pct = (curr - prev) / prev * 100 if prev else 0.0
+                    changes.append({
                         "ticker":     sym.replace(".NS", ""),
                         "symbol":     sym,
-                        "price":      round(current, 2),
+                        "price":      round(curr, 2),
                         "change_pct": round(chg_pct, 2),
                     })
             except Exception:
-                continue  # skip bad tickers silently
+                continue
 
-        ticker_changes.sort(key=lambda x: x["change_pct"], reverse=True)
-        gainers = ticker_changes[:5]
-        losers  = list(reversed(ticker_changes[-5:])) if len(ticker_changes) >= 5 else []
+        changes.sort(key=lambda x: x["change_pct"], reverse=True)
+        gainers = changes[:5]
+        losers  = list(reversed(changes[-5:])) if len(changes) >= 5 else []
         return gainers, losers
 
     except Exception as exc:
@@ -195,87 +290,117 @@ def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
         return [], []
 
 
-# ─── Main fetch orchestrator ──────────────────────────────────────────────────
+# ─── Main orchestrator ────────────────────────────────────────────────────────
 
 def _fetch_overview() -> dict:
     """
-    Orchestrate all market data fetches.
-    Each index is fetched independently so one failure doesn't cascade.
-    Runs synchronously (called via asyncio.to_thread from the route handler).
+    Fetch all market data and return the overview dict.
+    All indices are fetched concurrently in a single ThreadPoolExecutor.
+    Called via asyncio.to_thread() from the route handler.
     """
+    now_utc = datetime.now(timezone.utc).isoformat()
+
     try:
-        import yfinance  # noqa: F401 — quick import-availability check
+        import yfinance  # noqa: F401
     except ImportError:
         return {
-            "available": False,
-            "reason": "yfinance_not_installed",
-            "main_indices": [],
+            "available":     False,
+            "reason":        "yfinance_not_installed",
+            "market_status": {"open": False, "reason": "yfinance_not_installed"},
+            "main_indices":   [],
             "sector_indices": [],
-            "top_gainers": [],
-            "top_losers": [],
-            "source": "unavailable",
+            "top_gainers":    [],
+            "top_losers":     [],
+            "headlines":      {"available": False, "reason": "yfinance_not_installed"},
+            "fetched_at":     now_utc,
+            "source":         "none",
         }
 
-    # ── Main indices — each fetched independently ─────────────────────────────
-    main_out: list[dict] = []
-    for sym, name in _MAIN_INDICES:
-        entry = _fetch_single_index(sym, name)
-        main_out.append(entry)
-        if entry.get("unavailable"):
-            logger.info("Main index unavailable: %s — %s", sym, entry.get("reason"))
+    # Market-hours meta (computed, no I/O)
+    market_open = _is_market_open()
+    market_status = {
+        "open":     market_open,
+        "note":     "Live data" if market_open else "Market closed — showing last close",
+        "next_open": _next_open_ist() if not market_open else None,
+        "checked_at_ist": _ist_now().strftime("%H:%M IST"),
+    }
 
-    # ── Sector indices — each fetched independently ───────────────────────────
-    sect_out: list[dict] = []
-    for sym, name in _SECTOR_INDICES:
-        entry = _fetch_single_index(sym, name)
-        sect_out.append(entry)
-        if entry.get("unavailable"):
-            logger.info("Sector index unavailable: %s — %s", sym, entry.get("reason"))
+    all_indices = _MAIN_INDICES + _SECTOR_INDICES
 
-    # ── Gainers / Losers — one batch, fails gracefully ───────────────────────
+    # Concurrent fetch — one thread per index, all run in parallel
+    # Max workers = len(all_indices) so they all start simultaneously.
+    results: dict[str, dict] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(all_indices)) as pool:
+        futures = {
+            pool.submit(_fetch_single_index, sym, name): sym
+            for sym, name in all_indices
+        }
+        for fut in concurrent.futures.as_completed(futures):
+            sym = futures[fut]
+            try:
+                results[sym] = fut.result()
+            except Exception as exc:
+                name = next((n for s, n in all_indices if s == sym), sym)
+                results[sym] = {
+                    "symbol": sym, "name": name,
+                    "status": "unavailable", "unavailable": True,
+                    "reason": str(exc), "source": "yfinance",
+                    "last_updated": now_utc,
+                }
+
+    main_out   = [results[sym] for sym, _ in _MAIN_INDICES]
+    sector_out = [results[sym] for sym, _ in _SECTOR_INDICES]
+
+    # Gainers / losers — separate batch call
     gainers, losers = _fetch_gainers_losers()
 
-    # Determine overall availability: at least one main index must be live
+    # Headlines — no provider configured; return explicit placeholder
+    headlines_payload = {
+        "available": False,
+        "reason":    "no_news_provider_configured",
+        "note":      "Set NEWS_API_KEY in .env to enable market headlines.",
+        "articles":  [],
+    }
+
     any_live = any(not e.get("unavailable", True) for e in main_out)
 
     return {
         "available":      any_live,
+        "market_status":  market_status,
         "main_indices":   main_out,
-        "sector_indices": sect_out,
+        "sector_indices": sector_out,
         "top_gainers":    gainers,
         "top_losers":     losers,
+        "headlines":      headlines_payload,
+        "fetched_at":     now_utc,
         "source":         "yfinance",
     }
 
 
-# ─── GET /market/overview ─────────────────────────────────────────────────────
+# ─── Route ────────────────────────────────────────────────────────────────────
 
-@router.get("/overview", summary="Live market overview — indices, gainers, losers")
+@router.get("/overview", summary="Live market overview — indices, gainers, losers, headlines")
 async def get_market_overview() -> dict:
     """
-    Returns a market overview suitable for the landing page shown when no portfolio
-    has been uploaded.
+    Returns a market overview for the landing page.
 
-    Includes:
-    - Main indices: NIFTY 50, SENSEX, BANK NIFTY (price + day change)
-    - Sector indices: IT, Pharma, FMCG, Auto, Metal, Infra, Realty, Energy
-    - Top 5 gainers and top 5 losers from the NIFTY 50 universe
+    Each index entry carries:
+      status:       "live" | "last_close" | "unavailable"
+      last_updated: ISO-8601 UTC timestamp of this fetch
+      data_date:    date of the bar yfinance returned (YYYY-MM-DD)
+      source:       "yfinance" | "none"
+      reason:       (unavailable only) human-readable failure reason
 
-    Failure isolation:
-    - Each main and sector index is fetched independently via yf.Ticker().history().
-      One failed or slow ticker does not prevent others from rendering.
-    - Unavailable entries include a `reason` field for debug display.
-    - When market is closed, the previous close is shown (yfinance returns last
-      available daily bar automatically).
+    Market status:
+      market_status.open: true if NSE is currently within trading hours
+      market_status.next_open: when market next opens (if closed)
 
-    Results are cached for 2 minutes to avoid hammering yfinance on page refreshes.
-    When yfinance is unavailable entirely, available=false is returned.
+    Cached for 2 minutes. When yfinance is not installed, available=false.
     """
     cached = _from_cache("overview")
     if cached:
         return cached
 
-    # Run blocking yfinance calls in a thread pool so the async event loop is not blocked.
     result = await asyncio.to_thread(_fetch_overview)
     _to_cache("overview", result)
     return result

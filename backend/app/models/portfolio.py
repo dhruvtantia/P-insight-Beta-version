@@ -75,6 +75,22 @@ class Holding(Base):
     currency = Column(String(10), nullable=True, default="INR")
     notes = Column(Text, nullable=True)
 
+    # ── Extended optional fields (from upload file) ───────────────────────────
+    industry      = Column(String(150), nullable=True)
+    purchase_date = Column(String(20),  nullable=True)  # stored as YYYY-MM-DD string
+
+    # ── Enrichment metadata (written after post-upload enrichment) ────────────
+    # normalized_ticker: the yfinance-resolved ticker variant (e.g. "TCS.NS")
+    normalized_ticker = Column(String(30), nullable=True)
+    # sector_status: which source resolved the sector
+    #   "from_file" | "yfinance" | "fmp" | "static_map" | "unknown"
+    sector_status = Column(String(20), nullable=True)
+    # name_status: which source resolved company name
+    #   "from_file" | "yfinance" | "fmp" | "static_map" | "ticker_fallback"
+    name_status = Column(String(20), nullable=True)
+    # enrichment_reason: populated when sector_status == "unknown" or a source failed
+    enrichment_reason = Column(Text, nullable=True)
+
     portfolio = relationship("Portfolio", back_populates="holdings")
 
     def __repr__(self) -> str:

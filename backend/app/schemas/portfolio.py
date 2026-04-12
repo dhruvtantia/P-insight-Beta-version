@@ -24,11 +24,13 @@ class HoldingBase(BaseModel):
     average_cost: float = Field(..., gt=0, example=3500.0)
     current_price: Optional[float] = Field(None, example=3820.0)
     sector: Optional[str] = Field(None, example="Information Technology")
+    industry: Optional[str] = Field(None, example="IT Services & Consulting")
     asset_class: Optional[str] = Field("Equity", example="Equity")
     currency: Optional[str] = Field("INR", example="INR")
+    purchase_date: Optional[str] = Field(None, example="2023-04-15",
+        description="Date of purchase (YYYY-MM-DD or as found in the file)")
     # Provenance: which data provider sourced current_price for this holding.
-    # "live" = yfinance live quote, "mock_fallback" = fell back to static mock,
-    # "uploaded" = came from user-uploaded file, None = default (mock).
+    # "live" = yfinance live quote, "uploaded" = from file, None = default.
     data_source: Optional[str] = Field(None, example="live")
 
 

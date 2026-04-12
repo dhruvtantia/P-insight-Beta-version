@@ -1366,25 +1366,33 @@ function ScaffoldedModulesSection() {
 // ─── Index Status Section ─────────────────────────────────────────────────────
 
 function IndexStatusSection() {
-  const { indices, loading, error, lastFetchAt } = useIndices()
+  const { indices, loading, error, stale, lastFetchAt } = useIndices()
 
   const allOk = indices.length > 0 && indices.every((i) => !i.unavailable)
   const badge = loading
     ? 'fetching…'
     : error
     ? 'ERROR'
+    : stale
+    ? `${indices.length} stale`
     : allOk
-    ? `${indices.length}/${indices.length} live`
-    : `${indices.filter((i) => !i.unavailable).length}/${indices.length} live`
+    ? `${indices.length}/${indices.length} ok`
+    : `${indices.filter((i) => !i.unavailable).length}/${indices.length} ok`
 
   return (
-    <DiagSection title="Market Index Status (NIFTY / SENSEX)" badge={badge} badgeOk={allOk} icon={Activity}>
+    <DiagSection title="Market Index Status (NIFTY / SENSEX / BANK NIFTY)" badge={badge} badgeOk={allOk && !stale} icon={Activity}>
       {loading && <LoadingRow />}
       {error && !loading && <ErrorRow message={`Backend unreachable: ${error}`} />}
 
+      {stale && !loading && (
+        <p className="text-[10px] text-amber-500 italic mb-0.5">
+          Showing stale data — last refresh failed. Values are from last successful fetch.
+        </p>
+      )}
+
       {!loading && indices.length === 0 && !error && (
         <p className="text-[10px] text-slate-400 italic">
-          No index data — check that LIVE_API_ENABLED=true in .env and the backend is running.
+          No index data — check that the backend is running and /api/v1/market/overview is reachable.
         </p>
       )}
 
@@ -1397,6 +1405,21 @@ function IndexStatusSection() {
             }
             <span className="text-[10px] font-mono text-slate-700">{idx.name}</span>
             <span className="text-[10px] text-slate-400">({idx.symbol})</span>
+            {/* status badge: live | last_close | unavailable */}
+            {idx.status && (
+              <span className={
+                idx.status === 'live'
+                  ? 'text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 rounded px-1'
+                  : idx.status === 'last_close'
+                  ? 'text-[9px] bg-slate-50 text-slate-400 border border-slate-200 rounded px-1'
+                  : 'text-[9px] bg-red-50 text-red-400 border border-red-200 rounded px-1'
+              }>
+                {idx.status === 'live' ? 'live' : idx.status === 'last_close' ? 'last close' : 'unavailable'}
+              </span>
+            )}
+            {idx.data_date && (
+              <span className="text-[9px] text-slate-300">{idx.data_date}</span>
+            )}
           </div>
           {idx.unavailable ? (
             <span className="text-[9px] text-red-500 font-semibold">
@@ -1416,7 +1439,7 @@ function IndexStatusSection() {
 
       {lastFetchAt && (
         <p className="text-[9px] text-slate-300 mt-1">
-          Last fetched: {lastFetchAt.toLocaleTimeString()} · polls every 60s
+          Last fetched: {lastFetchAt.toLocaleTimeString()} · polls every 120s · source: /api/v1/market/overview
         </p>
       )}
     </DiagSection>

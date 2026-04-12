@@ -58,6 +58,49 @@ def _clean_ticker(val) -> Optional[str]:
     return str(val).strip().upper()
 
 
+# ─── Purchase date normalisation ──────────────────────────────────────────────
+
+_DATE_FORMATS = [
+    "%Y-%m-%d",    # 2023-04-15  (ISO)
+    "%d-%m-%Y",    # 15-04-2023  (Indian)
+    "%d/%m/%Y",    # 15/04/2023
+    "%m/%d/%Y",    # 04/15/2023  (US)
+    "%d %b %Y",    # 15 Apr 2023
+    "%d-%b-%Y",    # 15-Apr-2023
+    "%B %d, %Y",   # April 15, 2023
+    "%d %B %Y",    # 15 April 2023
+    "%Y%m%d",      # 20230415
+]
+
+
+def _clean_date(val) -> Optional[str]:
+    """
+    Parse a date cell and normalise to YYYY-MM-DD.
+    Returns None if the value is empty or unparseable — never raises.
+    """
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    # pandas Timestamp / datetime object — use strftime directly
+    if hasattr(val, "strftime"):
+        try:
+            return val.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    text = str(val).strip()
+    if not text or text.lower() in ("nan", "none", "-", "n/a", "na"):
+        return None
+    # Try known date formats
+    from datetime import datetime as _dt
+    for fmt in _DATE_FORMATS:
+        try:
+            return _dt.strptime(text, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    # Return the raw string if nothing matched — preserve what the user had
+    logger.debug("Could not parse date %r — storing as-is", text)
+    return text
+
+
 # ─── File parsing ─────────────────────────────────────────────────────────────
 
 def read_file_as_dataframe(filepath: str | Path) -> pd.DataFrame:
@@ -123,11 +166,13 @@ def normalize_to_holdings(
         try:
             h = HoldingBase(
                 ticker=row["ticker"],
-                name=row["name"],             # normaliser guarantees non-None fallback
+                name=row["name"],              # normaliser guarantees non-None fallback
                 quantity=row["quantity"],
                 average_cost=row["average_cost"],
                 current_price=row.get("current_price"),
-                sector=row.get("sector"),     # None is fine — enrichment handles it
+                sector=row.get("sector"),      # None → enrichment fills it later
+                industry=row.get("industry"),  # None → enrichment fills it later
+                purchase_date=row.get("purchase_date"),
                 asset_class="Equity",
                 currency="INR",
                 data_source="uploaded",
@@ -166,12 +211,17 @@ def _map_row(raw: pd.Series, column_mapping: dict[str, Optional[str]]) -> dict:
     name_val = get("name")
     name = str(name_val).strip() if name_val is not None else (ticker or "Unknown")
 
-    qty = _clean_numeric(get("quantity"))
+    qty      = _clean_numeric(get("quantity"))
     avg_cost = _clean_numeric(get("average_cost"))
     cur_price = _clean_numeric(get("current_price"))
 
     sector_val = get("sector")
     sector = str(sector_val).strip() if sector_val is not None else None
+
+    industry_val = get("industry")
+    industry = str(industry_val).strip() if industry_val is not None else None
+
+    purchase_date = _clean_date(get("purchase_date"))
 
     errors = []
     if not ticker:
@@ -181,13 +231,15 @@ def _map_row(raw: pd.Series, column_mapping: dict[str, Optional[str]]) -> dict:
     if avg_cost is None or avg_cost <= 0:
         errors.append(f"invalid average_cost ({get('average_cost')!r})")
 
-    row = {
-        "ticker": ticker,
-        "name": name,
-        "quantity": qty,
-        "average_cost": avg_cost,
+    row: dict = {
+        "ticker":        ticker,
+        "name":          name,
+        "quantity":      qty,
+        "average_cost":  avg_cost,
         "current_price": cur_price,
-        "sector": sector,
+        "sector":        sector,
+        "industry":      industry,
+        "purchase_date": purchase_date,
     }
     if errors:
         row["_error"] = "; ".join(errors)

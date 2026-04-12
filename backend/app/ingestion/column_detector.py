@@ -34,7 +34,7 @@ from typing import Optional
 
 COLUMN_ALIASES: dict[str, list[str]] = {
     # ── Required ──────────────────────────────────────────────────────────────
-    "ticker": [
+    "ticker": [  # noqa: E501
         # Most explicit ticker identifiers (highest priority)
         "ticker", "symbol", "stock_symbol", "scrip", "stock_code",
         # Indian exchange-specific
@@ -92,11 +92,23 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "live_price", "latest_price", "mkt_price",
     ],
     "sector": [
-        "sector", "industry", "sector_name", "industry_name",
+        "sector", "sector_name",
         "category", "segment", "sub_sector",
         "gics_sector", "classification",
         # Broker / fund-specific
         "asset_class", "product_type", "fund_category",
+    ],
+    # ── New optional fields ────────────────────────────────────────────────────
+    "industry": [
+        "industry", "industry_name", "sub_industry",
+        "nifty_sector", "bse_industry",
+    ],
+    "purchase_date": [
+        "purchase_date", "buy_date", "date_of_purchase", "date_bought",
+        "acquisition_date", "trade_date", "transaction_date",
+        "date", "invested_date", "order_date",
+        # Broker-specific
+        "order_execution_time", "execution_date",
     ],
 }
 
@@ -108,6 +120,8 @@ CANONICAL_FIELDS_ORDER = [
     "name",           # optional — fallback to ticker if absent
     "current_price",  # optional — filled by enrichment or left as None
     "sector",         # optional — filled by enrichment if absent
+    "industry",       # optional — filled by enrichment if absent
+    "purchase_date",  # optional — stored as-is for record keeping
 ]
 
 # Minimum columns required for a row to be accepted.
@@ -115,7 +129,7 @@ CANONICAL_FIELDS_ORDER = [
 REQUIRED_FIELDS = {"ticker", "quantity", "average_cost"}
 
 # Optional fields — import proceeds without them; enrichment fills them post-import
-OPTIONAL_FIELDS = {"name", "current_price", "sector"}
+OPTIONAL_FIELDS = {"name", "current_price", "sector", "industry", "purchase_date"}
 
 
 # ─── Normalisation helper ─────────────────────────────────────────────────────

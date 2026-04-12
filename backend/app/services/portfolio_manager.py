@@ -166,6 +166,8 @@ class PortfolioManagerService:
                 average_cost=h.average_cost,
                 current_price=h.current_price,
                 sector=h.sector,
+                industry=getattr(h, "industry", None),
+                purchase_date=getattr(h, "purchase_date", None),
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
             )
@@ -230,6 +232,8 @@ class PortfolioManagerService:
                 average_cost=h.average_cost,
                 current_price=h.current_price,
                 sector=h.sector,
+                industry=getattr(h, "industry", None),
+                purchase_date=getattr(h, "purchase_date", None),
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
             )
@@ -269,44 +273,56 @@ class PortfolioManagerService:
     def patch_holdings_enrichment(
         self,
         portfolio_id: int,
-        enrichments: list[dict],
+        records: "list",   # list[EnrichmentRecord] — imported lazily to avoid circulars
     ) -> int:
         """
-        Persist yfinance-enriched sector and company name back to the DB so that
-        the data survives backend restarts (via _restore_from_db_holdings).
+        Persist enrichment results (sector, name, industry, and all metadata fields)
+        back to the DB so the data survives backend restarts.
 
-        enrichments: list of dicts with {ticker, sector?, name?}.
-          Only non-None values are written — existing DB values are never
-          overwritten with None.
+        Accepts a list of EnrichmentRecord objects (from sector_enrichment.py).
+        Only non-None / non-empty values overwrite existing DB values.
 
-        Returns the count of DB records actually updated.
+        Returns the count of DB rows actually updated.
         """
-        if not enrichments:
+        if not records:
             return 0
 
-        updated = 0
-        holdings_q = (
-            self.db.query(Holding)
-            .filter(Holding.portfolio_id == portfolio_id)
-        )
         holdings_by_ticker: dict[str, Holding] = {
-            h.ticker: h for h in holdings_q.all()
+            h.ticker: h
+            for h in self.db.query(Holding).filter(Holding.portfolio_id == portfolio_id).all()
         }
 
-        for patch in enrichments:
-            ticker = patch.get("ticker")
-            if not ticker:
-                continue
-            db_h = holdings_by_ticker.get(ticker)
+        updated = 0
+        for rec in records:
+            db_h = holdings_by_ticker.get(rec.ticker)
             if db_h is None:
                 continue
             changed = False
-            if patch.get("sector") and not db_h.sector:
-                db_h.sector = patch["sector"]
+
+            # ── Resolved sector ────────────────────────────────────────────────
+            if rec.sector_source and rec.sector_status not in ("from_file",):
+                if not db_h.sector or db_h.sector == "Unknown":
+                    db_h.sector = rec.sector_source
+                    changed = True
+
+            # ── Resolved name ──────────────────────────────────────────────────
+            if rec.name_source and rec.name_status not in ("from_file", "ticker_fallback"):
+                if not db_h.name or db_h.name == db_h.ticker:
+                    db_h.name = rec.name_source
+                    changed = True
+
+            # ── Industry ───────────────────────────────────────────────────────
+            if rec.industry_source and not db_h.industry:
+                db_h.industry = rec.industry_source
                 changed = True
-            if patch.get("name") and (not db_h.name or db_h.name == db_h.ticker):
-                db_h.name = patch["name"]
-                changed = True
+
+            # ── Enrichment metadata (always written) ───────────────────────────
+            db_h.normalized_ticker = rec.normalized_ticker
+            db_h.sector_status     = rec.sector_status
+            db_h.name_status       = rec.name_status
+            db_h.enrichment_reason = rec.enrichment_reason
+            changed = True   # always mark changed to persist metadata
+
             if changed:
                 updated += 1
 
@@ -314,7 +330,7 @@ class PortfolioManagerService:
             self.db.commit()
             logger.info(
                 "Patched %d/%d holdings with enrichment data (portfolio_id=%s)",
-                updated, len(enrichments), portfolio_id,
+                updated, len(records), portfolio_id,
             )
         return updated
 

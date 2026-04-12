@@ -494,17 +494,24 @@ export interface LiveProviderStatus {
 
 // ─── Live Index Types ─────────────────────────────────────────────────────────
 
-/** A single market index quote from GET /live/indices */
+/** A single market index quote — now sourced from GET /api/v1/market/overview */
 export interface IndexQuote {
-  symbol:     string
-  name:       string
+  symbol:      string
+  name:        string
   /** Present when unavailable is false */
-  value?:     number
-  change?:    number
+  value?:      number
+  change?:     number
   change_pct?: number
   unavailable: boolean
-  /** Reason code when unavailable: 'live_api_disabled' | 'yfinance_not_installed' | 'fetch_error' | 'download_error' */
+  /** Reason code when unavailable */
   reason?: string
+  // Fields added by the hardened market/overview endpoint
+  /** 'live' = within NSE trading hours, 'last_close' = most recent session, 'unavailable' = no data */
+  status?: 'live' | 'last_close' | 'unavailable'
+  /** Date (YYYY-MM-DD) of the yfinance bar that produced this value */
+  data_date?: string
+  /** ISO-8601 UTC timestamp of the fetch that produced this value */
+  last_updated?: string
 }
 
 export interface IndicesResponse {

@@ -51,15 +51,29 @@ interface ParseResult {
   optional_fields:  string[]
 }
 
+interface EnrichmentDetail {
+  ticker:            string
+  normalized_ticker: string
+  sector_status:     'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown'
+  name_status:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'ticker_fallback'
+  attempted_sources: string[]
+  enrichment_reason: string | null
+}
+
 interface ConfirmResult {
-  success:          boolean
-  filename:         string
-  holdings_parsed:  number
-  rows_skipped:     number
-  skipped_details:  Array<{ row_index: number; raw_ticker: string; error: string }>
-  enriched_count:   number
-  enrichment_note:  string | null
-  message:          string
+  success:                 boolean
+  filename:                string
+  holdings_parsed:         number     // compat alias for rows_accepted
+  rows_accepted:           number
+  rows_rejected:           number
+  skipped_details:         Array<{ row_index: number; raw_ticker: string; error: string }>
+  enriched_count:          number
+  rows_fully_enriched:     number
+  rows_partially_enriched: number
+  rows_sector_unknown:     number
+  enrichment_note:         string | null
+  enrichment_details:      EnrichmentDetail[]
+  message:                 string
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -440,20 +454,26 @@ export default function UploadPage() {
 
             {/* Stats row */}
             <div className="flex flex-wrap justify-center gap-4 text-sm">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3">
-                <p className="text-2xl font-bold text-emerald-700">{confirmResult.holdings_parsed}</p>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3 text-center">
+                <p className="text-2xl font-bold text-emerald-700">{confirmResult.rows_accepted ?? confirmResult.holdings_parsed}</p>
                 <p className="text-xs text-emerald-600 mt-0.5">Holdings imported</p>
               </div>
-              {confirmResult.enriched_count > 0 && (
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3">
-                  <p className="text-2xl font-bold text-indigo-700">{confirmResult.enriched_count}</p>
-                  <p className="text-xs text-indigo-600 mt-0.5">Auto-enriched</p>
+              {confirmResult.rows_fully_enriched > 0 && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-indigo-700">{confirmResult.rows_fully_enriched}</p>
+                  <p className="text-xs text-indigo-600 mt-0.5">Fully enriched</p>
                 </div>
               )}
-              {confirmResult.rows_skipped > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3">
-                  <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_skipped}</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Rows skipped</p>
+              {confirmResult.rows_sector_unknown > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_sector_unknown}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Sector unknown</p>
+                </div>
+              )}
+              {confirmResult.rows_rejected > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-red-700">{confirmResult.rows_rejected}</p>
+                  <p className="text-xs text-red-600 mt-0.5">Rows rejected</p>
                 </div>
               )}
             </div>
@@ -462,6 +482,29 @@ export default function UploadPage() {
             {confirmResult.enrichment_note && (
               <div className="w-full rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700 text-left">
                 <p>{confirmResult.enrichment_note}</p>
+              </div>
+            )}
+
+            {/* Sector unknown detail — show which tickers failed */}
+            {confirmResult.rows_sector_unknown > 0 && confirmResult.enrichment_details.length > 0 && (
+              <div className="w-full rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
+                <p className="font-semibold mb-1.5">Tickers with unresolved sector</p>
+                <div className="space-y-1">
+                  {confirmResult.enrichment_details
+                    .filter(d => d.sector_status === 'unknown')
+                    .map(d => (
+                      <div key={d.ticker} className="flex items-start gap-2">
+                        <span className="font-mono font-bold text-amber-700 w-24 shrink-0">{d.ticker}</span>
+                        <span className="text-amber-600">
+                          {d.enrichment_reason ?? `Tried: ${d.attempted_sources.join(', ') || 'none'}`}
+                        </span>
+                      </div>
+                    ))
+                  }
+                </div>
+                <p className="mt-2 text-amber-600">
+                  These show as "Unknown" sector. Check that tickers include the exchange suffix (e.g. <code className="bg-amber-100 px-0.5 rounded">TCS.NS</code> for NSE).
+                </p>
               </div>
             )}
 

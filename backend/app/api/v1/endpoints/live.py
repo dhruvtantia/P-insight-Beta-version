@@ -6,13 +6,16 @@ These endpoints are separate from /portfolio/ to allow the UI to:
   - Fetch a live quote without loading the full portfolio
   - Enrich watchlist items with live prices
   - Inspect provider capabilities and cache health
-  - Show a topbar market index strip (NIFTY 50 / SENSEX)
 
-Routes:
+Active routes:
   GET /live/quotes?tickers=TCS.NS,INFY.NS   → bulk live prices
   GET /live/fundamentals?ticker=TCS.NS       → full fundamentals for one ticker
   GET /live/status                           → yfinance availability + cache stats
-  GET /live/indices                          → NIFTY 50 + SENSEX last price + change
+
+DEPRECATED route (no longer called by any UI path as of 2026-04-12):
+  GET /live/indices                          → SUPERSEDED by GET /api/v1/market/overview
+                                               (DB-free, per-symbol fetch, 11 indices,
+                                                status/data_date/last_updated per entry)
 """
 
 import asyncio
@@ -245,21 +248,37 @@ def _fetch_indices_sync() -> dict:
     }
 
 
-@router.get("/indices", summary="Live NIFTY 50 and SENSEX prices with change")
+@router.get(
+    "/indices",
+    summary="[DEPRECATED] Live NIFTY 50 and SENSEX prices with change",
+    deprecated=True,
+)
 async def get_live_indices() -> dict:
     """
+    .. deprecated::
+        **This endpoint is deprecated and no longer called by any frontend UI path.**
+
+        Root causes that led to deprecation (2026-04-12):
+          - Uses ``LiveAPIProvider`` internally, which opens a SQLite DB session
+            and causes ``OperationalError('unable to open database file')`` under load.
+          - Uses ``yf.download()`` batch fetch, which hits thread-startup failures
+            (``getaddrinfo() thread failed to start``) when the market is closed
+            or data is thin.
+          - Only returned NIFTY 50 + SENSEX (2 indices); the market page needs 3+.
+
+        **Replacement:** ``GET /api/v1/market/overview``
+          - DB-free; uses per-symbol ``yf.Ticker(sym).history()`` with per-symbol
+            timeout guards.
+          - Returns all 11 indices concurrently via a single ``ThreadPoolExecutor``.
+          - Has a 2-minute server-side cache; safe to poll at 120s intervals.
+          - Exposes ``status`` (``live`` | ``last_close`` | ``unavailable``),
+            ``data_date``, and ``last_updated`` per index.
+
+        The code below is retained for reference only. Do not re-enable this route
+        in production UI flows.
+
     Returns the most recent closing price and absolute / percentage change for
     NIFTY 50 (^NSEI) and SENSEX (^BSESN) from Yahoo Finance.
-
-    Change is computed as today's close minus the previous trading day's close.
-
-    If yfinance is unavailable or the fetch fails, each index entry will have
-    `unavailable: true` — the frontend must show a clear unavailable state rather
-    than displaying zeros or substituting mock values.
-
-    Strategy: attempt a batch download first; fall back to per-symbol individual
-    downloads if the batch fails or returns incomplete data (handles yfinance
-    MultiIndex shape changes and rate-limit edge cases).
     """
     if not settings.LIVE_API_ENABLED:
         return {
