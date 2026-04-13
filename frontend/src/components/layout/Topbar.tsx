@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/fundamentals': 'Fundamentals',
   '/frontier':     'Efficient Frontier',
   '/watchlist':    'Watchlist',
+  '/screener':     'Screener',
   '/peers':        'Peer Comparison',
   '/news':         'News & Events',
   '/simulate':     'Portfolio Simulator',
@@ -24,7 +25,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/debug':        'System Diagnostics',
   '/upload':       'Upload Portfolio',
   '/optimize':     'Optimizer',
-  '/portfolios':   'Portfolios',
+  '/portfolios':   'My Portfolio',
   '/changes':      'What Changed',
   '/quant':        'Quant Analytics',
 }
@@ -41,24 +42,24 @@ export function Topbar({ onRefresh, sidebarWidth = 240 }: TopbarProps) {
 
   return (
     <header
-      className="fixed top-0 right-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 backdrop-blur-sm px-6 gap-4"
+      className="fixed top-0 right-0 z-20 flex h-[76px] items-center border-b border-slate-200 bg-white/95 backdrop-blur-sm px-5 gap-3"
       style={{ left: sidebarWidth }}
     >
-      {/* Page Title */}
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900 leading-tight">{title}</h1>
-        <p className="text-xs text-slate-500 leading-none mt-0.5">
-          Portfolio Analytics Platform
+      {/* Page Title — shrink-0 so the centre strip gets priority space */}
+      <div className="shrink-0 min-w-[130px]">
+        <h1 className="text-base font-semibold text-slate-900 leading-tight truncate">{title}</h1>
+        <p className="text-[11px] text-slate-400 leading-none mt-0.5 truncate">
+          Portfolio Analytics
         </p>
       </div>
 
-      {/* Centre — Live index strip (hidden on small screens) */}
-      <div className="hidden lg:flex items-center">
+      {/* Centre — Live index strip. flex-1 + overflow-hidden so chips never push the right controls off-screen */}
+      <div className="hidden lg:flex flex-1 items-center justify-center overflow-hidden">
         <IndexTicker />
       </div>
 
-      {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      {/* Right Controls — shrink-0 so they never get clipped */}
+      <div className="shrink-0 flex items-center gap-2.5 ml-auto">
         {/* Portfolio switcher */}
         <PortfolioSwitcher />
 

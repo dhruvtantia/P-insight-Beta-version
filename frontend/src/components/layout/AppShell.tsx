@@ -112,7 +112,7 @@ export function AppShell({ children }: AppShellProps) {
       {/* Content area — left padding tracks sidebar width dynamically */}
       <div style={{ paddingLeft: sidebarWidth }}>
         <Topbar sidebarWidth={sidebarWidth} />
-        <main className="pt-16 min-h-screen">
+        <main className="pt-[76px] min-h-screen">
           <div className="p-6">
             {children}
           </div>

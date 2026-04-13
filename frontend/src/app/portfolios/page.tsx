@@ -381,10 +381,10 @@ export default function PortfoliosPage(): React.ReactElement {
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               <Briefcase className="h-6 w-6 text-indigo-500" />
-              Portfolios
+              My Portfolio
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Manage portfolios, inspect data sources, and compare snapshots.
+              Manage sources, switch active portfolios, and compare snapshots.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -458,7 +458,7 @@ export default function PortfoliosPage(): React.ReactElement {
             {/* ── Portfolio list ──────────────────────────────────────── */}
             <div className="lg:col-span-3 space-y-3">
               <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-                All Portfolios
+                Your Portfolios
               </h2>
 
               {loading && portfolios.length === 0 ? (

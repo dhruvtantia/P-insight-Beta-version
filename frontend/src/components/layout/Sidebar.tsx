@@ -9,7 +9,7 @@ import {
   GitCompare,
   PieChart,
   Activity,
-  Star,
+  SlidersHorizontal,
   Users,
   Newspaper,
   MessageCircle,
@@ -69,12 +69,14 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     // Portfolio management — Tier 1
+    // Note: Watchlist (/watchlist) is hidden from nav but route code is NOT deleted.
+    // Navigate to /watchlist directly to access it.
     label: 'Manage',
     items: [
-      { label: 'Portfolios',   href: '/portfolios', Icon: FolderOpen },
-      { label: 'Upload',       href: '/upload',     Icon: Upload     },
-      { label: 'What Changed', href: '/changes',    Icon: GitCompare },
-      { label: 'Watchlist',    href: '/watchlist',  Icon: Star       },
+      { label: 'My Portfolio', href: '/portfolios', Icon: FolderOpen                           },
+      { label: 'Upload',       href: '/upload',     Icon: Upload                               },
+      { label: 'What Changed', href: '/changes',    Icon: GitCompare                           },
+      { label: 'Screener',     href: '/screener',   Icon: SlidersHorizontal, badge: 'BETA' as const },
     ],
   },
   {

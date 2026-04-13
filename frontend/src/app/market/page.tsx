@@ -23,6 +23,8 @@ import {
   Clock,
   Newspaper,
   ExternalLink,
+  DollarSign,
+  Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -307,6 +309,66 @@ function Panel({
   )
 }
 
+// ─── Beta instrument data (static — no live data yet) ─────────────────────────
+
+const FX_INSTRUMENTS = [
+  { symbol: 'USDINR=X', name: 'USD / INR', unit: '₹' },
+  { symbol: 'EURINR=X', name: 'EUR / INR', unit: '₹' },
+  { symbol: 'GBPINR=X', name: 'GBP / INR', unit: '₹' },
+  { symbol: 'JPYINR=X', name: 'JPY / INR', unit: '₹' },
+  { symbol: 'CNYINR=X', name: 'CNY / INR', unit: '₹' },
+]
+
+const COMMODITY_INSTRUMENTS = [
+  { symbol: 'GC=F',  name: 'Gold',        unit: 'USD/oz' },
+  { symbol: 'SI=F',  name: 'Silver',      unit: 'USD/oz' },
+  { symbol: 'HG=F',  name: 'Copper',      unit: 'USD/lb' },
+  { symbol: 'BZ=F',  name: 'Brent Crude', unit: 'USD/bbl' },
+  { symbol: 'CL=F',  name: 'WTI Crude',   unit: 'USD/bbl' },
+  { symbol: 'NG=F',  name: 'Natural Gas', unit: 'USD/MMBtu' },
+]
+
+// ─── Beta instrument card ─────────────────────────────────────────────────────
+//
+// Displays a placeholder card for FX / commodity instruments that do not yet
+// have live data support. Uses a dashed amber border to signal "coming soon"
+// without showing fake values.
+
+function BetaInstrumentCard({ name, unit }: { name: string; unit: string }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border border-dashed border-amber-200 bg-amber-50/40 px-3.5 py-3">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">
+        {name}
+      </span>
+      <span className="text-lg font-extrabold text-slate-200 tabular-nums leading-tight">
+        ——.——
+      </span>
+      <span className="text-[10px] text-slate-400">{unit}</span>
+    </div>
+  )
+}
+
+// ─── Beta section header ──────────────────────────────────────────────────────
+
+function BetaSectionHeader({
+  title,
+  icon: Icon,
+}: {
+  title: string
+  icon: React.ElementType
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className="h-4 w-4 text-slate-400 shrink-0" />
+      <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest border border-amber-300 bg-amber-50 text-amber-600">
+        Beta
+      </span>
+      <span className="text-[10px] text-slate-400">· Live data not yet available</span>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MarketPage() {
@@ -508,6 +570,26 @@ export default function MarketPage() {
               </div>
             )}
           </Panel>
+        </div>
+
+        {/* ── FX Rates (Beta) ──────────────────────────────────────────────── */}
+        <div>
+          <BetaSectionHeader title="FX Rates" icon={DollarSign} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {FX_INSTRUMENTS.map((fx) => (
+              <BetaInstrumentCard key={fx.symbol} name={fx.name} unit={fx.unit} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Commodities (Beta) ───────────────────────────────────────────── */}
+        <div>
+          <BetaSectionHeader title="Commodities" icon={Package} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {COMMODITY_INSTRUMENTS.map((c) => (
+              <BetaInstrumentCard key={c.symbol} name={c.name} unit={c.unit} />
+            ))}
+          </div>
         </div>
 
         {/* ── News Headlines ────────────────────────────────────────────────── */}

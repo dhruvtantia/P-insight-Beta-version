@@ -26,7 +26,7 @@ import { useState, useMemo }           from 'react'
 import { Newspaper, AlertCircle,
          RefreshCw, Info,
          TrendingUp, TrendingDown,
-         Minus }                        from 'lucide-react'
+         Minus, X, Filter }             from 'lucide-react'
 import { usePortfolio }                from '@/hooks/usePortfolio'
 import { useNews }                     from '@/hooks/useNews'
 import { useDataModeStore }            from '@/store/dataModeStore'
@@ -101,20 +101,24 @@ export default function NewsPage() {
       </div>
 
       {/* ── Data source note — shown when NEWS_API_KEY is not configured ─── */}
-      {/* news_unavailable (mapped to liveUnavailable) is true for all modes  */}
-      {/* when no articles are returned and NEWS_API_KEY is absent.           */}
       {liveUnavailable && !loading && !error && (
-        <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <Info className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-          <p className="text-xs text-slate-500">
-            <span className="font-semibold text-slate-600">News data unavailable.</span>{' '}
-            Add <code className="bg-slate-100 px-1 rounded text-slate-700">NEWS_API_KEY</code> to
-            your <code>.env</code> file to enable real portfolio news from NewsAPI.
-            Get a free key at{' '}
-            <a href="https://newsapi.org" target="_blank" rel="noopener noreferrer"
-               className="text-indigo-500 hover:underline">newsapi.org</a>{' '}
-            (100 requests/day on the free tier).
-          </p>
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+          <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="text-xs text-slate-600 space-y-1">
+            <p className="font-semibold text-slate-700">News provider not configured</p>
+            <p>
+              Add{' '}
+              <code className="bg-amber-100 px-1 rounded text-amber-800 font-mono">NEWS_API_KEY</code>{' '}
+              to your <code className="font-mono">.env</code> file to see portfolio-relevant headlines
+              for your holdings. Get a free key at{' '}
+              <a href="https://newsapi.org" target="_blank" rel="noopener noreferrer"
+                 className="text-indigo-600 hover:underline font-medium">newsapi.org</a>{' '}
+              (100 requests/day on the free tier).
+            </p>
+            <p className="text-slate-400">
+              Without a key, upcoming events and scheduled earnings will still appear below.
+            </p>
+          </div>
         </div>
       )}
 
@@ -154,17 +158,69 @@ export default function NewsPage() {
         />
       )}
 
+      {/* ── Active ticker banner — shown when a holding is selected ──────── */}
+      {tickerFilter && !loading && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Filter className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <span className="text-xs font-semibold text-indigo-800">
+              Filtering for:{' '}
+              <span className="font-bold">{tickerFilter}</span>
+            </span>
+            {visibleArticles.length > 0 ? (
+              <span className="text-xs text-indigo-500">
+                · {visibleArticles.length} article{visibleArticles.length !== 1 ? 's' : ''} found
+              </span>
+            ) : (
+              <span className="text-xs text-indigo-400">· No articles found</span>
+            )}
+          </div>
+          <button
+            onClick={() => setTickerFilter(null)}
+            className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* ── No results for selected ticker ───────────────────────────────── */}
+      {tickerFilter && !loading && visibleArticles.length === 0 && !liveUnavailable && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-8 text-center">
+          <Newspaper className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-slate-600">
+            No recent news for {tickerFilter}
+          </p>
+          <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+            Coverage depends on your news provider. Try clearing the filter
+            to see all available market news.
+          </p>
+          <button
+            onClick={() => setTickerFilter(null)}
+            className="mt-3 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Clear filter
+          </button>
+        </div>
+      )}
+
       {/* ── 4. News feed ─────────────────────────────────────────────────── */}
       {loading ? (
         <NewsFeedSkeleton />
       ) : (
-        <NewsFeed
-          articles={visibleArticles}
-          events={events}
-          tickerFilter={tickerFilter}
-          eventTypeFilter={eventTypeFilter}
-          liveUnavailable={liveUnavailable}
-        />
+        /* Only show the feed component when we're not in a "no results" state
+           so the NewsFeed's own empty state doesn't double up with ours */
+        !(tickerFilter && visibleArticles.length === 0) && (
+          <NewsFeed
+            articles={visibleArticles}
+            events={events}
+            tickerFilter={tickerFilter}
+            eventTypeFilter={eventTypeFilter}
+            liveUnavailable={liveUnavailable}
+          />
+        )
       )}
     </div>
   )
