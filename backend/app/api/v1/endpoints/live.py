@@ -79,7 +79,17 @@ async def get_live_quotes(
             "yfinance_available": False,
         }
 
-    prices = _fetch_live_prices_batch(ticker_list)
+    # Run the blocking yf.download() call off the event loop with a hard timeout.
+    # Without this, a slow or unresponsive Yahoo Finance connection can block the
+    # entire backend for several minutes.
+    try:
+        prices = await asyncio.wait_for(
+            asyncio.to_thread(_fetch_live_prices_batch, ticker_list),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Live price fetch timed out after 15s for tickers: %s", ticker_list)
+        prices = {}
 
     return {
         "prices": prices,
@@ -88,6 +98,7 @@ async def get_live_quotes(
         "missing": [t for t in ticker_list if t not in prices],
         "yfinance_available": True,
         "source": "yfinance",
+        "timed_out": len(prices) == 0 and bool(ticker_list),
     }
 
 
@@ -138,7 +149,18 @@ async def get_live_fundamentals(
             "source": "unavailable",
         }
 
-    data = _fetch_fundamentals_single(t)
+    try:
+        data = await asyncio.wait_for(
+            asyncio.to_thread(_fetch_fundamentals_single, t),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Fundamentals fetch timed out after 20s for ticker: %s", t)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Fundamentals fetch timed out for '{t}'. Yahoo Finance may be slow or rate-limiting.",
+        )
+
     if data and data.get("source") != "yfinance_error":
         _store_fund(t, data)
         return {"ticker": t, **data, "from_cache": False}

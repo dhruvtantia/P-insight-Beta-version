@@ -174,6 +174,21 @@ interface Props {
   loading?: boolean
 }
 
+// ─── Staleness helpers ────────────────────────────────────────────────────────
+
+function formatCacheAge(seconds: number): string {
+  if (seconds < 60)  return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m ago`
+}
+
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  yfinance: { label: 'Yahoo Finance', cls: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+  fmp:      { label: 'FMP',           cls: 'bg-amber-50  text-amber-600  border-amber-100'  },
+  static:   { label: 'Static',        cls: 'bg-slate-50  text-slate-500  border-slate-200'  },
+  unavailable: { label: 'Unavailable', cls: 'bg-red-50 text-red-500 border-red-100'         },
+}
+
 export function FundamentalsTable({ holdings, loading = false }: Props) {
   const [sortKey, setSortKey]   = useState<SortKey>('weight')
   const [sortAsc, setSortAsc]   = useState(false)
@@ -390,13 +405,59 @@ export function FundamentalsTable({ holdings, loading = false }: Props) {
         </table>
       </div>
 
-      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50">
-        <p className="text-[10px] text-slate-400">
-          Data sourced from Yahoo Finance (yfinance). Null (—) fields are not applicable for that business type
-          (e.g. banks have no meaningful D/E or operating margin).
-          Switch to <strong>Uploaded</strong> or <strong>Live</strong> mode to see real data.
-        </p>
+      {/* ── Footer — source transparency ─────────────────────────────────── */}
+      <FundamentalsFooter holdings={sorted} />
+    </div>
+  )
+}
+
+function FundamentalsFooter({ holdings }: { holdings: HoldingWithFundamentals[] }) {
+  // Collect distinct sources and oldest fetch time across all holdings
+  const sources = new Set<string>()
+  let oldestAgeSeconds: number | null = null
+
+  for (const h of holdings) {
+    const f = h.fundamentals
+    if (!f) continue
+    const src = f.source ?? 'unknown'
+    sources.add(src)
+    if (f.cache_age_seconds != null) {
+      oldestAgeSeconds = oldestAgeSeconds === null
+        ? f.cache_age_seconds
+        : Math.max(oldestAgeSeconds, f.cache_age_seconds)
+    }
+  }
+
+  return (
+    <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center gap-3">
+      {/* Source badges */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-slate-400 shrink-0">Sources:</span>
+        {[...sources].map((src) => {
+          const badge = SOURCE_BADGE[src] ?? { label: src, cls: 'bg-slate-50 text-slate-500 border-slate-200' }
+          return (
+            <span
+              key={src}
+              className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium ${badge.cls}`}
+            >
+              {badge.label}
+            </span>
+          )
+        })}
       </div>
+
+      {/* Cache age */}
+      {oldestAgeSeconds !== null && (
+        <span className={`text-[10px] ${oldestAgeSeconds > 1500 ? 'text-amber-500' : 'text-slate-400'}`}>
+          Oldest data: {formatCacheAge(oldestAgeSeconds)}
+          {oldestAgeSeconds > 1500 && ' · refreshing soon'}
+        </span>
+      )}
+
+      <span className="ml-auto text-[10px] text-slate-400">
+        Null (—) = metric not applicable for this business type.
+        Switch to <strong>Uploaded</strong> or <strong>Live</strong> mode for real data.
+      </span>
     </div>
   )
 }

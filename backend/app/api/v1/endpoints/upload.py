@@ -270,6 +270,62 @@ async def confirm_upload(
         except Exception as exc:
             logger.warning("Could not persist enrichment to DB (in-memory cache is still live): %s", exc)
 
+    # ── 3aa. Batch price fetch — populate current_price at upload time ────────
+    # A single yfinance batch call for all tickers so dashboard & holdings pages
+    # are instant after upload without waiting for page-driven fetches.
+    # Non-blocking: uses the same asyncio.wait_for guard as /live/quotes.
+    try:
+        from app.data_providers.live_provider import (
+            YFINANCE_AVAILABLE as _YF_OK,
+            _fetch_live_prices_batch,
+        )
+        if _YF_OK:
+            ticker_list = [h.ticker for h in holdings]
+            prices: dict[str, float] = {}
+            try:
+                prices = await asyncio.wait_for(
+                    asyncio.to_thread(_fetch_live_prices_batch, ticker_list),
+                    timeout=20.0,
+                )
+                logger.info(
+                    "Upload price fetch: got %d/%d prices", len(prices), len(ticker_list)
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Upload price fetch timed out after 20s — proceeding without live prices")
+
+            if prices and portfolio_id is not None:
+                # Patch current_price on in-memory holdings list
+                holdings = [
+                    h.model_copy(update={"current_price": prices[h.ticker]})
+                    if h.ticker in prices else h
+                    for h in holdings
+                ]
+                # Persist prices to DB holdings
+                try:
+                    from app.db.database import SessionLocal
+                    from app.models.portfolio import Holding as _DBHolding
+                    price_session = SessionLocal()
+                    try:
+                        db_holdings = (
+                            price_session.query(_DBHolding)
+                            .filter(_DBHolding.portfolio_id == portfolio_id)
+                            .all()
+                        )
+                        for db_h in db_holdings:
+                            if db_h.ticker in prices:
+                                db_h.current_price = prices[db_h.ticker]
+                        price_session.commit()
+                        logger.info(
+                            "Persisted %d live prices to DB (portfolio_id=%s)",
+                            len(prices), portfolio_id,
+                        )
+                    finally:
+                        price_session.close()
+                except Exception as exc:
+                    logger.warning("Could not persist live prices to DB: %s", exc)
+    except ImportError:
+        pass  # yfinance not installed — continue without prices
+
     # ── 3b. Update the in-memory FileDataProvider cache ──────────────────────
     # Done AFTER enrichment so the cache gets the enriched (sector/name-patched) holdings.
     import app.data_providers.file_provider as _fp_module
@@ -285,6 +341,37 @@ async def confirm_upload(
         background_tasks.add_task(pre_warm_cache, FileDataProvider(), "1y")
     except Exception as exc:
         logger.warning("Could not schedule quant pre-warm (non-fatal): %s", exc)
+
+    # ── 3d. Background historical data build ──────────────────────────────────
+    # Fetch 1-year daily prices for all tickers + benchmark, compute daily
+    # portfolio value, and persist to portfolio_history + benchmark_history.
+    # This is the "fetch once, reuse everywhere" store that powers the Changes
+    # page daily chart and any future historical widgets.
+    # Non-fatal: errors are logged but never surface to the upload response.
+    if portfolio_id is not None:
+        try:
+            from app.services.history_service import (
+                build_and_store_portfolio_history,
+                set_history_build_status,
+            )
+            from app.db.database import SessionLocal as _SessionLocal
+            # Mark as 'pending' immediately — frontend can show a building banner
+            # even before the background task has started executing.
+            set_history_build_status(portfolio_id, "pending")
+            # Pass a stable copy so the background task sees consistent data.
+            holdings_snapshot = list(holdings)
+            background_tasks.add_task(
+                build_and_store_portfolio_history,
+                portfolio_id,
+                holdings_snapshot,
+                _SessionLocal,   # db_factory — background task opens its own session
+            )
+            logger.info(
+                "Scheduled portfolio history build for portfolio_id=%s (%d tickers)",
+                portfolio_id, len(holdings_snapshot),
+            )
+        except Exception as exc:
+            logger.warning("Could not schedule portfolio history build (non-fatal): %s", exc)
 
     # ── 4. Save canonical CSV ─────────────────────────────────────────────────
     UPLOADS_PATH.mkdir(parents=True, exist_ok=True)

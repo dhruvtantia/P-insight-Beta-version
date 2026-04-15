@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse } from '@/types'
 
 // ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
 export interface RefreshResponse {
@@ -121,6 +121,12 @@ export const watchlistApi = {
     apiFetch<WatchlistItem>('/api/v1/watchlist/', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+
+  updateWatchlistItem: (ticker: string, updates: Partial<Pick<WatchlistItemInput, 'name' | 'tag' | 'sector' | 'target_price' | 'notes'>>) =>
+    apiFetch<WatchlistItem>(`/api/v1/watchlist/${ticker}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
     }),
 
   removeFromWatchlist: (ticker: string) =>
@@ -463,6 +469,57 @@ export const advisorApi = {
    */
   getContext: (portfolioId: number) =>
     apiFetch<PortfolioContextPayload>(`/api/v1/advisor/context/${portfolioId}`),
+}
+
+// ─── Portfolio History + Holdings Status ──────────────────────────────────────
+
+export const historyApi = {
+  /**
+   * GET /portfolios/{id}/history
+   * Daily portfolio value time series (pre-computed at upload, persisted to DB).
+   * Returns has_data=false with empty points[] if history hasn't been built yet.
+   * Includes build_status so the frontend can show a building/failed banner.
+   */
+  getPortfolioHistory: (portfolioId: number) =>
+    apiFetch<PortfolioHistoryResponse>(`/api/v1/portfolios/${portfolioId}/history`),
+
+  /**
+   * GET /portfolios/{id}/history/benchmark?ticker=^NSEI
+   * Daily close prices for a benchmark index.
+   */
+  getBenchmarkHistory: (portfolioId: number, ticker = '^NSEI') =>
+    apiFetch<BenchmarkPoint[]>(
+      `/api/v1/portfolios/${portfolioId}/history/benchmark?ticker=${encodeURIComponent(ticker)}`
+    ),
+
+  /**
+   * GET /portfolios/{id}/history/build-status
+   * Lightweight polling endpoint — returns current history build status without
+   * fetching the full time series.  Use this to power a progress banner.
+   */
+  getHistoryBuildStatus: (portfolioId: number) =>
+    apiFetch<HistoryBuildStatusResponse>(
+      `/api/v1/portfolios/${portfolioId}/history/build-status`
+    ),
+
+  /**
+   * GET /portfolios/{id}/holdings/status
+   * Per-holding enrichment + data availability status.
+   * These fields are written to DB during upload enrichment and survive restarts.
+   */
+  getHoldingsStatus: (portfolioId: number) =>
+    apiFetch<HoldingsStatusResponse>(`/api/v1/portfolios/${portfolioId}/holdings/status`),
+
+  /**
+   * GET /portfolios/{id}/holdings/since-purchase
+   * Per-holding P&L vs average purchase price.
+   * Computed from avg_cost × quantity vs current_price × quantity (DB only, no re-fetch).
+   * Powers the "Since Purchase" panel on the Changes page.
+   */
+  getSincePurchase: (portfolioId: number) =>
+    apiFetch<SincePurchaseResponse>(
+      `/api/v1/portfolios/${portfolioId}/holdings/since-purchase`
+    ),
 }
 
 // ─── Health Check ─────────────────────────────────────────────────────────────

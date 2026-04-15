@@ -19,6 +19,7 @@ from app.db.database import engine, Base
 from app.models import portfolio         # noqa: F401
 from app.models import snapshot          # noqa: F401
 from app.models import broker_connection # noqa: F401
+from app.models import history           # noqa: F401  ← portfolio_history + benchmark_history
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,12 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
     ("holdings", "sector_status",      "VARCHAR(20)",  "NULL"),
     ("holdings", "name_status",        "VARCHAR(20)",  "NULL"),
     ("holdings", "enrichment_reason",  "TEXT",         "NULL"),
+    # Phase 3 — portfolio-driven ingest status fields
+    ("holdings", "enrichment_status",   "VARCHAR(20)", "NULL"),
+    ("holdings", "fundamentals_status", "VARCHAR(20)", "NULL"),
+    ("holdings", "peers_status",        "VARCHAR(20)", "'pending'"),
+    ("holdings", "last_enriched_at",    "DATETIME",    "NULL"),
+    ("holdings", "failure_reason",      "TEXT",        "NULL"),
 ]
 
 

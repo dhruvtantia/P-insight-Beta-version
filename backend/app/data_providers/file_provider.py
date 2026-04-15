@@ -249,8 +249,13 @@ def _restore_from_db_holdings(db_holdings: list) -> None:
                 average_cost=h.average_cost,
                 current_price=h.current_price,
                 sector=h.sector,
+                industry=getattr(h, "industry", None),
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
                 data_source="uploaded",
+                # Enrichment provenance (Phase 3 fields — None on older DB rows)
+                sector_status=getattr(h, "sector_status", None),
+                fundamentals_status=getattr(h, "fundamentals_status", None),
+                enrichment_status=getattr(h, "enrichment_status", None),
             )
         )

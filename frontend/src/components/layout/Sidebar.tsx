@@ -7,9 +7,7 @@ import {
   Briefcase,
   FolderOpen,
   GitCompare,
-  PieChart,
   Activity,
-  SlidersHorizontal,
   Users,
   Newspaper,
   MessageCircle,
@@ -18,6 +16,7 @@ import {
   Bug,
   Upload,
   TrendingUp,
+  Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,65 +35,45 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// ─── Navigation groups ────────────────────────────────────────────────────────
+// ─── Navigation hierarchy ─────────────────────────────────────────────────────
 //
-//  Primary workflow (reliable in uploaded/live mode):
-//    Dashboard → Holdings → Fundamentals → Risk → Peer Compare
-//  Data management:
-//    Portfolios, Upload, What Changed, Watchlist
-//  Explore (mostly functional):
-//    Sectors, News & Events (mock in non-live), Advisor (rule-based or AI)
-//  Labs (BETA / experimental — clearly labelled):
-//    Optimizer, Simulator, Brokers
+//  Core — the primary intelligence loop (all must work in uploaded/live mode):
+//    Market → Dashboard → Holdings → Fundamentals → Risk → Changes
 //
-//  Not in nav (scaffold): AI Chat (/ai-chat), Efficient Frontier (/frontier)
+//  Secondary — useful but not the main workflow:
+//    Peers, News & Events, Watchlist, My Portfolio, Upload, Advisor
+//
+//  Hidden from nav — routes still work, navigate by URL:
+//    /screener   (Screener — BETA)
+//    /simulate   (Simulator — BETA)
+//    /optimize   (Optimizer — BETA)
+//    /brokers    (Broker Sync — scaffold)
+//    /sectors    (Sector Allocation — redundant with Dashboard)
+//    /frontier   (Efficient Frontier — scaffold)
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    // Market is the default landing page — shown first
-    label: 'Overview',
+    label: 'Core',
     items: [
-      { label: 'Market', href: '/market', Icon: TrendingUp },
-    ],
-  },
-  {
-    // Portfolio workspace — Tier 1 core: all must work
-    label: 'Portfolio',
-    items: [
+      { label: 'Market',       href: '/market',       Icon: TrendingUp      },
       { label: 'Dashboard',    href: '/dashboard',    Icon: LayoutDashboard },
       { label: 'Holdings',     href: '/holdings',     Icon: Briefcase       },
       { label: 'Fundamentals', href: '/fundamentals', Icon: BarChart2       },
       { label: 'Risk',         href: '/risk',         Icon: Activity        },
+      { label: 'Changes',      href: '/changes',      Icon: GitCompare      },
     ],
   },
   {
-    // Portfolio management — Tier 1
-    // Note: Watchlist (/watchlist) is hidden from nav but route code is NOT deleted.
-    // Navigate to /watchlist directly to access it.
-    label: 'Manage',
+    label: 'Secondary',
     items: [
-      { label: 'My Portfolio', href: '/portfolios', Icon: FolderOpen                           },
-      { label: 'Upload',       href: '/upload',     Icon: Upload                               },
-      { label: 'What Changed', href: '/changes',    Icon: GitCompare                           },
-      { label: 'Screener',     href: '/screener',   Icon: SlidersHorizontal, badge: 'BETA' as const },
+      { label: 'Peers',        href: '/peers',      Icon: Users         },
+      { label: 'News',         href: '/news',       Icon: Newspaper     },
+      { label: 'Watchlist',    href: '/watchlist',  Icon: Star          },
+      { label: 'My Portfolio', href: '/portfolios', Icon: FolderOpen    },
+      { label: 'Upload',       href: '/upload',     Icon: Upload        },
+      { label: 'Advisor',      href: '/advisor',    Icon: MessageCircle },
     ],
   },
-  {
-    // Explore — Tier 2: helpful but not critical
-    // Peer Compare, News, and Advisor are secondary workflows.
-    label: 'Explore',
-    items: [
-      { label: 'Peer Compare',  href: '/peers',    Icon: Users         },
-      { label: 'News & Events', href: '/news',     Icon: Newspaper     },
-      { label: 'Advisor',       href: '/advisor',  Icon: MessageCircle },
-    ],
-  },
-  // Hidden from nav (route code NOT deleted — navigate directly by URL):
-  //   /sectors   (Sector Allocation — redundant with dashboard)
-  //   /optimize  (Optimizer — Tier 3)
-  //   /simulate  (Simulator — Tier 3)
-  //   /brokers   (Broker Sync — Tier 3, scaffold)
-  //   /frontier  (Efficient Frontier — Tier 3, scaffold)
 ]
 
 const DEV_ITEMS: NavItem[] = [

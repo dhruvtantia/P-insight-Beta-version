@@ -91,6 +91,21 @@ class Holding(Base):
     # enrichment_reason: populated when sector_status == "unknown" or a source failed
     enrichment_reason = Column(Text, nullable=True)
 
+    # ── Phase 3 enrichment status fields ─────────────────────────────────────
+    # enrichment_status: overall per-holding enrichment outcome
+    #   "enriched" | "partial" | "pending" | "failed"
+    enrichment_status   = Column(String(20), nullable=True)
+    # fundamentals_status: did we successfully cache fundamentals at upload time?
+    #   "fetched" | "unavailable" | "pending"
+    fundamentals_status = Column(String(20), nullable=True)
+    # peers_status: were peer candidates identified?
+    #   "pending" | "found" | "none"
+    peers_status        = Column(String(20), nullable=True, default="pending")
+    # last_enriched_at: UTC timestamp of last enrichment run
+    last_enriched_at    = Column(DateTime, nullable=True)
+    # failure_reason: populated when enrichment_status == "failed" or "partial"
+    failure_reason      = Column(Text, nullable=True)
+
     portfolio = relationship("Portfolio", back_populates="holdings")
 
     def __repr__(self) -> str:

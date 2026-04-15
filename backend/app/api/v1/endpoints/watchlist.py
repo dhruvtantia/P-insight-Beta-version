@@ -1,16 +1,16 @@
 """
-Watchlist API Endpoints  [Phase 1]
-------------------------------------
-CRUD operations for the user's watchlist.
+Watchlist API Endpoints
+------------------------
+CRUD + update operations for the user's watchlist.
 
-Phase 1 fields: ticker, name, tag, sector, target_price, notes
-Phase 2 (planned): live price enrichment, analyst targets, 52-week data
+Fields: ticker, name, tag, sector, target_price, notes
+PATCH /{ticker} allows partial updates without delete-and-recreate.
 """
 
 from fastapi import APIRouter, HTTPException
 from app.core.dependencies import DbSession
 from app.repositories.portfolio_repository import WatchlistRepository
-from app.schemas.portfolio import WatchlistItem, WatchlistItemResponse
+from app.schemas.portfolio import WatchlistItem, WatchlistItemResponse, WatchlistItemUpdate
 
 router = APIRouter(prefix="/watchlist", tags=["Watchlist"])
 
@@ -35,6 +35,25 @@ async def add_to_watchlist(item: WatchlistItem, db: DbSession):
         target_price=item.target_price,
         notes=item.notes,
     )
+
+
+@router.patch("/{ticker}", response_model=WatchlistItemResponse, summary="Update watchlist entry")
+async def update_watchlist_item(ticker: str, payload: WatchlistItemUpdate, db: DbSession):
+    """
+    Partially update a watchlist entry. Only fields present in the request body
+    are changed — omitted fields are left as-is.
+
+    Updatable fields: name, tag, sector, target_price, notes.
+    Ticker cannot be changed (use delete + re-add instead).
+    """
+    repo = WatchlistRepository(db)
+    updates = payload.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    updated = repo.update(ticker.upper(), updates)
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist.")
+    return updated
 
 
 @router.delete("/{ticker}", summary="Remove from watchlist")

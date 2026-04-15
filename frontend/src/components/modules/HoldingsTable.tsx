@@ -280,14 +280,32 @@ export function HoldingsTable({
                       </span>
                     </td>
 
-                    {/* Sector badge */}
+                    {/* Sector badge — styled by enrichment quality */}
                     <td className="px-4 py-3">
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-white whitespace-nowrap"
-                        style={{ backgroundColor: sectorColor }}
-                      >
-                        {h.sector ?? 'Unknown'}
-                      </span>
+                      {h.sector_status === 'unknown' ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-amber-100 text-amber-700 border border-amber-200"
+                          title="Sector could not be resolved from any data source"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                          Unknown
+                        </span>
+                      ) : h.sector_status === 'static_map' ? (
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-white whitespace-nowrap opacity-80"
+                          style={{ backgroundColor: sectorColor }}
+                          title="Sector resolved from static map (not live data)"
+                        >
+                          {h.sector ?? 'Unknown'}
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium text-white whitespace-nowrap"
+                          style={{ backgroundColor: sectorColor }}
+                        >
+                          {h.sector ?? 'Unknown'}
+                        </span>
+                      )}
                     </td>
 
                     {/* Quantity */}
@@ -342,9 +360,26 @@ export function HoldingsTable({
                       </span>
                     </td>
 
-                    {/* Weight % with mini-bar */}
+                    {/* Weight % with mini-bar + enrichment status dot */}
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Enrichment quality dot — only shown for uploaded portfolios */}
+                        {h.enrichment_status && (
+                          <span
+                            className={cn(
+                              'h-1.5 w-1.5 rounded-full shrink-0',
+                              h.enrichment_status === 'enriched' ? 'bg-emerald-400' :
+                              h.enrichment_status === 'partial'  ? 'bg-amber-400'   :
+                              h.enrichment_status === 'failed'   ? 'bg-red-400'     : 'bg-slate-300'
+                            )}
+                            title={
+                              h.enrichment_status === 'enriched' ? 'Fully enriched (sector + name + fundamentals)' :
+                              h.enrichment_status === 'partial'  ? 'Partially enriched — sector or fundamentals unavailable' :
+                              h.enrichment_status === 'failed'   ? 'Enrichment failed — sector unresolved' :
+                              'Enrichment pending'
+                            }
+                          />
+                        )}
                         <span className="text-xs text-slate-600 tabular-nums w-10 text-right">
                           {h.weight !== undefined ? `${h.weight.toFixed(1)}%` : '—'}
                         </span>

@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     portfolios_mgmt,
     snapshots,
     brokers,
+    history,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -44,3 +45,4 @@ api_router.include_router(upload.router)
 api_router.include_router(portfolios_mgmt.router)
 api_router.include_router(snapshots.router)
 api_router.include_router(brokers.router)
+api_router.include_router(history.router)   # portfolio daily history + holdings status

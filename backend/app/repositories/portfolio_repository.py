@@ -123,6 +123,19 @@ class WatchlistRepository:
         self.db.refresh(item)
         return item
 
+    def update(self, ticker: str, updates: dict) -> Optional["Watchlist"]:
+        """Partially update a watchlist item. Only keys present in `updates` are changed."""
+        item = self.get_by_ticker(ticker)
+        if not item:
+            return None
+        allowed = {"name", "tag", "sector", "target_price", "notes"}
+        for key, value in updates.items():
+            if key in allowed:
+                setattr(item, key, value)
+        self.db.commit()
+        self.db.refresh(item)
+        return item
+
     def remove(self, ticker: str) -> bool:
         item = self.get_by_ticker(ticker)
         if not item:

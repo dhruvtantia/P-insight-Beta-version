@@ -1,32 +1,36 @@
 /**
  * SimulationControls — top control bar for the simulation page
  * ------------------------------------------------------------
- * • Add from watchlist dropdown
- * • Weight total indicator (progress bar, turns red if ≠ 100%)
+ * • Add from watchlist dropdown (unchanged)
+ * • Search & add new stock (NEW) — StockSearchInput; no watchlist required
+ * • Weight total indicator (progress bar)
  * • Auto-normalize button
  * • Reset button
- * • Modified-count badge
+ *
+ * The "Search & add" panel is an inline toggle below the controls bar.
+ * It uses StockSearchInput — same autocomplete as WatchlistForm.
+ * Adding a stock does NOT reset the rest of the simulation state.
  */
 
 'use client'
 
-import { useState }         from 'react'
-import { RefreshCw, Scale, ChevronDown, Plus, CheckCircle2, AlertCircle } from 'lucide-react'
-import { cn }               from '@/lib/utils'
-import type { WatchlistItem } from '@/types'
+import { useState }              from 'react'
+import { RefreshCw, Scale, ChevronDown, Plus, CheckCircle2, AlertCircle, Search } from 'lucide-react'
+import { StockSearchInput }      from '@/components/common/StockSearchInput'
+import { cn }                    from '@/lib/utils'
+import type { WatchlistItem }    from '@/types'
 
 // ─── Weight indicator ─────────────────────────────────────────────────────────
 
 function WeightIndicator({ total }: { total: number }) {
-  const rounded   = Math.round(total * 10) / 10
-  const isOver    = total > 100.5
-  const isUnder   = total < 99.5
-  const isOk      = !isOver && !isUnder
-  const barWidth  = Math.min(100, (total / 100) * 100)
+  const rounded  = Math.round(total * 10) / 10
+  const isOver   = total > 100.5
+  const isUnder  = total < 99.5
+  const isOk     = !isOver && !isUnder
+  const barWidth = Math.min(100, (total / 100) * 100)
 
   return (
     <div className="flex items-center gap-2.5 min-w-0">
-      {/* Status icon */}
       {isOk
         ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
         : <AlertCircle  className="h-4 w-4 text-amber-500   shrink-0" />
@@ -41,7 +45,7 @@ function WeightIndicator({ total }: { total: number }) {
             'text-xs font-bold',
             isOk   ? 'text-emerald-600' :
             isOver ? 'text-red-600'     :
-                     'text-amber-600'
+                     'text-amber-600',
           )}>
             {rounded.toFixed(1)}%
           </span>
@@ -52,7 +56,7 @@ function WeightIndicator({ total }: { total: number }) {
               'h-full rounded-full transition-all duration-200',
               isOk   ? 'bg-emerald-500' :
               isOver ? 'bg-red-400'     :
-                       'bg-amber-400'
+                       'bg-amber-400',
             )}
             style={{ width: `${barWidth}%` }}
           />
@@ -74,17 +78,11 @@ function WeightIndicator({ total }: { total: number }) {
 
 interface AddDropdownProps {
   watchlistItems:   WatchlistItem[]
-  portfolioTickers: Set<string>
   simTickers:       Set<string>
   onAdd:            (item: WatchlistItem) => void
 }
 
-function AddFromWatchlistDropdown({
-  watchlistItems,
-  portfolioTickers,
-  simTickers,
-  onAdd,
-}: AddDropdownProps) {
+function AddFromWatchlistDropdown({ watchlistItems, simTickers, onAdd }: AddDropdownProps) {
   const [open, setOpen] = useState(false)
 
   const available = watchlistItems.filter(
@@ -108,11 +106,7 @@ function AddFromWatchlistDropdown({
 
       {open && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setOpen(false)}
-          />
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-xl border border-slate-200
                           bg-white shadow-lg overflow-hidden">
             <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
@@ -153,18 +147,101 @@ function AddFromWatchlistDropdown({
   )
 }
 
+// ─── Search & add new stock panel ────────────────────────────────────────────
+
+interface SearchAddPanelProps {
+  simTickers: Set<string>
+  onAddNew:   (ticker: string, name?: string, sector?: string) => void
+}
+
+function SearchAndAddPanel({ simTickers, onAddNew }: SearchAddPanelProps) {
+  const [open,  setOpen]  = useState(false)
+  const [query, setQuery] = useState('')
+  const [added, setAdded] = useState<string | null>(null)
+
+  function handleSelect(ticker: string, name?: string, sector?: string) {
+    const upper = ticker.trim().toUpperCase()
+    if (!upper) return
+    if (simTickers.has(upper)) return   // already in sim
+    onAddNew(upper, name, sector)
+    setAdded(upper)
+    setQuery('')
+    // Brief success flash then close panel
+    setTimeout(() => { setAdded(null); setOpen(false) }, 1400)
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => { setOpen((o) => !o); setQuery('') }}
+        className={cn(
+          'flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+          open
+            ? 'border-violet-300 bg-violet-100 text-violet-800'
+            : 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
+        )}
+      >
+        <Search className="h-3.5 w-3.5" />
+        Search & add stock
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className="absolute left-0 top-full z-20 mt-1 w-80 rounded-xl border border-slate-200
+                        bg-white shadow-lg overflow-visible p-3 space-y-2"
+            // Prevent backdrop click when clicking inside panel
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-0.5">
+              Search any stock
+            </p>
+
+            {added ? (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span className="text-xs font-medium text-emerald-700">
+                  {added} added at 5% weight
+                </span>
+              </div>
+            ) : (
+              <StockSearchInput
+                value={query}
+                onChange={setQuery}
+                onSelect={handleSelect}
+                placeholder="e.g. RELIANCE or Apple…"
+                autoFocus
+              />
+            )}
+
+            <p className="text-[10px] text-slate-400 px-0.5 leading-relaxed">
+              Added at 5% weight — adjust sliders as needed.
+              <br />
+              Not added to your watchlist.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface SimulationControlsProps {
-  totalSimWeight:   number
-  isModified:       boolean
-  modifiedCount:    number
-  watchlistItems:   WatchlistItem[]
-  portfolioTickers: Set<string>
-  simTickers:       Set<string>
+  totalSimWeight:    number
+  isModified:        boolean
+  modifiedCount:     number
+  watchlistItems:    WatchlistItem[]
+  portfolioTickers:  Set<string>
+  simTickers:        Set<string>
   onAddFromWatchlist: (item: WatchlistItem) => void
-  onNormalize:      () => void
-  onReset:          () => void
+  /** NEW — add a stock by raw ticker + optional meta, without touching watchlist */
+  onAddNewStock:     (ticker: string, name?: string, sector?: string) => void
+  onNormalize:       () => void
+  onReset:           () => void
 }
 
 export function SimulationControls({
@@ -175,6 +252,7 @@ export function SimulationControls({
   portfolioTickers,
   simTickers,
   onAddFromWatchlist,
+  onAddNewStock,
   onNormalize,
   onReset,
 }: SimulationControlsProps) {
@@ -182,12 +260,17 @@ export function SimulationControls({
     <div className="card px-5 py-4">
       <div className="flex flex-wrap items-center gap-3">
 
-        {/* ── Primary action: Add from watchlist ── */}
+        {/* ── Add from watchlist ── */}
         <AddFromWatchlistDropdown
           watchlistItems={watchlistItems}
-          portfolioTickers={portfolioTickers}
           simTickers={simTickers}
           onAdd={onAddFromWatchlist}
+        />
+
+        {/* ── Search & add new stock ── */}
+        <SearchAndAddPanel
+          simTickers={simTickers}
+          onAddNew={onAddNewStock}
         />
 
         {/* ── Separator ── */}
@@ -219,7 +302,6 @@ export function SimulationControls({
               Reset to base
             </button>
 
-            {/* ── Modified count badge ── */}
             <span className="rounded-full bg-amber-100 text-amber-700 border border-amber-200
                              text-[10px] font-bold px-2.5 py-1">
               {modifiedCount} change{modifiedCount > 1 ? 's' : ''} from base

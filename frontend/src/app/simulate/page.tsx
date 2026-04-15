@@ -178,6 +178,7 @@ function SimulatePageInner() {
     watchlistItems,
     portfolioTickers,
     addStock,
+    addNewStock,
     addFromWatchlist,
     removeStock,
     undoRemove,
@@ -312,6 +313,7 @@ function SimulatePageInner() {
         portfolioTickers={portfolioTickers}
         simTickers={simTickers}
         onAddFromWatchlist={addFromWatchlist}
+        onAddNewStock={addNewStock}
         onNormalize={normalize}
         onReset={reset}
       />

@@ -80,6 +80,10 @@ export interface Holding {
   // 'mock_fallback' — deprecated, kept for legacy mock-mode support
   // 'uploaded'    — price came from uploaded file
   data_source?: 'live' | 'db_only' | 'unavailable' | 'mock_fallback' | 'uploaded' | null
+  // Enrichment provenance — set after upload enrichment pipeline (Phase 3)
+  sector_status?:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown' | null
+  fundamentals_status?: 'fetched' | 'unavailable' | 'pending' | null
+  enrichment_status?:   'enriched' | 'partial' | 'failed' | 'pending' | null
   // Derived (computed on frontend)
   market_value?: number
   pnl?: number
@@ -104,6 +108,113 @@ export interface SectorAllocation {
   num_holdings: number
 }
 
+// ─── Portfolio History ────────────────────────────────────────────────────────
+
+/** One daily data point from the portfolio_history table. */
+export interface PortfolioHistoryPoint {
+  date:        string    // YYYY-MM-DD
+  total_value: number
+}
+
+/** One daily benchmark data point from the benchmark_history table. */
+export interface BenchmarkPoint {
+  date:        string
+  close_price: number
+}
+
+/** Full response from GET /portfolios/{id}/history */
+export interface PortfolioHistoryResponse {
+  portfolio_id:  number
+  points:        PortfolioHistoryPoint[]
+  count:         number
+  has_data:      boolean
+  note:          string | null
+  earliest_date: string | null
+  latest_date:   string | null
+  /** In-process build status — lets the frontend show a building banner. */
+  build_status:  'pending' | 'building' | 'done' | 'failed' | 'unknown' | null
+  build_note:    string | null
+}
+
+/** Response from GET /portfolios/{id}/history/build-status (lightweight polling). */
+export interface HistoryBuildStatusResponse {
+  portfolio_id:   number
+  status:         'pending' | 'building' | 'done' | 'failed' | 'unknown'
+  rows_written:   number
+  benchmark_rows: number
+  error:          string | null
+  note:           string | null
+  started_at:     string | null
+  finished_at:    string | null
+  is_building:    boolean
+}
+
+// ─── Since-Purchase P&L ───────────────────────────────────────────────────────
+
+/** Per-holding P&L vs average purchase price. */
+export interface SincePurchaseHolding {
+  ticker:        string
+  name:          string
+  sector:        string | null
+  quantity:      number
+  average_cost:  number
+  current_price: number | null
+  invested:      number
+  current_value: number | null
+  pnl:           number | null
+  pnl_pct:       number | null
+  price_source:  'live_at_upload' | 'cost_basis_only'
+}
+
+export interface SincePurchaseSummary {
+  total_invested:       number
+  total_current_value:  number | null
+  total_pnl:            number | null
+  total_pnl_pct:        number | null
+  winners:              number
+  losers:               number
+  flat:                 number
+  price_freshness_note: string
+}
+
+export interface SincePurchaseResponse {
+  portfolio_id: number
+  holdings:     SincePurchaseHolding[]
+  summary:      SincePurchaseSummary
+}
+
+// ─── Holdings Enrichment Status ───────────────────────────────────────────────
+
+/** Per-holding enrichment and data-availability status. */
+export interface HoldingStatus {
+  id:                  number
+  ticker:              string
+  name:                string
+  normalized_ticker:   string | null
+  enrichment_status:   'enriched' | 'partial' | 'failed' | 'pending' | null
+  sector_status:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown' | null
+  fundamentals_status: 'fetched' | 'unavailable' | 'pending' | null
+  peers_status:        'found' | 'none' | 'pending' | null
+  last_enriched_at:    string | null   // ISO datetime
+  failure_reason:      string | null
+}
+
+export interface HoldingsStatusSummary {
+  total:           number
+  enriched:        number
+  partial:         number
+  failed:          number
+  sector_unknown:  number
+  no_fundamentals: number
+  no_peers:        number
+}
+
+export interface HoldingsStatusResponse {
+  portfolio_id: number
+  holdings:     HoldingStatus[]
+  summary:      HoldingsStatusSummary
+}
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export interface RiskMetrics {
@@ -124,6 +235,10 @@ export interface FinancialRatio {
   source: string
   /** Set when source === 'unavailable'; describes why data could not be fetched. */
   error?: string | null
+  /** Unix timestamp (seconds) when the data was fetched from the provider. */
+  fetched_at?: number | null
+  /** Seconds since the cached value was populated (injected by backend cache layer). */
+  cache_age_seconds?: number | null
 
   // Valuation
   pe_ratio: number | null

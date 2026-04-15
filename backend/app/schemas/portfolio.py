@@ -32,6 +32,14 @@ class HoldingBase(BaseModel):
     # Provenance: which data provider sourced current_price for this holding.
     # "live" = yfinance live quote, "uploaded" = from file, None = default.
     data_source: Optional[str] = Field(None, example="live")
+    # Enrichment status (Phase 3) — populated after upload enrichment pipeline.
+    # Transparent to the UI so stale/weak data can be labelled.
+    sector_status:       Optional[str] = Field(None,
+        description="Source that resolved this sector: from_file|yfinance|fmp|static_map|unknown")
+    fundamentals_status: Optional[str] = Field(None,
+        description="Whether fundamentals were fetched at upload: fetched|unavailable|pending")
+    enrichment_status:   Optional[str] = Field(None,
+        description="Overall enrichment quality: enriched|partial|failed|pending")
 
 
 class HoldingCreate(HoldingBase):
@@ -198,6 +206,15 @@ class WatchlistItem(BaseModel):
     ticker:       str
     name:         Optional[str]   = None
     tag:          Optional[str]   = "General"
+    sector:       Optional[str]   = None
+    target_price: Optional[float] = None
+    notes:        Optional[str]   = None
+
+
+class WatchlistItemUpdate(BaseModel):
+    """Partial update schema — all fields optional; only supplied fields are updated."""
+    name:         Optional[str]   = None
+    tag:          Optional[str]   = None
     sector:       Optional[str]   = None
     target_price: Optional[float] = None
     notes:        Optional[str]   = None

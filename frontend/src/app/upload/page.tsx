@@ -3,6 +3,7 @@
 /**
  * /upload — Portfolio Upload Wizard
  * -----------------------------------
+ * -----------------------------------
  * Step 1: Drop a CSV or Excel file (UploadDropzone)
  * Step 2: Review auto-detected column mapping (ColumnMapper)
  *         – skipped if all required columns are high-confidence matches
@@ -14,7 +15,7 @@
  * in the Topbar to see their data.
  */
 
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Upload,
@@ -24,6 +25,7 @@ import {
   RotateCcw,
   ChevronRight,
   LayoutDashboard,
+  ChevronDown,
 } from 'lucide-react'
 import { UploadDropzone } from '@/components/upload/UploadDropzone'
 import { ColumnMapper, type ColumnMappingState } from '@/components/upload/ColumnMapper'
@@ -74,6 +76,141 @@ interface ConfirmResult {
   enrichment_note:         string | null
   enrichment_details:      EnrichmentDetail[]
   message:                 string
+}
+
+// ─── Enrichment status helpers ────────────────────────────────────────────────
+
+type SectorStatus = EnrichmentDetail['sector_status']
+type NameStatus   = EnrichmentDetail['name_status']
+
+function statusBadge(enrichmentStatus: string | undefined): React.ReactElement {
+  const map: Record<string, { label: string; cls: string }> = {
+    enriched: { label: 'Enriched',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    partial:  { label: 'Partial',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    failed:   { label: 'Failed',    cls: 'bg-red-50 text-red-700 border-red-200' },
+    pending:  { label: 'Pending',   cls: 'bg-slate-50 text-slate-500 border-slate-200' },
+  }
+  const entry = map[enrichmentStatus ?? ''] ?? { label: 'Unknown', cls: 'bg-slate-50 text-slate-400 border-slate-200' }
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${entry.cls}`}>
+      {entry.label}
+    </span>
+  )
+}
+
+function sectorBadge(sectorStatus: SectorStatus): React.ReactElement {
+  const labels: Record<SectorStatus, string> = {
+    from_file:  'File',
+    yfinance:   'YF',
+    fmp:        'FMP',
+    static_map: 'Map',
+    unknown:    '—',
+  }
+  const clsMap: Record<SectorStatus, string> = {
+    from_file:  'text-slate-500',
+    yfinance:   'text-indigo-600',
+    fmp:        'text-violet-600',
+    static_map: 'text-teal-600',
+    unknown:    'text-red-500 font-semibold',
+  }
+  return (
+    <span className={`text-[10px] tabular-nums ${clsMap[sectorStatus]}`}>
+      {labels[sectorStatus]}
+    </span>
+  )
+}
+
+/**
+ * Expandable per-holding enrichment status table.
+ * Uses data already present in ConfirmResult.enrichment_details — no extra API call.
+ */
+function EnrichmentStatusTable({
+  details,
+  rowsFullyEnriched,
+  rowsPartiallyEnriched,
+  rowsSectorUnknown,
+}: {
+  details:               EnrichmentDetail[]
+  rowsFullyEnriched:     number
+  rowsPartiallyEnriched: number
+  rowsSectorUnknown:     number
+}) {
+  const [open, setOpen] = useState(false)
+
+  // Compute per-holding enrichment_status from sector_status + name_status
+  const detailsWithStatus = useMemo(() =>
+    details.map((d) => {
+      const sectorOk = d.sector_status !== 'unknown'
+      const nameOk   = d.name_status !== 'ticker_fallback'
+      const status   = sectorOk && nameOk ? 'enriched' : (!sectorOk && !nameOk ? 'failed' : 'partial')
+      return { ...d, computed_status: status }
+    }),
+  [details])
+
+  if (details.length === 0) return null
+
+  const allGood = rowsSectorUnknown === 0 && rowsPartiallyEnriched === 0
+
+  return (
+    <div className="w-full rounded-lg border border-slate-200 overflow-hidden text-xs">
+      {/* Toggle header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2 font-medium text-slate-700">
+          <span>Enrichment Status — all {details.length} holdings</span>
+          {allGood
+            ? <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px]">All resolved</span>
+            : <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px]">{rowsSectorUnknown > 0 ? `${rowsSectorUnknown} unknown sector` : `${rowsPartiallyEnriched} partial`}</span>
+          }
+        </div>
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/50">
+                <th className="text-left px-3 py-2 font-medium text-slate-500 w-28">Ticker</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Status</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Sector source</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Name source</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500 hidden sm:table-cell">Note</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {detailsWithStatus.map((d) => (
+                <tr key={d.ticker} className="hover:bg-slate-50/50">
+                  <td className="px-3 py-1.5 font-mono font-semibold text-slate-800">{d.ticker}</td>
+                  <td className="px-3 py-1.5">{statusBadge(d.computed_status)}</td>
+                  <td className="px-3 py-1.5">{sectorBadge(d.sector_status)}</td>
+                  <td className="px-3 py-1.5">
+                    <span className={`text-[10px] ${d.name_status === 'ticker_fallback' ? 'text-red-500' : 'text-slate-500'}`}>
+                      {d.name_status === 'from_file'       ? 'File'
+                       : d.name_status === 'yfinance'      ? 'YF'
+                       : d.name_status === 'fmp'           ? 'FMP'
+                       : d.name_status === 'static_map'    ? 'Map'
+                       : '— ticker only'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 text-slate-400 max-w-[180px] truncate hidden sm:table-cell">
+                    {d.enrichment_reason ?? (d.computed_status === 'enriched' ? '✓' : '')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rowsSectorUnknown > 0 && (
+            <p className="px-4 py-2 text-[10px] text-amber-600 bg-amber-50 border-t border-amber-100">
+              Tickers with unknown sector: add the exchange suffix (e.g. <code className="font-mono bg-amber-100 px-0.5 rounded">TCS.NS</code> for NSE) and re-upload to resolve.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -485,27 +622,14 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* Sector unknown detail — show which tickers failed */}
-            {confirmResult.rows_sector_unknown > 0 && confirmResult.enrichment_details.length > 0 && (
-              <div className="w-full rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
-                <p className="font-semibold mb-1.5">Tickers with unresolved sector</p>
-                <div className="space-y-1">
-                  {confirmResult.enrichment_details
-                    .filter(d => d.sector_status === 'unknown')
-                    .map(d => (
-                      <div key={d.ticker} className="flex items-start gap-2">
-                        <span className="font-mono font-bold text-amber-700 w-24 shrink-0">{d.ticker}</span>
-                        <span className="text-amber-600">
-                          {d.enrichment_reason ?? `Tried: ${d.attempted_sources.join(', ') || 'none'}`}
-                        </span>
-                      </div>
-                    ))
-                  }
-                </div>
-                <p className="mt-2 text-amber-600">
-                  These show as "Unknown" sector. Check that tickers include the exchange suffix (e.g. <code className="bg-amber-100 px-0.5 rounded">TCS.NS</code> for NSE).
-                </p>
-              </div>
+            {/* Per-holding enrichment breakdown — expandable */}
+            {confirmResult.enrichment_details.length > 0 && (
+              <EnrichmentStatusTable
+                details={confirmResult.enrichment_details}
+                rowsFullyEnriched={confirmResult.rows_fully_enriched}
+                rowsPartiallyEnriched={confirmResult.rows_partially_enriched}
+                rowsSectorUnknown={confirmResult.rows_sector_unknown}
+              />
             )}
 
             {/* Skipped details */}

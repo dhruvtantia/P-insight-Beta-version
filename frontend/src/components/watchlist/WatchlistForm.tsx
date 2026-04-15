@@ -13,9 +13,10 @@
  *   - Submission is disabled while ticker is empty OR while parent is processing
  */
 
-import { useState, useRef, useId }          from 'react'
+import { useState, useId }                  from 'react'
 import { Plus, Loader2, X }                  from 'lucide-react'
 import { TooltipHelp }                       from '@/components/common/TooltipHelp'
+import { StockSearchInput }                  from '@/components/common/StockSearchInput'
 import { WatchlistTagBadge }                 from './WatchlistTagBadge'
 import { WATCHLIST_TAGS, SECTOR_COLORS }     from '@/constants'
 import type { WatchlistItemInput, WatchlistTag } from '@/types'
@@ -72,7 +73,6 @@ const DEFAULTS: FormState = {
 export function WatchlistForm({ onAdd, submitting = false, error, onClearError }: Props) {
   const [form, setForm]           = useState<FormState>(DEFAULTS)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const tickerRef                 = useRef<HTMLInputElement>(null)
   const formId                    = useId()
 
   function field<K extends keyof FormState>(key: K) {
@@ -105,7 +105,6 @@ export function WatchlistForm({ onAdd, submitting = false, error, onClearError }
     // On success the hook throws on error, so reaching here = success
     setForm(DEFAULTS)
     setShowAdvanced(false)
-    tickerRef.current?.focus()
   }
 
   const canSubmit = form.ticker.trim().length > 0 && !submitting
@@ -117,28 +116,37 @@ export function WatchlistForm({ onAdd, submitting = false, error, onClearError }
       </div>
 
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        {/* ── Row 1: Ticker + Name ─────────────────────────────────────────── */}
+        {/* ── Row 1: Ticker search + Name ──────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div className="sm:col-span-2">
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
               Ticker <span className="text-red-400">*</span>
             </label>
-            <input
-              ref={tickerRef}
+            {/* StockSearchInput: auto-fills name + sector on selection */}
+            <StockSearchInput
               value={form.ticker}
-              onChange={field('ticker')}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSubmit(e as any))}
+              onChange={(raw) => {
+                onClearError?.()
+                setForm((prev) => ({ ...prev, ticker: raw }))
+              }}
+              onSelect={(ticker, name, sector) => {
+                onClearError?.()
+                setForm((prev) => ({
+                  ...prev,
+                  ticker,
+                  // Only auto-fill name/sector if the user hasn't typed one yet
+                  name:   prev.name   || name   || '',
+                  sector: prev.sector || sector || '',
+                }))
+              }}
               placeholder="e.g. INFY.NS"
-              autoComplete="off"
-              spellCheck={false}
               disabled={submitting}
-              className={cn(FIELD_BASE, 'w-full font-mono uppercase')}
             />
           </div>
 
           <div className="sm:col-span-3">
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-              Company Name <span className="text-slate-300 font-normal normal-case">(optional)</span>
+              Company Name <span className="text-slate-300 font-normal normal-case">(optional — auto-filled)</span>
             </label>
             <input
               value={form.name}
@@ -201,6 +209,7 @@ export function WatchlistForm({ onAdd, submitting = false, error, onClearError }
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Sector</label>
+                  <span className="text-slate-300 text-[10px] font-normal normal-case">(auto-filled)</span>
                   <TooltipHelp metric="watchlist_sector" position="top" />
                 </div>
                 <select

@@ -7,9 +7,11 @@
  *   useFundamentals()     → ratios (for fundamentals merge)
  *   useWatchlist()        → watchlistItems (for add-from-watchlist + suggestions)
  *
- * State:
+ * State (persisted across navigation via simulationStore):
  *   simHoldings[]         — the user's current simulated holding list
  *                           (starts as a copy of base holdings; mutated by user actions)
+ *                           Survives in-app navigation. Resets only when the active
+ *                           portfolio changes or when reset() is called explicitly.
  *
  * Derived (via useMemo):
  *   baseScenario          — computed once from real portfolio data
@@ -19,20 +21,23 @@
  *
  * Actions:
  *   addStock()            — add a new holding to simHoldings
+ *   addNewStock()         — add a new stock by ticker/name/sector (from search)
+ *   addFromWatchlist()    — add a watchlist item (pre-fills name/sector)
  *   removeStock()         — mark a holding as 'remove'
  *   undoRemove()          — restore a removed holding
  *   setWeight()           — change a holding's weight %
  *   normalize()           — scale all weights to sum to 100
  *   reset()               — restore simHoldings to the base portfolio
- *   addFromWatchlist()    — add a watchlist item to the sim (pre-fills name/sector)
  */
 
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { usePortfolio }         from '@/hooks/usePortfolio'
 import { useFundamentals }      from '@/hooks/useFundamentals'
 import { useWatchlist }         from '@/hooks/useWatchlist'
+import { usePortfolioStore }    from '@/store/portfolioStore'
+import { useSimulationStore }   from '@/store/simulationStore'
 import {
   initSimulatedHoldings,
   buildScenario,
@@ -67,6 +72,7 @@ export interface UseSimulationResult {
 
   // Actions
   addStock:         (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value'>) => void
+  addNewStock:      (ticker: string, name?: string, sector?: string) => void
   addFromWatchlist: (item: WatchlistItem) => void
   removeStock:      (ticker: string) => void
   undoRemove:       (ticker: string) => void
@@ -89,6 +95,30 @@ export function useSimulation(): UseSimulationResult {
   const { ratios }               = useFundamentals(baseHoldings)
   const { items: watchlistItems } = useWatchlist()
 
+  // Active portfolio ID — used to detect portfolio switches
+  const activePortfolioId = usePortfolioStore((s) => s.activePortfolioId)
+
+  // ── Simulation store (persists across navigation) ──────────────────────────
+  const {
+    simHoldings,
+    portfolioId:   storedPortfolioId,
+    hasHydrated,
+  } = useSimulationStore()
+
+  /**
+   * Wrapper around the store setter that supports functional updates.
+   * All action callbacks use this so they can compute new state from previous.
+   * Uses useSimulationStore.getState() to avoid stale-closure issues.
+   */
+  const setSimHoldings = useCallback(
+    (updater: SimulatedHolding[] | ((prev: SimulatedHolding[]) => SimulatedHolding[])) => {
+      const current = useSimulationStore.getState().simHoldings
+      const next    = typeof updater === 'function' ? updater(current) : updater
+      useSimulationStore.getState().setSimHoldings(next)
+    },
+    [],
+  )
+
   // ── Derived base values ──────────────────────────────────────────────────────
   const totalValue = useMemo(
     () => baseHoldings.reduce((s, h) => s + (h.market_value ?? 0), 0) || 1_000_000,
@@ -100,22 +130,53 @@ export function useSimulation(): UseSimulationResult {
     [ratios],
   )
 
-  // ── Sim holdings state ───────────────────────────────────────────────────────
-  const [simHoldings, setSimHoldings] = useState<SimulatedHolding[]>([])
-
-  // Initialise / reset from base whenever base holdings load/change
+  // ── Initialise from base portfolio ──────────────────────────────────────────
   const initFromBase = useCallback(() => {
     if (baseHoldings.length === 0) return
-    setSimHoldings(initSimulatedHoldings(baseHoldings, ratioMap, totalValue))
-  }, [baseHoldings, ratioMap, totalValue])
+    const initial = initSimulatedHoldings(baseHoldings, ratioMap, totalValue)
+    const store   = useSimulationStore.getState()
+    store.setSimHoldings(initial)
+    store.setPortfolioId(activePortfolioId)
+    store.setHasHydrated(true)
+  }, [baseHoldings, ratioMap, totalValue, activePortfolioId])
 
+  /**
+   * Initialisation logic:
+   *   1. Base holdings not loaded yet → wait.
+   *   2. Portfolio switched since last stored state → reinitialise.
+   *   3. Already have persisted state for this portfolio → keep it (nav-persistence).
+   *   4. First load (not yet hydrated) → initialise from base.
+   */
   useEffect(() => {
-    if (baseHoldings.length > 0 && simHoldings.length === 0) {
-      initFromBase()
-    }
-  }, [baseHoldings, initFromBase, simHoldings.length])
+    if (baseHoldings.length === 0 || loading) return
 
-  // ── Base scenario (stable — recomputed only when base holdings change) ────────
+    // Portfolio switched → force reinitialise
+    if (
+      hasHydrated &&
+      storedPortfolioId !== null &&
+      activePortfolioId !== null &&
+      storedPortfolioId !== activePortfolioId
+    ) {
+      initFromBase()
+      return
+    }
+
+    // Already have valid persisted state → keep it
+    if (hasHydrated && simHoldings.length > 0) return
+
+    // First load or empty state → initialise from base
+    initFromBase()
+  }, [
+    baseHoldings.length,
+    loading,
+    hasHydrated,
+    storedPortfolioId,
+    activePortfolioId,
+    simHoldings.length,
+    initFromBase,
+  ])
+
+  // ── Base scenario (stable) ────────────────────────────────────────────────────
   const baseScenario = useMemo<PortfolioScenario | null>(() => {
     if (baseHoldings.length === 0) return null
     const baseSimHoldings = initSimulatedHoldings(baseHoldings, ratioMap, totalValue)
@@ -134,16 +195,17 @@ export function useSimulation(): UseSimulationResult {
     return computeScenarioDelta(baseScenario, simScenario)
   }, [baseScenario, simScenario])
 
-  // ── Rebalance suggestions (from simScenario, not base) ─────────────────────
+  // ── Rebalance suggestions ─────────────────────────────────────────────────────
   const suggestions = useMemo<RebalanceSuggestion[]>(() => {
     if (!simScenario) return []
     return generateRebalanceSuggestions(simScenario, watchlistItems)
   }, [simScenario, watchlistItems])
 
-  // ── Is modified? ─────────────────────────────────────────────────────────────
-  const isModified = useMemo(() => {
-    return simHoldings.some((h) => h.action !== 'hold')
-  }, [simHoldings])
+  // ── Derived convenience ───────────────────────────────────────────────────────
+  const isModified = useMemo(
+    () => simHoldings.some((h) => h.action !== 'hold'),
+    [simHoldings],
+  )
 
   const totalSimWeight = useMemo(
     () => simHoldings.filter((h) => h.action !== 'remove').reduce((s, h) => s + h.weight, 0),
@@ -155,13 +217,38 @@ export function useSimulation(): UseSimulationResult {
     [baseHoldings],
   )
 
-  // ── Actions ──────────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────────
 
   const addStock = useCallback(
     (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value'>) => {
       setSimHoldings((prev) => addHolding(prev, holding, totalValue))
     },
-    [totalValue],
+    [setSimHoldings, totalValue],
+  )
+
+  /**
+   * Add a brand-new stock by ticker + optional name/sector.
+   * Used by the "Search & add stock" flow in SimulationControls.
+   * Does NOT require the stock to already be in the watchlist.
+   */
+  const addNewStock = useCallback(
+    (ticker: string, name?: string, sector?: string) => {
+      const upper = ticker.trim().toUpperCase()
+      setSimHoldings((prev) =>
+        addHolding(
+          prev,
+          {
+            ticker:       upper,
+            name:         name ?? upper,
+            sector:       sector ?? 'Other',
+            weight:       5,
+            fundamentals: ratioMap.get(upper) ?? null,
+          },
+          totalValue,
+        ),
+      )
+    },
+    [setSimHoldings, ratioMap, totalValue],
   )
 
   const addFromWatchlist = useCallback(
@@ -180,45 +267,38 @@ export function useSimulation(): UseSimulationResult {
         ),
       )
     },
-    [ratioMap, totalValue],
+    [setSimHoldings, ratioMap, totalValue],
   )
 
   const removeStock = useCallback(
     (ticker: string) => {
       setSimHoldings((prev) => markRemoved(prev, ticker, totalValue))
     },
-    [totalValue],
+    [setSimHoldings, totalValue],
   )
 
   const undoRemove = useCallback(
     (ticker: string) => {
       setSimHoldings((prev) => undoRemoveUtil(prev, ticker, totalValue))
     },
-    [totalValue],
+    [setSimHoldings, totalValue],
   )
 
   const setWeight = useCallback(
     (ticker: string, weight: number) => {
       setSimHoldings((prev) => setHoldingWeight(prev, ticker, weight, totalValue))
     },
-    [totalValue],
+    [setSimHoldings, totalValue],
   )
 
   const normalize = useCallback(() => {
     setSimHoldings((prev) => normalizeWeights(prev, totalValue))
-  }, [totalValue])
+  }, [setSimHoldings, totalValue])
 
   const reset = useCallback(() => {
     initFromBase()
   }, [initFromBase])
 
-  /**
-   * Apply a suggestion directly:
-   *   trim        → setWeight to suggestedWeight
-   *   add_from_watchlist → addFromWatchlist if ticker found in watchlist
-   *   remove      → markRemoved
-   *   rebalance   → normalize (best approximation)
-   */
   const applyFromSuggestion = useCallback(
     (suggestion: RebalanceSuggestion) => {
       if (suggestion.type === 'trim' && suggestion.ticker && suggestion.suggestedWeight !== undefined) {
@@ -244,15 +324,9 @@ export function useSimulation(): UseSimulationResult {
         setSimHoldings((prev) => normalizeWeights(prev, totalValue))
       }
     },
-    [watchlistItems, ratioMap, totalValue],
+    [setSimHoldings, watchlistItems, ratioMap, totalValue],
   )
 
-  /**
-   * Apply optimized portfolio weights from the optimizer engine.
-   * `weights` is a Record<ticker, fraction> where fractions are 0.0–1.0.
-   * For each active holding, the weight is updated to optimizer_weight × 100.
-   * Tickers in the portfolio but absent from `weights` are set to 0.
-   */
   const applyOptimizedWeights = useCallback(
     (weights: Record<string, number>) => {
       setSimHoldings((prev) => {
@@ -260,7 +334,6 @@ export function useSimulation(): UseSimulationResult {
         for (const holding of prev) {
           if (holding.action === 'remove') continue
           const ticker = holding.ticker
-          // Match against full ticker or stripped suffix (e.g. RELIANCE.NS → RELIANCE)
           const wFrac =
             weights[ticker] ??
             weights[ticker.replace(/\.(NS|BO|BSE)$/i, '')] ??
@@ -270,7 +343,7 @@ export function useSimulation(): UseSimulationResult {
         return updated
       })
     },
-    [totalValue],
+    [setSimHoldings, totalValue],
   )
 
   return {
@@ -283,6 +356,7 @@ export function useSimulation(): UseSimulationResult {
     watchlistItems,
     portfolioTickers,
     addStock,
+    addNewStock,
     addFromWatchlist,
     removeStock,
     undoRemove,

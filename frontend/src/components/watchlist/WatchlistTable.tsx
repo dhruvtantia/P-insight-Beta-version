@@ -3,16 +3,18 @@
 /**
  * WatchlistTable — main watchlist data grid
  * -------------------------------------------
- * Columns: Ticker | Name | Tag | Sector | Target Price | Notes | Added | Delete
+ * Columns: Ticker | Name | Tag | Sector | Live ₹ | Target ₹ | Notes | Added | Simulate | Delete
+ *
+ * Props changes vs original:
+ *   - livePrices, lastFetchAt, yfinanceAvailable: accepted as props (lifted to page)
+ *   - onSelect: called when a row is clicked; updates detail panel in parent
+ *   - selectedTicker: highlights the currently-selected row (controlled by page)
  *
  * Design decisions:
- *   - Sector shown as colored dot (from SECTOR_COLORS) + name text
- *   - Notes column truncated at ~2 lines with a hover tooltip for full text
- *   - Target price displayed with ₹ prefix, "—" if null
- *   - Delete button shows a confirm state ("Click to confirm") on first click
- *     to prevent accidental removals
- *   - "Added" date shown as a relative label (Today, Yesterday, or date)
- *   - Sortable by: Ticker, Tag, Added Date (default: newest first)
+ *   - Rows are fully clickable — clicking anywhere calls onSelect(ticker)
+ *   - Selected row gets a subtle indigo highlight
+ *   - Simulate/delete buttons stopPropagation so clicks don't also trigger selection
+ *   - Sort columns: Ticker, Tag, Sector, Live Price, Target Price, Added Date
  */
 
 import { useState, useMemo }                     from 'react'
@@ -20,10 +22,8 @@ import { useRouter }                              from 'next/navigation'
 import { Trash2, ChevronUp, ChevronDown, ChevronsUpDown, GitFork, Clock } from 'lucide-react'
 import { WatchlistTagBadge }                      from './WatchlistTagBadge'
 import { SECTOR_COLORS, DEFAULT_SECTOR_COLOR }    from '@/constants'
-import { formatCurrency }                         from '@/constants'
 import { cn }                                     from '@/lib/utils'
 import type { WatchlistItem }                     from '@/types'
-import { useWatchlistPrices }                     from '@/hooks/useWatchlistPrices'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,27 +42,39 @@ type SortKey = 'ticker' | 'tag' | 'added_at' | 'sector' | 'target_price' | 'live
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  items:        WatchlistItem[]
-  onRemove:     (ticker: string) => void
-  removing?:    string | null   // ticker currently being removed
+  items:              WatchlistItem[]
+  onRemove:           (ticker: string) => void
+  removing?:          string | null
+  /** Live price map — lifted from page so detail panel can share the same data */
+  livePrices:         Record<string, number>
+  lastFetchAt:        Date | null
+  yfinanceAvailable:  boolean
+  /** Called when the user clicks a row — parent should update its selectedTicker */
+  onSelect?:          (ticker: string) => void
+  /** Which row to highlight — controlled by parent */
+  selectedTicker?:    string | null
 }
 
-export function WatchlistTable({ items, onRemove, removing }: Props) {
+export function WatchlistTable({
+  items,
+  onRemove,
+  removing,
+  livePrices,
+  lastFetchAt,
+  yfinanceAvailable,
+  onSelect,
+  selectedTicker,
+}: Props) {
   const router = useRouter()
-  const [sortKey, setSortKey]   = useState<SortKey>('added_at')
-  const [sortAsc, setSortAsc]   = useState(false)            // newest first by default
+  const [sortKey, setSortKey]         = useState<SortKey>('added_at')
+  const [sortAsc, setSortAsc]         = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-
-  // Live prices — auto-refresh every 60 s, independent of data mode
-  const tickers = useMemo(() => items.map((i) => i.ticker), [items])
-  const { prices: livePrices, lastFetchAt, yfinanceAvailable } = useWatchlistPrices(tickers)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortAsc((p) => !p)
     } else {
       setSortKey(key)
-      // alpha sorts default ascending; date/numeric sorts default descending
       setSortAsc(key === 'ticker' || key === 'tag' || key === 'sector')
     }
   }
@@ -80,15 +92,20 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
     })
   }, [items, sortKey, sortAsc, livePrices])
 
-  function handleDeleteClick(ticker: string) {
+  function handleDeleteClick(e: React.MouseEvent, ticker: string) {
+    e.stopPropagation()   // prevent row-selection click
     if (confirmDelete === ticker) {
       onRemove(ticker)
       setConfirmDelete(null)
     } else {
       setConfirmDelete(ticker)
-      // Auto-cancel confirm state after 3 seconds
       setTimeout(() => setConfirmDelete((prev) => prev === ticker ? null : prev), 3000)
     }
+  }
+
+  function handleSimulateClick(e: React.MouseEvent, ticker: string) {
+    e.stopPropagation()   // prevent row-selection click
+    router.push(`/simulate?add=${encodeURIComponent(ticker)}`)
   }
 
   if (items.length === 0) return null
@@ -99,16 +116,21 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
           <h3 className="text-sm font-semibold text-slate-800">Watchlist</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{items.length} stock{items.length !== 1 ? 's' : ''} tracked</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {items.length} stock{items.length !== 1 ? 's' : ''} tracked
+            {onSelect && (
+              <span className="ml-1 text-indigo-400">· click a row to inspect</span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {lastFetchAt && yfinanceAvailable && (
             <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400">
               <Clock className="h-3 w-3" />
-              <span>Prices updated {lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>Prices {lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           )}
-          <p className="text-[11px] text-slate-400 hidden sm:block">Click column headers to sort</p>
+          <p className="text-[11px] text-slate-400 hidden sm:block">Click headers to sort</p>
         </div>
       </div>
 
@@ -116,30 +138,14 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-100">
-              {/* Ticker — sortable */}
-              <Th label="Ticker" sortKey="ticker" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="w-[120px] text-left" />
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                Name
-              </th>
-              {/* Tag — sortable */}
-              <Th label="Tag" sortKey="tag" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="w-[130px] text-left" />
-              {/* Sector — sortable */}
-              <Th label="Sector" sortKey="sector" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="text-left" />
-              {/* Live Price — sortable */}
-              <Th label="Live ₹" sortKey="live_price" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="w-[110px]" align="right" />
-              {/* Target Price — sortable */}
-              <Th label="Target ₹" sortKey="target_price" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="w-[110px]" align="right" />
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide w-[200px]">
-                Notes
-              </th>
-              {/* Added — sortable */}
-              <Th label="Added" sortKey="added_at" current={sortKey} asc={sortAsc} onSort={handleSort}
-                  className="w-[80px] text-left" />
+              <Th label="Ticker"   sortKey="ticker"       current={sortKey} asc={sortAsc} onSort={handleSort} className="w-[120px] text-left" />
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Name</th>
+              <Th label="Tag"      sortKey="tag"          current={sortKey} asc={sortAsc} onSort={handleSort} className="w-[130px] text-left" />
+              <Th label="Sector"   sortKey="sector"       current={sortKey} asc={sortAsc} onSort={handleSort} className="text-left" />
+              <Th label="Live ₹"   sortKey="live_price"   current={sortKey} asc={sortAsc} onSort={handleSort} className="w-[110px]" align="right" />
+              <Th label="Target ₹" sortKey="target_price" current={sortKey} asc={sortAsc} onSort={handleSort} className="w-[110px]" align="right" />
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide w-[200px]">Notes</th>
+              <Th label="Added"    sortKey="added_at"     current={sortKey} asc={sortAsc} onSort={handleSort} className="w-[80px] text-left" />
               <th className="px-4 py-3 w-[36px]" title="Open in simulator" />
               <th className="px-4 py-3 w-[60px]" />
             </tr>
@@ -150,14 +156,21 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
               const sectorColor = SECTOR_COLORS[item.sector ?? ''] ?? DEFAULT_SECTOR_COLOR
               const isRemoving  = removing === item.ticker
               const isConfirm   = confirmDelete === item.ticker
+              const isSelected  = selectedTicker === item.ticker
 
               return (
                 <tr
                   key={item.ticker}
+                  onClick={() => onSelect?.(item.ticker)}
                   className={cn(
                     'border-b border-slate-50 transition-colors',
-                    isRemoving ? 'opacity-40 pointer-events-none' : 'hover:bg-slate-50/60',
-                    idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'
+                    isRemoving    ? 'opacity-40 pointer-events-none' : '',
+                    onSelect      ? 'cursor-pointer' : '',
+                    isSelected
+                      ? 'bg-indigo-50/70 border-l-2 border-l-indigo-400'
+                      : idx % 2 === 0
+                        ? 'bg-white hover:bg-slate-50/60'
+                        : 'bg-slate-50/20 hover:bg-slate-50/60',
                   )}
                 >
                   {/* Ticker */}
@@ -172,7 +185,9 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
 
                   {/* Name */}
                   <td className="px-4 py-3 text-slate-600 text-xs max-w-[160px]">
-                    <span className="truncate block">{item.name ?? <span className="text-slate-300 italic">Not set</span>}</span>
+                    <span className="truncate block">
+                      {item.name ?? <span className="text-slate-300 italic">Not set</span>}
+                    </span>
                   </td>
 
                   {/* Tag */}
@@ -196,16 +211,14 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
                   <td className="px-4 py-3 text-right tabular-nums text-xs">
                     {(() => {
                       const lp = livePrices[item.ticker]
-                      if (!yfinanceAvailable) {
-                        return <span className="text-slate-300" title="yfinance unavailable">—</span>
-                      }
-                      if (lp !== undefined) {
-                        return (
-                          <span className="font-semibold text-emerald-700">
-                            ₹{lp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        )
-                      }
+                      if (!yfinanceAvailable) return (
+                        <span className="text-slate-300" title="yfinance unavailable">—</span>
+                      )
+                      if (lp !== undefined) return (
+                        <span className="font-semibold text-emerald-700">
+                          ₹{lp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )
                       return <span className="text-slate-300 text-[10px] italic">Loading…</span>
                     })()}
                   </td>
@@ -213,12 +226,14 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
                   {/* Target Price */}
                   <td className="px-4 py-3 text-right tabular-nums text-xs">
                     {item.target_price !== null
-                      ? <span className="font-semibold text-slate-700">₹{item.target_price.toLocaleString('en-IN')}</span>
+                      ? <span className="font-semibold text-slate-700">
+                          ₹{item.target_price.toLocaleString('en-IN')}
+                        </span>
                       : <span className="text-slate-300">—</span>
                     }
                   </td>
 
-                  {/* Notes — truncated with title tooltip for full text */}
+                  {/* Notes */}
                   <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px]">
                     {item.notes
                       ? <span
@@ -240,7 +255,7 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
                   {/* Simulate */}
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => router.push(`/simulate?add=${encodeURIComponent(item.ticker)}`)}
+                      onClick={(e) => handleSimulateClick(e, item.ticker)}
                       title="Open in simulator"
                       className="text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-md p-1 transition-colors"
                     >
@@ -251,21 +266,20 @@ export function WatchlistTable({ items, onRemove, removing }: Props) {
                   {/* Delete */}
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => handleDeleteClick(item.ticker)}
+                      onClick={(e) => handleDeleteClick(e, item.ticker)}
                       disabled={isRemoving}
                       title={isConfirm ? 'Click again to confirm delete' : 'Remove from watchlist'}
                       className={cn(
                         'rounded-md px-2 py-1 text-[11px] font-medium transition-all',
                         isConfirm
                           ? 'bg-red-100 text-red-700 border border-red-200 hover:bg-red-200'
-                          : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+                          : 'text-slate-400 hover:text-red-500 hover:bg-red-50',
                       )}
                     >
-                      {isConfirm ? (
-                        <span className="whitespace-nowrap">Confirm?</span>
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
+                      {isConfirm
+                        ? <span className="whitespace-nowrap">Confirm?</span>
+                        : <Trash2 className="h-4 w-4" />
+                      }
                     </button>
                   </td>
                 </tr>
@@ -300,7 +314,7 @@ function Th({
         'cursor-pointer hover:text-slate-800 whitespace-nowrap select-none transition-colors',
         align === 'right' && 'text-right',
         active && 'text-indigo-700',
-        className
+        className,
       )}
     >
       <span className={cn('inline-flex items-center gap-1', align === 'right' && 'flex-row-reverse')}>

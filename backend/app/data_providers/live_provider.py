@@ -146,8 +146,8 @@ def _fetch_fmp_peers(ticker: str) -> list[str]:
 _PRICE_CACHE: dict[str, tuple[float, float]] = {}   # ticker → (price, ts)
 _FUND_CACHE:  dict[str, tuple[dict,  float]] = {}   # ticker → (data,  ts)
 
-PRICE_TTL = 60.0        # 1 minute for prices
-FUND_TTL  = 14_400.0    # 4 hours  for fundamentals
+PRICE_TTL = 60.0        # 1 minute  for prices
+FUND_TTL  = 1_800.0     # 30 minutes for fundamentals (PE ratio is price-dependent; 4h was too stale)
 
 
 def _price_from_cache(ticker: str) -> float | None:
@@ -160,7 +160,9 @@ def _price_from_cache(ticker: str) -> float | None:
 def _fund_from_cache(ticker: str) -> dict | None:
     entry = _FUND_CACHE.get(ticker)
     if entry and (time.time() - entry[1]) < FUND_TTL:
-        return entry[0]
+        data, ts = entry
+        # Inject cache metadata so callers can show staleness to the user
+        return {**data, "fetched_at": ts, "cache_age_seconds": int(time.time() - ts)}
     return None
 
 
@@ -169,7 +171,9 @@ def _store_price(ticker: str, price: float) -> None:
 
 
 def _store_fund(ticker: str, data: dict) -> None:
-    _FUND_CACHE[ticker] = (data, time.time())
+    ts = time.time()
+    # Store fetched_at inside the cached payload so cache hits surface it too
+    _FUND_CACHE[ticker] = ({**data, "fetched_at": ts}, ts)
 
 
 # ─── yfinance helpers ─────────────────────────────────────────────────────────

@@ -317,10 +317,18 @@ class PortfolioManagerService:
                 changed = True
 
             # ── Enrichment metadata (always written) ───────────────────────────
-            db_h.normalized_ticker = rec.normalized_ticker
-            db_h.sector_status     = rec.sector_status
-            db_h.name_status       = rec.name_status
-            db_h.enrichment_reason = rec.enrichment_reason
+            db_h.normalized_ticker   = rec.normalized_ticker
+            db_h.sector_status       = rec.sector_status
+            db_h.name_status         = rec.name_status
+            db_h.enrichment_reason   = rec.enrichment_reason
+            # Phase 3 — per-holding ingest status
+            db_h.enrichment_status   = rec.enrichment_status
+            db_h.fundamentals_status = rec.fundamentals_status
+            db_h.peers_status        = "pending"   # not fetched at upload time
+            if rec.last_enriched_at is not None:
+                from datetime import timezone as _tz
+                db_h.last_enriched_at = datetime.fromtimestamp(rec.last_enriched_at, tz=_tz.utc)
+            db_h.failure_reason = rec.enrichment_reason
             changed = True   # always mark changed to persist metadata
 
             if changed:
