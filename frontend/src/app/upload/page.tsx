@@ -15,7 +15,7 @@
  * in the Topbar to see their data.
  */
 
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Upload,
@@ -54,12 +54,15 @@ interface ParseResult {
 }
 
 interface EnrichmentDetail {
-  ticker:            string
-  normalized_ticker: string
-  sector_status:     'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown'
-  name_status:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'ticker_fallback'
-  attempted_sources: string[]
-  enrichment_reason: string | null
+  ticker:              string
+  normalized_ticker:   string
+  sector_status:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown'
+  name_status:         'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'ticker_fallback'
+  attempted_sources:   string[]
+  enrichment_reason:   string | null
+  // Backend-computed (returned by to_dict() — use directly, do NOT recompute)
+  enrichment_status:   'enriched' | 'partial' | 'failed' | 'pending'
+  fundamentals_status: 'fetched' | 'unavailable' | 'pending'
 }
 
 interface ConfirmResult {
@@ -73,6 +76,7 @@ interface ConfirmResult {
   rows_fully_enriched:     number
   rows_partially_enriched: number
   rows_sector_unknown:     number
+  rows_no_fundamentals:    number     // holdings where fundamentals fetch was unavailable
   enrichment_note:         string | null
   enrichment_details:      EnrichmentDetail[]
   message:                 string
@@ -120,9 +124,21 @@ function sectorBadge(sectorStatus: SectorStatus): React.ReactElement {
   )
 }
 
+function fundamentalsBadge(status: EnrichmentDetail['fundamentals_status']): React.ReactElement {
+  if (status === 'fetched') {
+    return <span className="text-[10px] text-emerald-600">✓ Live</span>
+  }
+  if (status === 'unavailable') {
+    return <span className="text-[10px] text-amber-600 font-medium">⚠ N/A</span>
+  }
+  // pending = enrichment was skipped (fields came from file) — not a failure
+  return <span className="text-[10px] text-slate-400">—</span>
+}
+
 /**
  * Expandable per-holding enrichment status table.
- * Uses data already present in ConfirmResult.enrichment_details — no extra API call.
+ * Uses enrichment_status and fundamentals_status directly from the backend
+ * (via EnrichmentRecord.to_dict()) — NOT recomputed on the frontend.
  */
 function EnrichmentStatusTable({
   details,
@@ -137,16 +153,6 @@ function EnrichmentStatusTable({
 }) {
   const [open, setOpen] = useState(false)
 
-  // Compute per-holding enrichment_status from sector_status + name_status
-  const detailsWithStatus = useMemo(() =>
-    details.map((d) => {
-      const sectorOk = d.sector_status !== 'unknown'
-      const nameOk   = d.name_status !== 'ticker_fallback'
-      const status   = sectorOk && nameOk ? 'enriched' : (!sectorOk && !nameOk ? 'failed' : 'partial')
-      return { ...d, computed_status: status }
-    }),
-  [details])
-
   if (details.length === 0) return null
 
   const allGood = rowsSectorUnknown === 0 && rowsPartiallyEnriched === 0
@@ -159,10 +165,12 @@ function EnrichmentStatusTable({
         className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
       >
         <div className="flex items-center gap-2 font-medium text-slate-700">
-          <span>Enrichment Status — all {details.length} holdings</span>
+          <span>Enrichment details — {details.length} holding{details.length !== 1 ? 's' : ''}</span>
           {allGood
             ? <span className="rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px]">All resolved</span>
-            : <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px]">{rowsSectorUnknown > 0 ? `${rowsSectorUnknown} unknown sector` : `${rowsPartiallyEnriched} partial`}</span>
+            : <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px]">
+                {rowsSectorUnknown > 0 ? `${rowsSectorUnknown} unknown sector` : `${rowsPartiallyEnriched} partial`}
+              </span>
           }
         </div>
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -175,28 +183,31 @@ function EnrichmentStatusTable({
               <tr className="border-b border-slate-100 bg-slate-50/50">
                 <th className="text-left px-3 py-2 font-medium text-slate-500 w-28">Ticker</th>
                 <th className="text-left px-3 py-2 font-medium text-slate-500">Status</th>
-                <th className="text-left px-3 py-2 font-medium text-slate-500">Sector source</th>
-                <th className="text-left px-3 py-2 font-medium text-slate-500">Name source</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Sector</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Name</th>
+                <th className="text-left px-3 py-2 font-medium text-slate-500">Fundamentals</th>
                 <th className="text-left px-3 py-2 font-medium text-slate-500 hidden sm:table-cell">Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {detailsWithStatus.map((d) => (
+              {details.map((d) => (
                 <tr key={d.ticker} className="hover:bg-slate-50/50">
                   <td className="px-3 py-1.5 font-mono font-semibold text-slate-800">{d.ticker}</td>
-                  <td className="px-3 py-1.5">{statusBadge(d.computed_status)}</td>
+                  {/* Use enrichment_status from backend directly — it factors in fundamentals */}
+                  <td className="px-3 py-1.5">{statusBadge(d.enrichment_status)}</td>
                   <td className="px-3 py-1.5">{sectorBadge(d.sector_status)}</td>
                   <td className="px-3 py-1.5">
                     <span className={`text-[10px] ${d.name_status === 'ticker_fallback' ? 'text-red-500' : 'text-slate-500'}`}>
-                      {d.name_status === 'from_file'       ? 'File'
-                       : d.name_status === 'yfinance'      ? 'YF'
-                       : d.name_status === 'fmp'           ? 'FMP'
-                       : d.name_status === 'static_map'    ? 'Map'
+                      {d.name_status === 'from_file'    ? 'File'
+                       : d.name_status === 'yfinance'   ? 'YF'
+                       : d.name_status === 'fmp'        ? 'FMP'
+                       : d.name_status === 'static_map' ? 'Map'
                        : '— ticker only'}
                     </span>
                   </td>
+                  <td className="px-3 py-1.5">{fundamentalsBadge(d.fundamentals_status)}</td>
                   <td className="px-3 py-1.5 text-slate-400 max-w-[180px] truncate hidden sm:table-cell">
-                    {d.enrichment_reason ?? (d.computed_status === 'enriched' ? '✓' : '')}
+                    {d.enrichment_reason ?? (d.enrichment_status === 'enriched' ? '✓' : '')}
                   </td>
                 </tr>
               ))}
@@ -204,7 +215,9 @@ function EnrichmentStatusTable({
           </table>
           {rowsSectorUnknown > 0 && (
             <p className="px-4 py-2 text-[10px] text-amber-600 bg-amber-50 border-t border-amber-100">
-              Tickers with unknown sector: add the exchange suffix (e.g. <code className="font-mono bg-amber-100 px-0.5 rounded">TCS.NS</code> for NSE) and re-upload to resolve.
+              Unknown sector: add the exchange suffix (e.g.{' '}
+              <code className="font-mono bg-amber-100 px-0.5 rounded">TCS.NS</code> for NSE) and
+              re-upload to resolve.
             </p>
           )}
         </div>
@@ -572,7 +585,9 @@ export default function UploadPage() {
             <div className="h-12 w-12 rounded-full border-4 border-indigo-400 border-t-transparent animate-spin" />
             <div>
               <p className="text-sm font-semibold text-slate-700">Importing your portfolio…</p>
-              <p className="text-xs text-slate-400 mt-1">Normalising rows and updating the data cache</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Parsing rows, enriching sector &amp; fundamentals data — this may take a few seconds
+              </p>
             </div>
           </div>
         )}
@@ -590,23 +605,41 @@ export default function UploadPage() {
             </div>
 
             {/* Stats row */}
-            <div className="flex flex-wrap justify-center gap-4 text-sm">
+            <div className="flex flex-wrap justify-center gap-3 text-sm">
+              {/* Always shown */}
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3 text-center">
                 <p className="text-2xl font-bold text-emerald-700">{confirmResult.rows_accepted ?? confirmResult.holdings_parsed}</p>
                 <p className="text-xs text-emerald-600 mt-0.5">Holdings imported</p>
               </div>
+              {/* Fully enriched — show when > 0 */}
               {confirmResult.rows_fully_enriched > 0 && (
                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 text-center">
                   <p className="text-2xl font-bold text-indigo-700">{confirmResult.rows_fully_enriched}</p>
                   <p className="text-xs text-indigo-600 mt-0.5">Fully enriched</p>
                 </div>
               )}
-              {confirmResult.rows_sector_unknown > 0 && (
+              {/* Partially enriched — show when > 0 */}
+              {confirmResult.rows_partially_enriched > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_sector_unknown}</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Sector unknown</p>
+                  <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_partially_enriched}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Partial data</p>
                 </div>
               )}
+              {/* Sector unknown — show when > 0 */}
+              {confirmResult.rows_sector_unknown > 0 && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-orange-700">{confirmResult.rows_sector_unknown}</p>
+                  <p className="text-xs text-orange-600 mt-0.5">Sector unknown</p>
+                </div>
+              )}
+              {/* No fundamentals — show when > 0 */}
+              {(confirmResult.rows_no_fundamentals ?? 0) > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-5 py-3 text-center">
+                  <p className="text-2xl font-bold text-slate-600">{confirmResult.rows_no_fundamentals}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">No fundamentals</p>
+                </div>
+              )}
+              {/* Rows rejected — always shown when > 0 */}
               {confirmResult.rows_rejected > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-center">
                   <p className="text-2xl font-bold text-red-700">{confirmResult.rows_rejected}</p>
@@ -654,24 +687,46 @@ export default function UploadPage() {
                 <CheckCircle2 className="h-3.5 w-3.5" /> Data mode switched to Uploaded
               </p>
               <p className="text-xs text-emerald-600 mt-1">
-                Your portfolio is now active. Head to the Dashboard to see your holdings and analytics.
+                Your portfolio is active. Use the links below to explore your data.
               </p>
             </div>
 
-            <div className="flex gap-3">
+            {/* Primary action */}
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+            >
+              <LayoutDashboard className="h-4 w-4" /> Go to Dashboard
+            </button>
+
+            {/* Secondary nav */}
+            <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
-                onClick={handleReset}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                onClick={() => router.push('/holdings')}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Upload another
+                <ChevronRight className="h-3 w-3 text-slate-400" /> Holdings
               </button>
               <button
-                onClick={() => router.push('/dashboard')}
-                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                onClick={() => router.push('/fundamentals')}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
               >
-                <LayoutDashboard className="h-4 w-4" /> Go to Dashboard
+                <ChevronRight className="h-3 w-3 text-slate-400" /> Fundamentals
+              </button>
+              <button
+                onClick={() => router.push('/changes')}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <ChevronRight className="h-3 w-3 text-slate-400" /> Changes
               </button>
             </div>
+
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
+            >
+              <RotateCcw className="h-3 w-3" /> Upload a different file
+            </button>
           </div>
         )}
       </div>

@@ -51,11 +51,43 @@ def _clean_numeric(val) -> Optional[float]:
 
 # ─── Ticker normalisation ─────────────────────────────────────────────────────
 
+# Strip common broker-injected exchange prefixes: "NSE:TCS" → "TCS"
+_EXCHANGE_PREFIX_RE = re.compile(
+    r"^(?:NSE|BSE|NSE/BSE|BSE/NSE)[:/]",
+    re.IGNORECASE,
+)
+
+# ISIN pattern: 2 uppercase letters + 10 alphanumeric chars (total 12)
+# e.g. INE009A01021 (Infosys), INE002A01018 (Reliance)
+_ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{10}$")
+
+
+def _is_isin(val: str) -> bool:
+    """Return True if val looks like an ISIN (not a ticker symbol)."""
+    return bool(_ISIN_RE.match(val)) and val[:2] in (
+        "IN", "US", "GB", "AU", "HK", "SG", "JP", "DE", "FR", "CA"
+    )
+
+
 def _clean_ticker(val) -> Optional[str]:
-    """Upper-case and strip a ticker. Does NOT add exchange suffixes."""
+    """
+    Upper-case, strip, and normalise a raw ticker cell.
+
+    Handles:
+      - Exchange prefixes:  "NSE:TCS" → "TCS",  "BSE/INFY" → "INFY"
+      - Bloomberg suffix:   "TCS IN" is left as-is (enrichment handles variants)
+      - Whitespace and case: always stripped and upper-cased
+
+    Does NOT add exchange suffixes (.NS / .BO) — that is the enrichment layer's job.
+    """
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
-    return str(val).strip().upper()
+    text = str(val).strip().upper()
+    if not text or text in ("NAN", "NONE", "N/A", "NA", "-"):
+        return None
+    # Strip exchange prefix (NSE:, BSE:, NSE/, BSE/)
+    text = _EXCHANGE_PREFIX_RE.sub("", text).strip()
+    return text or None
 
 
 # ─── Purchase date normalisation ──────────────────────────────────────────────
@@ -226,6 +258,13 @@ def _map_row(raw: pd.Series, column_mapping: dict[str, Optional[str]]) -> dict:
     errors = []
     if not ticker:
         errors.append("missing ticker")
+    elif _is_isin(ticker):
+        # ISIN codes look valid but yfinance/static-map lookup by ISIN won't work.
+        # Surface this clearly so the user knows enrichment will likely fail.
+        errors.append(
+            f"ticker '{ticker}' looks like an ISIN, not an exchange symbol — "
+            f"use the NSE/BSE ticker instead (e.g. INFY not INE009A01021)"
+        )
     if qty is None or qty <= 0:
         errors.append(f"invalid quantity ({get('quantity')!r})")
     if avg_cost is None or avg_cost <= 0:

@@ -7,6 +7,7 @@ current_price, sector.
 
 Detection strategy (priority order):
   1. Exact match after normalisation (lower, strip, collapse whitespace/hyphens → underscores)
+     -- column names are also pre-cleaned to strip parenthetical noise like " (NSE)"
   2. Known alias lookup in COLUMN_ALIASES
   3. Substring containment (the canonical alias appears inside the column name)
 
@@ -41,16 +42,16 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "nse_symbol", "bse_symbol", "nse_code", "bse_code",
         "trading_symbol", "tradingsymbol",
         # Broker-specific (Zerodha, Groww, Kite, Angel, Upstox, HDFC Sec)
-        "instrument", "instrument_name", "instrument_symbol",
+        "instrument", "instrument_symbol",
         "script", "scrip_code", "scrip_symbol",
         "equity", "share", "stock", "code",
         "isin",                          # ISIN can be mapped to ticker as fallback
         "security_id", "security_code",
         "asset", "asset_code",
-        # Standalone generic column headers — used when no explicit ticker column exists
-        # NOTE: processed before "name" in CANONICAL_FIELDS_ORDER so these are safe
-        "security",                      # e.g. "Security" in some broker exports
-        "company",                       # e.g. "Company" in simplified exports
+        # NOTE: "security", "company", and "instrument_name" intentionally NOT listed
+        # here — they appear in the 'name' aliases and should NOT be claimed by 'ticker'
+        # (a column labelled "Security" or "Company" almost always contains company
+        # names, not exchange ticker symbols).
     ],
     "quantity": [
         "quantity", "qty", "shares", "no_of_shares", "number_of_shares",
@@ -132,7 +133,34 @@ REQUIRED_FIELDS = {"ticker", "quantity", "average_cost"}
 OPTIONAL_FIELDS = {"name", "current_price", "sector", "industry", "purchase_date"}
 
 
-# ─── Normalisation helper ─────────────────────────────────────────────────────
+# ─── Normalisation helpers ────────────────────────────────────────────────────
+
+# Patterns that add noise to column names in broker exports but carry no
+# semantic meaning for field detection, e.g.:
+#   "Stock Symbol (NSE)"  → "Stock Symbol"
+#   "Avg Price (INR)"     → "Avg Price"
+#   "Quantity [Units]"    → "Quantity"
+_HEADER_NOISE_RE = re.compile(
+    r"\s*[\(\[]\s*"          # opening paren/bracket with optional space
+    r"(?:nse|bse|nse/bse|bse/nse|inr|rs|usd|units?|shares?|nos?|no\.?)"
+    r"\s*[\)\]]"             # closing paren/bracket
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_header_noise(col: str) -> str:
+    """
+    Remove well-known parenthetical suffixes from broker column headers.
+
+    Examples:
+      "Stock Symbol (NSE)"  → "Stock Symbol"
+      "Avg Buy Price (INR)" → "Avg Buy Price"
+      "Quantity [Units]"    → "Quantity"
+      "Company Name"        → "Company Name"  (unchanged — no noise pattern)
+    """
+    return _HEADER_NOISE_RE.sub("", col).strip()
+
 
 def _normalise(col: str) -> str:
     """Lower-case, strip, replace any run of [ _\\-./]+ with a single underscore."""
@@ -172,9 +200,22 @@ def detect_columns(column_names: list[str]) -> DetectionResult:
           1. Exact normalised match            → high-confidence claim
           2. Substring containment             → low-confidence claim (ambiguous)
         Once a column is claimed by a field it cannot be claimed by another.
+
+    Column names are pre-cleaned to remove parenthetical exchange/currency noise
+    (e.g. "Stock Symbol (NSE)" → "Stock Symbol") before alias matching so that
+    broker-specific header decorations don't break detection.  The original column
+    names are always returned/stored — cleaning is only for the matching phase.
     """
-    # Normalised → original map, preserving insertion order
-    norm_to_orig: dict[str, str] = {_normalise(c): c for c in column_names}
+    # Build a noise-stripped → original map.
+    # We match against the stripped form but always store/return the original name.
+    # If two columns strip to the same value the first occurrence wins (rare edge case).
+    norm_to_orig: dict[str, str] = {}
+    for c in column_names:
+        cleaned = _strip_header_noise(c)
+        key = _normalise(cleaned)
+        if key not in norm_to_orig:
+            norm_to_orig[key] = c
+
     # Track which original columns have been claimed
     claimed: set[str] = set()
 

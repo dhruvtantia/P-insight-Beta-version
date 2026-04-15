@@ -75,9 +75,11 @@ class ConfirmResponse(BaseModel):
     rows_fully_enriched:    int                    # sector + name both resolved from external sources
     rows_partially_enriched: int                   # one of sector/name resolved; other from file or unknown
     rows_sector_unknown:    int                    # sector could not be resolved (shows "Unknown")
+    rows_no_fundamentals:   int                    # holdings where fundamentals fetch failed/unavailable
     enriched_count:         int                    # total holdings that received any enrichment update
     enrichment_note:        Optional[str]          # human-readable enrichment summary
-    enrichment_details:     list[dict]             # per-ticker: ticker, sector_status, name_status, sources
+    enrichment_details:     list[dict]             # per-ticker: ticker, sector_status, name_status,
+                                                   #   fundamentals_status, enrichment_status, sources
     # Compatibility shim
     holdings_parsed:        int                    # same as rows_accepted (kept for frontend compat)
     message:                str
@@ -395,14 +397,20 @@ async def confirm_upload(
     rows_fully_enriched     = sum(1 for r in enrich_records if r.fully_enriched)
     rows_partially_enriched = sum(1 for r in enrich_records if r.partially_enriched)
     rows_sector_unknown     = sum(1 for r in enrich_records if r.sector_status == "unknown")
+    # Holdings where fundamentals are unavailable: yfinance was tried but returned nothing,
+    # OR yfinance was not available at all.  "pending" means not attempted (sector/name
+    # were already in the file, so yfinance was skipped — not a failure).
+    rows_no_fundamentals    = sum(
+        1 for r in enrich_records if r.fundamentals_status == "unavailable"
+    )
     enrichment_details      = [r.to_dict() for r in enrich_records]
 
     logger.info(
         "Upload confirmed: %d holdings, %d skipped, %d enriched "
-        "(fully=%d, partial=%d, unknown=%d), portfolio_id=%s",
+        "(fully=%d, partial=%d, unknown=%d, no_fundamentals=%d), portfolio_id=%s",
         len(holdings), len(skipped), enriched_count,
         rows_fully_enriched, rows_partially_enriched, rows_sector_unknown,
-        portfolio_id,
+        rows_no_fundamentals, portfolio_id,
     )
 
     return ConfirmResponse(
@@ -414,6 +422,7 @@ async def confirm_upload(
         rows_fully_enriched=rows_fully_enriched,
         rows_partially_enriched=rows_partially_enriched,
         rows_sector_unknown=rows_sector_unknown,
+        rows_no_fundamentals=rows_no_fundamentals,
         enriched_count=enriched_count,
         enrichment_note=enrichment_note,
         enrichment_details=enrichment_details,
