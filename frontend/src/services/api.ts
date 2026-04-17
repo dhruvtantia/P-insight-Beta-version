@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, RiskMetrics, FinancialRatio, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse } from '@/types'
 
 // ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
 export interface RefreshResponse {
@@ -65,6 +65,15 @@ function withMode(endpoint: string, mode: DataMode): string {
 // ─── Portfolio API ────────────────────────────────────────────────────────────
 
 export const portfolioApi = {
+  /**
+   * Bundled portfolio endpoint — holdings (with pre-computed metrics),
+   * summary, and sector allocation in one round trip.
+   * Use this in preference to the three separate calls below.
+   */
+  getPortfolioFull: (mode: DataMode) =>
+    apiFetch<PortfolioFullResponse>(withMode('/api/v1/portfolio/full', mode)),
+
+  // ── Legacy single-resource endpoints (kept for backward compatibility) ────
   getHoldings: (mode: DataMode) =>
     apiFetch<Holding[]>(withMode('/api/v1/portfolio/', mode)),
 
@@ -95,8 +104,13 @@ export const analyticsApi = {
   getRiskMetrics: (mode: DataMode) =>
     apiFetch<RiskMetrics>(withMode('/api/v1/analytics/risk', mode)),
 
+  /**
+   * Bundled fundamentals endpoint.
+   * Returns per-holding ratios, portfolio-weighted metrics, and trust metadata.
+   * Response shape: { holdings: FinancialRatio[], weighted: WeightedFundamentals, meta: FundamentalsMeta }
+   */
   getFinancialRatios: (mode: DataMode) =>
-    apiFetch<FinancialRatio[]>(withMode('/api/v1/analytics/ratios', mode)),
+    apiFetch<FinancialRatiosResponse>(withMode('/api/v1/analytics/ratios', mode)),
 
   getCommentary: (mode: DataMode) =>
     apiFetch<{ insights: PortfolioInsight[]; total: number }>(

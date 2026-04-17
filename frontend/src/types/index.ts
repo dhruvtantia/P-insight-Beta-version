@@ -274,6 +274,33 @@ export interface HoldingWithFundamentals extends Holding {
 }
 
 /**
+ * Trust and freshness metadata for the fundamentals response.
+ * Surfaces data quality so the UI never silently presents partial data
+ * as if it were complete.
+ */
+export interface FundamentalsMeta {
+  source:              string
+  as_of:               string | null    // ISO-8601 UTC datetime
+  incomplete:          boolean          // true when any holding has no fundamentals
+  total_holdings:      number
+  available_holdings:  number
+  unavailable_tickers: string[]
+  coverage_pct:        number | null    // % of holdings with fundamentals data
+}
+
+/**
+ * Bundled fundamentals response from GET /api/v1/analytics/ratios.
+ * Replaces the previous FinancialRatio[] flat array.
+ * Holdings with unavailable fundamentals are included with source='unavailable'
+ * rather than being silently dropped.
+ */
+export interface FinancialRatiosResponse {
+  holdings: FinancialRatio[]
+  weighted: WeightedFundamentals
+  meta:     FundamentalsMeta
+}
+
+/**
  * Portfolio-level weighted-average fundamentals.
  * Each metric is weighted by the holding's share of total portfolio value.
  * Null means no holdings had a non-null value for that metric.
@@ -311,6 +338,17 @@ export interface PortfolioInsight {
   title: string
   message: string
   severity: 'info' | 'warning' | 'positive' | 'neutral'
+}
+
+/**
+ * Bundled portfolio response from GET /api/v1/portfolio/full.
+ * Holdings include pre-computed market_value, pnl, pnl_pct, and weight —
+ * no client-side financial math needed after receiving this response.
+ */
+export interface PortfolioFullResponse {
+  holdings: Holding[]
+  summary:  PortfolioSummary
+  sectors:  SectorAllocation[]
 }
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────

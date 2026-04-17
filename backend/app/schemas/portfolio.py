@@ -79,6 +79,17 @@ class HoldingResponse(HoldingBase):
         return None
 
 
+class HoldingEnriched(HoldingBase):
+    """
+    HoldingBase extended with pre-computed portfolio-level metrics.
+    Returned by /portfolio/full — saves frontend from recomputing these.
+    """
+    market_value: Optional[float] = Field(None, description="quantity × current_price (or avg_cost fallback)")
+    pnl:          Optional[float] = Field(None, description="(current_price − avg_cost) × quantity")
+    pnl_pct:      Optional[float] = Field(None, description="P&L as % of cost basis")
+    weight:       Optional[float] = Field(None, description="holding's % share of total portfolio value")
+
+
 # ─── Portfolio Schemas ────────────────────────────────────────────────────────
 
 class PortfolioBase(BaseModel):
@@ -119,6 +130,23 @@ class SectorAllocation(BaseModel):
     num_holdings: int
 
 
+class PortfolioFullResponse(BaseModel):
+    """
+    Bundled portfolio intelligence — one round trip instead of three.
+
+    Replaces:
+      GET /portfolio/         → holdings[]
+      GET /portfolio/summary  → PortfolioSummary
+      GET /portfolio/sectors  → SectorAllocation[]
+
+    Holdings include pre-computed market_value, pnl, pnl_pct, weight so
+    the frontend does not need to recompute them from raw prices.
+    """
+    holdings: list[HoldingEnriched]
+    summary:  PortfolioSummary
+    sectors:  list[SectorAllocation]
+
+
 class RiskMetrics(BaseModel):
     """
     Scaffold for risk analytics response.
@@ -149,6 +177,14 @@ class FinancialRatioResponse(BaseModel):
     industry: Optional[str] = None
     source: str = "mock"
 
+    # ── Trust / freshness fields ──────────────────────────────────────────────
+    # Set when source='unavailable'; describes why data could not be fetched.
+    error:             Optional[str]   = Field(None, description="Reason data is unavailable")
+    # Unix timestamp (seconds) when the data was fetched from the provider.
+    fetched_at:        Optional[float] = Field(None, description="Epoch seconds of last fetch")
+    # Seconds since the cached value was populated (injected by cache layer).
+    cache_age_seconds: Optional[int]   = Field(None, description="Seconds since cache was populated")
+
     # ── Valuation multiples ──────────────────────────────────────────────────
     pe_ratio: Optional[float] = None          # Trailing 12-month P/E
     forward_pe: Optional[float] = None        # Forward P/E (next-12-month consensus)
@@ -172,6 +208,65 @@ class FinancialRatioResponse(BaseModel):
     # ── Balance sheet ─────────────────────────────────────────────────────────
     debt_to_equity: Optional[float] = None    # Total debt / equity (null for banks)
     market_cap: Optional[float] = None        # Market capitalisation in INR
+
+
+# ─── Weighted Fundamentals & Trust Metadata ──────────────────────────────────
+
+class WeightedFundamentals(BaseModel):
+    """
+    Portfolio-level weighted-average fundamentals.
+    Each metric is weighted by the holding's share of total portfolio market value.
+    Weights are re-normalised among non-null contributors so nulls don't bias toward zero.
+    Matches the algorithm in frontend/src/lib/fundamentals.ts → computeWeightedMetrics().
+    """
+    # Valuation
+    wtd_pe:               Optional[float] = None
+    wtd_forward_pe:       Optional[float] = None
+    wtd_pb:               Optional[float] = None
+    wtd_ev_ebitda:        Optional[float] = None
+    wtd_peg:              Optional[float] = None
+    # Income
+    wtd_div_yield:        Optional[float] = None
+    # Quality
+    wtd_roe:              Optional[float] = None
+    wtd_roa:              Optional[float] = None
+    wtd_operating_margin: Optional[float] = None
+    wtd_profit_margin:    Optional[float] = None
+    # Growth
+    wtd_revenue_growth:   Optional[float] = None
+    wtd_earnings_growth:  Optional[float] = None
+    # Leverage
+    wtd_debt_to_equity:   Optional[float] = None
+    # Coverage: how many holdings contributed to each metric (non-null, finite)
+    coverage: dict[str, int] = Field(default_factory=dict)
+
+
+class FundamentalsMeta(BaseModel):
+    """
+    Trust and freshness metadata for the fundamentals response.
+    Surfaces data quality so callers never unknowingly display incomplete data
+    as if it were fully complete.
+    """
+    source:              str            = "yfinance"
+    as_of:               Optional[str]  = None    # ISO-8601 UTC datetime
+    incomplete:          bool           = False   # True when any holding has no fundamentals
+    total_holdings:      int            = 0
+    available_holdings:  int            = 0
+    unavailable_tickers: list[str]      = Field(default_factory=list)
+    coverage_pct:        Optional[float] = None   # % of holdings with fundamentals data
+
+
+class FinancialRatiosResponse(BaseModel):
+    """
+    Bundled fundamentals response — per-holding ratios + weighted portfolio metrics
+    + trust metadata.  Replaces the previous list[FinancialRatioResponse] return type.
+
+    Holdings with unavailable fundamentals are included with source='unavailable'
+    and an error field rather than being silently dropped.
+    """
+    holdings: list[FinancialRatioResponse]
+    weighted: WeightedFundamentals
+    meta:     FundamentalsMeta
 
 
 # ─── Upload Schemas ───────────────────────────────────────────────────────────

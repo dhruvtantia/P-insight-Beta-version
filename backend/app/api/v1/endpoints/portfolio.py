@@ -18,12 +18,29 @@ from app.schemas.portfolio import (
     PortfolioSummary,
     HoldingBase,
     SectorAllocation,
+    PortfolioFullResponse,
     UploadResponse,
 )
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
 
 UPLOADS_PATH = Path(__file__).parent.parent.parent.parent.parent / "uploads"
+
+
+@router.get("/full", response_model=PortfolioFullResponse, summary="Get bundled portfolio intelligence")
+async def get_portfolio_full(db: DbSession, provider: DataProvider):
+    """
+    Bundled endpoint — returns holdings (with pre-computed metrics), summary,
+    and sector allocation in a single response.
+
+    Holdings include market_value, pnl, pnl_pct, and weight, removing the need
+    for client-side recomputation.
+
+    Replaces three separate calls to /portfolio/, /portfolio/summary, and
+    /portfolio/sectors.  Old endpoints remain available for backward compatibility.
+    """
+    service = PortfolioService(db, provider)
+    return await service.get_full()
 
 
 @router.get("/", response_model=list[HoldingBase], summary="Get all holdings")

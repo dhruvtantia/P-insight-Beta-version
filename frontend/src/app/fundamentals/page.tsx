@@ -32,6 +32,7 @@ export default function FundamentalsPage() {
   const {
     enrichedHoldings,
     weightedMetrics,
+    meta,
     loading: fundLoading,
     error: fundError,
     refetch: refetchFundamentals,
@@ -82,6 +83,26 @@ export default function FundamentalsPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
           <p className="text-sm font-semibold text-red-700">Unable to load fundamentals data</p>
           <p className="text-xs text-red-600 mt-1">{error}</p>
+        </div>
+      )}
+
+      {/* ── Fundamentals trust notice (shown when any holding has no data) ──── */}
+      {!loading && meta?.incomplete && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 flex items-start gap-3">
+          <span className="mt-0.5 text-amber-500 text-base leading-none select-none">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              Partial data — fundamentals available for {meta.available_holdings} of {meta.total_holdings} holdings
+              {meta.coverage_pct !== null && (
+                <span className="font-normal text-amber-700"> ({meta.coverage_pct}% coverage)</span>
+              )}
+            </p>
+            {meta.unavailable_tickers.length > 0 && (
+              <p className="text-xs text-amber-700 mt-0.5">
+                No data: {meta.unavailable_tickers.join(', ')}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

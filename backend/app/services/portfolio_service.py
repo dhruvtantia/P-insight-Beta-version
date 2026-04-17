@@ -99,6 +99,103 @@ class PortfolioService:
             )
         ]
 
+    async def get_full(self) -> dict:
+        """
+        Single-pass portfolio bundle: holdings (with pre-computed metrics),
+        summary, and sector allocation.
+
+        Makes exactly ONE call to the data provider, then computes everything
+        in a single loop.  Replaces three separate /portfolio/* endpoint calls
+        that each independently fetched holdings from the provider.
+        """
+        holdings = await self.provider.get_holdings()
+
+        if not holdings:
+            return {
+                "holdings": [],
+                "summary": PortfolioSummary(
+                    total_value=0,
+                    total_cost=0,
+                    total_pnl=0,
+                    total_pnl_pct=0,
+                    num_holdings=0,
+                    data_source=self.provider.mode_name,
+                ),
+                "sectors": [],
+            }
+
+        # ── One pass: compute portfolio totals first (needed for weight calc) ──
+        total_value = sum(
+            h.quantity * (h.current_price or h.average_cost) for h in holdings
+        )
+        total_cost = sum(h.quantity * h.average_cost for h in holdings)
+        total_pnl = total_value - total_cost
+        total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0.0
+
+        # ── Second pass: enrich holdings + accumulate sector data ──────────────
+        enriched: list[dict] = []
+        sector_data: dict[str, dict] = {}
+
+        for h in holdings:
+            market_val = h.quantity * (h.current_price or h.average_cost)
+            pnl = (
+                (h.current_price - h.average_cost) * h.quantity
+                if h.current_price is not None
+                else 0.0
+            )
+            pnl_pct = (
+                (h.current_price - h.average_cost) / h.average_cost * 100
+                if h.current_price is not None and h.average_cost > 0
+                else 0.0
+            )
+            weight = (market_val / total_value * 100) if total_value > 0 else 0.0
+
+            h_dict = h.model_dump()
+            h_dict["market_value"] = round(market_val, 2)
+            h_dict["pnl"]          = round(pnl, 2)
+            h_dict["pnl_pct"]      = round(pnl_pct, 4)
+            h_dict["weight"]       = round(weight, 4)
+            enriched.append(h_dict)
+
+            sector = h.sector or "Unknown"
+            if sector not in sector_data:
+                sector_data[sector] = {"value": 0.0, "count": 0}
+            sector_data[sector]["value"] += market_val
+            sector_data[sector]["count"] += 1
+
+        top_sector = (
+            max(sector_data, key=lambda s: sector_data[s]["value"])
+            if sector_data else None
+        )
+
+        summary = PortfolioSummary(
+            total_value=round(total_value, 2),
+            total_cost=round(total_cost, 2),
+            total_pnl=round(total_pnl, 2),
+            total_pnl_pct=round(total_pnl_pct, 2),
+            num_holdings=len(holdings),
+            top_sector=top_sector,
+            data_source=self.provider.mode_name,
+        )
+
+        sectors = [
+            SectorAllocation(
+                sector=sector,
+                value=round(data["value"], 2),
+                weight_pct=round(data["value"] / total_value * 100, 2) if total_value else 0,
+                num_holdings=data["count"],
+            )
+            for sector, data in sorted(
+                sector_data.items(), key=lambda x: x[1]["value"], reverse=True
+            )
+        ]
+
+        return {
+            "holdings": enriched,
+            "summary":  summary,
+            "sectors":  sectors,
+        }
+
     async def process_uploaded_file(self, file_path: str) -> list[HoldingCreate]:
         """
         Parse an uploaded Excel or CSV portfolio file into HoldingCreate objects.
