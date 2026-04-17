@@ -96,6 +96,13 @@ class QuantMeta(BaseModel):
     benchmark_available: bool                      = True
     risk_free_rate:      float                     = 0.065
     cached:              bool                      = False
+    # ── Integrity metadata ───────────────────────────────────────────────────
+    # True when any holdings were excluded from analytics due to missing price data
+    incomplete:          bool                      = False
+    # Ticker → human-readable exclusion reason for all excluded holdings
+    excluded_reason:     dict[str, str]            = {}
+    # ISO-8601 UTC timestamp of when this computation ran (or was retrieved from cache)
+    as_of:               Optional[str]             = None
     error:               Optional[str]             = None
 
 

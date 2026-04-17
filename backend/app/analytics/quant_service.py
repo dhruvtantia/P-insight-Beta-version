@@ -29,6 +29,7 @@ import logging
 import asyncio
 import numpy as np
 import pandas as pd
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.data_providers.base import BaseDataProvider
@@ -243,6 +244,12 @@ class QuantAnalyticsService:
                 "benchmark_available": benchmark_ok,
                 "risk_free_rate":      RISK_FREE_RATE,
                 "cached":              False,
+                # ── Integrity metadata ───────────────────────────────────────
+                "incomplete":          len(invalid_tickers) > 0,
+                "excluded_reason":     {
+                    t: s for t, s in ticker_status.items() if s == "unavailable"
+                },
+                "as_of":               datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -322,6 +329,12 @@ class QuantAnalyticsService:
                 "benchmark_source":    None,
                 "benchmark_available": False,
                 "risk_free_rate":      RISK_FREE_RATE,
+                # ── Integrity metadata ───────────────────────────────────────
+                "incomplete":          len(invalid_tickers) > 0,
+                "excluded_reason":     {
+                    t: s for t, s in ticker_status.items() if s == "unavailable"
+                },
+                "as_of":               datetime.now(timezone.utc).isoformat(),
                 "error":               reason,
             },
         }

@@ -590,6 +590,12 @@ export interface QuantMeta {
   benchmark_available: boolean
   risk_free_rate:      number
   cached:              boolean
+  /** True when any holdings were excluded from analytics due to missing price data */
+  incomplete:          boolean
+  /** Ticker → exclusion reason for all holdings excluded from price-based analytics */
+  excluded_reason:     Record<string, string>
+  /** ISO-8601 UTC timestamp of when this computation ran */
+  as_of:               string | null
   error?:              string | null
 }
 

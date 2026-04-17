@@ -244,6 +244,22 @@ export default function RiskPage() {
         </div>
       )}
 
+      {/* ── Quant integrity notice (shown when any holdings were excluded) ── */}
+      {!portError && !quantLoading && quantData?.meta?.incomplete && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 flex items-start gap-3">
+          <span className="mt-0.5 text-amber-500 text-base leading-none select-none">⚠</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              Partial data — {quantData.meta.invalid_tickers.length} holding
+              {quantData.meta.invalid_tickers.length === 1 ? '' : 's'} excluded from risk calculations
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              No price history: {quantData.meta.invalid_tickers.join(', ')} · Metrics shown reflect available holdings only
+            </p>
+          </div>
+        </div>
+      )}
+
       {!portError && (
         <>
           {/* ── 1. Concentration snapshot ─────────────────────────────────── */}
@@ -315,8 +331,8 @@ export default function RiskPage() {
                 {quantData.meta.date_range && (
                   <> · {quantData.meta.date_range.start} → {quantData.meta.date_range.end}</>
                 )}
-                {quantData.meta.invalid_tickers.length > 0 && (
-                  <> · <span className="text-amber-500">excluded: {quantData.meta.invalid_tickers.join(', ')}</span></>
+                {quantData.meta.as_of && (
+                  <> · as of {new Date(quantData.meta.as_of).toLocaleTimeString()}</>
                 )}
                 {quantData.meta.cached && (
                   <> · <span className="text-emerald-500">cached</span></>
