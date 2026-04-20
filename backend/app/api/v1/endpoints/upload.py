@@ -39,6 +39,15 @@ from app.ingestion.normalizer import (
 )
 from app.ingestion.sector_enrichment import enrich_holdings, EnrichmentRecord
 from app.data_providers.file_provider import FileDataProvider, UPLOADS_PATH
+from app.schemas.upload_v2 import V2ConfirmResponse, V2StatusResponse
+from app.services.upload_v2_service import (
+    classify_rows_v2,
+    persist_base_portfolio,
+    update_memory_cache,
+    run_background_enrichment,
+    build_v2_response,
+    get_enrichment_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -432,3 +441,201 @@ async def confirm_upload(
             + (f" {len(skipped)} row(s) skipped." if skipped else " All rows imported.")
         ),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Upload V2 — Fast-path routes
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# These routes replace the slow inline-enrichment pattern with a two-phase
+# approach: base persist (fast, < 2 s) + background enrichment (async).
+#
+# The legacy /parse and /confirm routes above remain completely unchanged for
+# backward compatibility.
+#
+# New routes:
+#   POST /upload/v2/confirm          — fast import; enrichment fires in background
+#   GET  /upload/v2/status/{id}      — poll enrichment progress by portfolio_id
+
+
+@router.post(
+    "/v2/confirm",
+    response_model=V2ConfirmResponse,
+    summary="[V2] Import portfolio — fast path with background enrichment",
+)
+async def confirm_upload_v2(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    column_mapping: str = Form(
+        ..., description="JSON object: canonical_field → original_column_name"
+    ),
+) -> V2ConfirmResponse:
+    """
+    Upload V2 fast-path confirm.
+
+    Accepts the same file + column_mapping as the legacy /confirm endpoint.
+    Returns in < 2 s (base persist only).  Enrichment runs in the background.
+
+    Response includes:
+      - portfolio_id for status polling
+      - row classification (valid / valid_with_warning / invalid)
+      - rejected_rows and warning_rows details
+      - enrichment_complete: false (poll /v2/status/{portfolio_id} for progress)
+      - portfolio_usable: true (dashboard/holdings/fundamentals work immediately)
+    """
+    _validate_file(file)
+
+    # Parse column mapping
+    try:
+        col_map: dict[str, Optional[str]] = json.loads(column_mapping)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid column_mapping JSON: {exc}")
+
+    # Validate required fields are mapped
+    missing_required = [f for f in REQUIRED_FIELDS if col_map.get(f) is None]
+    if missing_required:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Required columns are not mapped: {missing_required}. "
+                f"ticker, quantity, and average_cost must all be mapped."
+            ),
+        )
+
+    tmp_path = await _save_temp(file)
+    filename = file.filename or "upload"
+
+    try:
+        df = read_file_as_dataframe(tmp_path)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Could not read file: {exc}")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if df.empty:
+        raise HTTPException(status_code=422, detail="The uploaded file has no data rows.")
+
+    total_rows = len(df)
+
+    # ── 1. Classify rows (fast, in-process) ──────────────────────────────────
+    accepted, rejected, warning_rows = classify_rows_v2(df, col_map)
+
+    if not accepted:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"No valid rows could be parsed. "
+                f"{len(rejected)} row(s) had errors: "
+                f"{[r.reasons for r in rejected[:3]]}"
+            ),
+        )
+
+    # ── 2. Persist base portfolio — single session, single commit ────────────
+    portfolio_id: int
+    try:
+        from app.db.database import SessionLocal
+        db = SessionLocal()
+        try:
+            portfolio_id = persist_base_portfolio(accepted, filename, db)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error("V2 DB persist failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not save portfolio to database: {exc}",
+        )
+
+    # ── 3. Update in-memory cache immediately (unenriched holdings) ──────────
+    update_memory_cache(accepted)
+
+    # ── 4. Save canonical CSV (same as legacy path) ───────────────────────────
+    try:
+        import pandas as _pd
+        UPLOADS_PATH.mkdir(parents=True, exist_ok=True)
+        _pd.DataFrame([
+            {
+                "ticker":       h.ticker,
+                "name":         h.name,
+                "quantity":     h.quantity,
+                "average_cost": h.average_cost,
+                "current_price": h.current_price or h.average_cost,
+                "sector":       h.sector or "",
+                "asset_class":  h.asset_class or "Equity",
+                "currency":     h.currency or "INR",
+            }
+            for h in accepted
+        ]).to_csv(UPLOADS_PATH / "portfolio_uploaded.csv", index=False)
+    except Exception as exc:
+        logger.warning("V2 CSV save failed (non-fatal): %s", exc)
+
+    # ── 5. Fire background enrichment + price fetch + history ────────────────
+    try:
+        from app.db.database import SessionLocal as _SessionLocal
+        background_tasks.add_task(
+            run_background_enrichment,
+            portfolio_id,
+            list(accepted),
+            _SessionLocal,
+        )
+        logger.info(
+            "V2: scheduled background enrichment for portfolio_id=%s (%d holdings)",
+            portfolio_id, len(accepted),
+        )
+    except Exception as exc:
+        logger.warning("V2 could not schedule background enrichment (non-fatal): %s", exc)
+
+    # ── 6. Return immediately ─────────────────────────────────────────────────
+    result = build_v2_response(
+        portfolio_id=portfolio_id,
+        filename=filename,
+        accepted=accepted,
+        rejected=rejected,
+        warning_rows=warning_rows,
+        total_rows=total_rows,
+    )
+
+    logger.info(
+        "V2 confirm: portfolio_id=%s, accepted=%d (warnings=%d), rejected=%d",
+        portfolio_id, len(accepted), len(warning_rows), len(rejected),
+    )
+
+    return result
+
+
+@router.get(
+    "/v2/status/{portfolio_id}",
+    response_model=V2StatusResponse,
+    summary="[V2] Poll enrichment status for an uploaded portfolio",
+)
+async def get_upload_status_v2(portfolio_id: int) -> V2StatusResponse:
+    """
+    Returns current per-holding enrichment state from the DB.
+
+    Poll this endpoint after /v2/confirm to track background enrichment progress.
+    enrichment_complete becomes True once all holdings have left "pending" state.
+    Typically completes within 10–60 seconds depending on portfolio size and
+    yfinance response times.
+    """
+    try:
+        from app.db.database import SessionLocal
+        from app.models.portfolio import Portfolio as _Portfolio
+        db = SessionLocal()
+        try:
+            # Verify portfolio exists
+            p = db.query(_Portfolio).filter(_Portfolio.id == portfolio_id).first()
+            if p is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Portfolio {portfolio_id} not found",
+                )
+            return get_enrichment_status(portfolio_id, db)
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read enrichment status: {exc}",
+        )

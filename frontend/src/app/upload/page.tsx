@@ -82,6 +82,38 @@ interface ConfirmResult {
   message:                 string
 }
 
+// ─── Upload V2 result ─────────────────────────────────────────────────────────
+// Returned by POST /api/v1/upload/v2/confirm — fast response, enrichment async.
+
+interface V2RejectedRow {
+  row_index:  number
+  raw_ticker: string | null
+  reasons:    string[]
+}
+
+interface V2WarningRow {
+  row_index: number
+  ticker:    string
+  warnings:  string[]
+}
+
+interface V2ConfirmResult {
+  portfolio_id:            number
+  filename:                string
+  imported_at:             string
+  total_rows:              number
+  rows_valid:              number
+  rows_valid_with_warning: number
+  rows_invalid:            number
+  rejected_rows:           V2RejectedRow[]
+  warning_rows:            V2WarningRow[]
+  enrichment_started:      boolean
+  enrichment_complete:     boolean
+  portfolio_usable:        boolean
+  next_action:             string
+  message:                 string
+}
+
 // ─── Enrichment status helpers ────────────────────────────────────────────────
 
 type SectorStatus = EnrichmentDetail['sector_status']
@@ -279,13 +311,14 @@ export default function UploadPage() {
   const router = useRouter()
   const { setMode } = useDataModeStore()
 
-  const [step,         setStep]         = useState<WizardStep>('drop')
-  const [file,         setFile]         = useState<File | null>(null)
-  const [parseResult,  setParseResult]  = useState<ParseResult | null>(null)
-  const [mapping,      setMapping]      = useState<ColumnMappingState>({})
-  const [confirmResult, setConfirmResult] = useState<ConfirmResult | null>(null)
-  const [errorMsg,     setErrorMsg]     = useState<string | null>(null)
-  const [loading,      setLoading]      = useState(false)
+  const [step,            setStep]           = useState<WizardStep>('drop')
+  const [file,            setFile]           = useState<File | null>(null)
+  const [parseResult,     setParseResult]    = useState<ParseResult | null>(null)
+  const [mapping,         setMapping]        = useState<ColumnMappingState>({})
+  const [confirmResult,   setConfirmResult]  = useState<ConfirmResult | null>(null)
+  const [v2Result,        setV2Result]       = useState<V2ConfirmResult | null>(null)
+  const [errorMsg,        setErrorMsg]       = useState<string | null>(null)
+  const [loading,         setLoading]        = useState(false)
 
   // ── Step 1: file selected → call /parse ─────────────────────────────────────
 
@@ -327,7 +360,8 @@ export default function UploadPage() {
     setStep('preview')
   }, [])
 
-  // ── Step 3 → 4: confirm import ───────────────────────────────────────────────
+  // ── Step 3 → 4: confirm import (V2 fast path) ───────────────────────────────
+  // Calls /upload/v2/confirm — returns in < 2 s; enrichment runs in background.
 
   const handleConfirm = useCallback(async () => {
     if (!file || !parseResult) return
@@ -339,13 +373,13 @@ export default function UploadPage() {
       form.append('file', file)
       form.append('column_mapping', JSON.stringify(mapping))
 
-      const res = await fetch(`${BASE_URL}/api/v1/upload/confirm`, { method: 'POST', body: form })
+      const res = await fetch(`${BASE_URL}/api/v1/upload/v2/confirm`, { method: 'POST', body: form })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || `Server error ${res.status}`)
       }
-      const data: ConfirmResult = await res.json()
-      setConfirmResult(data)
+      const data: V2ConfirmResult = await res.json()
+      setV2Result(data)
       setMode('uploaded')   // auto-activate uploaded data mode
       setStep('done')
     } catch (e) {
@@ -364,6 +398,7 @@ export default function UploadPage() {
     setParseResult(null)
     setMapping({})
     setConfirmResult(null)
+    setV2Result(null)
     setErrorMsg(null)
   }, [])
 
@@ -586,14 +621,14 @@ export default function UploadPage() {
             <div>
               <p className="text-sm font-semibold text-slate-700">Importing your portfolio…</p>
               <p className="text-xs text-slate-400 mt-1">
-                Parsing rows, enriching sector &amp; fundamentals data — this may take a few seconds
+                Saving holdings to database — this takes just a moment
               </p>
             </div>
           </div>
         )}
 
-        {/* ── STEP: done ───────────────────────────────────────────────────── */}
-        {step === 'done' && confirmResult && (
+        {/* ── STEP: done (V2) ──────────────────────────────────────────────── */}
+        {step === 'done' && v2Result && (
           <div className="flex flex-col items-center gap-5 py-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
               <CheckCircle2 className="h-9 w-9 text-emerald-500" />
@@ -601,81 +636,74 @@ export default function UploadPage() {
 
             <div>
               <h2 className="text-lg font-bold text-slate-900">Import complete</h2>
-              <p className="text-sm text-slate-500 mt-1">{confirmResult.message}</p>
+              <p className="text-sm text-slate-500 mt-1">{v2Result.message}</p>
             </div>
 
             {/* Stats row */}
             <div className="flex flex-wrap justify-center gap-3 text-sm">
-              {/* Always shown */}
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3 text-center">
-                <p className="text-2xl font-bold text-emerald-700">{confirmResult.rows_accepted ?? confirmResult.holdings_parsed}</p>
+                <p className="text-2xl font-bold text-emerald-700">
+                  {v2Result.rows_valid + v2Result.rows_valid_with_warning}
+                </p>
                 <p className="text-xs text-emerald-600 mt-0.5">Holdings imported</p>
               </div>
-              {/* Fully enriched — show when > 0 */}
-              {confirmResult.rows_fully_enriched > 0 && (
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-indigo-700">{confirmResult.rows_fully_enriched}</p>
-                  <p className="text-xs text-indigo-600 mt-0.5">Fully enriched</p>
-                </div>
-              )}
-              {/* Partially enriched — show when > 0 */}
-              {confirmResult.rows_partially_enriched > 0 && (
+              {v2Result.rows_valid_with_warning > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-amber-700">{confirmResult.rows_partially_enriched}</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Partial data</p>
+                  <p className="text-2xl font-bold text-amber-700">{v2Result.rows_valid_with_warning}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Imported with warnings</p>
                 </div>
               )}
-              {/* Sector unknown — show when > 0 */}
-              {confirmResult.rows_sector_unknown > 0 && (
-                <div className="rounded-lg border border-orange-200 bg-orange-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-orange-700">{confirmResult.rows_sector_unknown}</p>
-                  <p className="text-xs text-orange-600 mt-0.5">Sector unknown</p>
-                </div>
-              )}
-              {/* No fundamentals — show when > 0 */}
-              {(confirmResult.rows_no_fundamentals ?? 0) > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-slate-600">{confirmResult.rows_no_fundamentals}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">No fundamentals</p>
-                </div>
-              )}
-              {/* Rows rejected — always shown when > 0 */}
-              {confirmResult.rows_rejected > 0 && (
+              {v2Result.rows_invalid > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-3 text-center">
-                  <p className="text-2xl font-bold text-red-700">{confirmResult.rows_rejected}</p>
+                  <p className="text-2xl font-bold text-red-700">{v2Result.rows_invalid}</p>
                   <p className="text-xs text-red-600 mt-0.5">Rows rejected</p>
                 </div>
               )}
             </div>
 
-            {/* Enrichment note */}
-            {confirmResult.enrichment_note && (
-              <div className="w-full rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700 text-left">
-                <p>{confirmResult.enrichment_note}</p>
+            {/* Enrichment running notice */}
+            <div className="w-full rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-left">
+              <p className="text-xs font-semibold text-indigo-700 flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                Enrichment running in background
+              </p>
+              <p className="text-xs text-indigo-600 mt-1">
+                Sector, company name, and current prices are being fetched from Yahoo Finance.
+                Your portfolio is usable now — the Dashboard will show enriched data within
+                30–60 seconds.
+              </p>
+            </div>
+
+            {/* Warnings detail */}
+            {v2Result.warning_rows.length > 0 && (
+              <div className="w-full rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
+                <p className="font-semibold mb-1">
+                  {v2Result.warning_rows.length} row(s) imported with warnings
+                </p>
+                <ul className="space-y-1.5">
+                  {v2Result.warning_rows.slice(0, 5).map((w, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="font-mono font-semibold text-amber-700 shrink-0">{w.ticker}</span>
+                      <span className="text-amber-600">{w.warnings[0]}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
-            {/* Per-holding enrichment breakdown — expandable */}
-            {confirmResult.enrichment_details.length > 0 && (
-              <EnrichmentStatusTable
-                details={confirmResult.enrichment_details}
-                rowsFullyEnriched={confirmResult.rows_fully_enriched}
-                rowsPartiallyEnriched={confirmResult.rows_partially_enriched}
-                rowsSectorUnknown={confirmResult.rows_sector_unknown}
-              />
-            )}
-
-            {/* Skipped details */}
-            {confirmResult.skipped_details.length > 0 && (
-              <div className="w-full rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-left text-xs text-amber-800">
+            {/* Rejected rows detail */}
+            {v2Result.rejected_rows.length > 0 && (
+              <div className="w-full rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-left text-xs text-red-800">
                 <p className="font-semibold mb-1">
-                  Skipped rows — missing required fields (ticker / quantity / average cost)
+                  {v2Result.rejected_rows.length} row(s) could not be imported
                 </p>
-                <ul className="space-y-1">
-                  {confirmResult.skipped_details.slice(0, 5).map((d, i) => (
+                <ul className="space-y-1.5">
+                  {v2Result.rejected_rows.slice(0, 5).map((r, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span className="font-mono text-amber-700">{d.raw_ticker || `Row ${d.row_index + 2}`}</span>
-                      <span className="text-amber-600">{d.error}</span>
+                      <span className="font-mono font-semibold text-red-700 shrink-0">
+                        {r.raw_ticker || `Row ${r.row_index + 2}`}
+                      </span>
+                      <span className="text-red-600">{r.reasons.join('; ')}</span>
                     </li>
                   ))}
                 </ul>
