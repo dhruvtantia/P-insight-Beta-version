@@ -12,6 +12,16 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional, Literal
 
+EnrichmentOverall = Literal["in_progress", "done", "failed"]
+"""
+Overall enrichment state for a portfolio:
+
+  in_progress — at least one holding is still "pending"
+  done        — all holdings have left "pending" (some may be partial/failed but
+                none are still waiting)
+  failed      — every single holding ended up "failed" (nothing enriched at all)
+"""
+
 
 # ─── Row validation classification ───────────────────────────────────────────
 
@@ -125,7 +135,8 @@ class HoldingEnrichmentStatus(BaseModel):
 
 class V2StatusResponse(BaseModel):
     """
-    Response from GET /upload/v2/status/{portfolio_id}.
+    Response from GET /upload/v2/status/{portfolio_id} and
+    GET /upload/status?portfolio_id=...
 
     Returns current per-holding enrichment state from the DB.
     Frontend can poll this endpoint after V2 confirm to show enrichment progress.
@@ -138,6 +149,7 @@ class V2StatusResponse(BaseModel):
     pending:             int    # enrichment_status = "pending" (not yet processed)
     failed:              int    # enrichment_status = "failed"
     enrichment_complete: bool   # True when pending == 0
+    overall:             EnrichmentOverall  # spec-required: "in_progress"|"done"|"failed"
     holdings:            list[HoldingEnrichmentStatus]
 
 

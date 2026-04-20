@@ -168,8 +168,16 @@ class PortfolioManagerService:
                 sector=h.sector,
                 industry=getattr(h, "industry", None),
                 purchase_date=getattr(h, "purchase_date", None),
+                notes=getattr(h, "notes", None),
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
+                # Enrichment fields — explicitly set to "pending" so DB state is
+                # deterministic.  Background enrichment overwrites these; if it
+                # crashes, the crash-recovery step in run_background_enrichment
+                # will flip them to "failed" so enrichment_complete can resolve.
+                enrichment_status="pending",
+                fundamentals_status="pending",
+                peers_status="pending",
             )
             for h in holdings
         ]
@@ -234,8 +242,14 @@ class PortfolioManagerService:
                 sector=h.sector,
                 industry=getattr(h, "industry", None),
                 purchase_date=getattr(h, "purchase_date", None),
+                notes=getattr(h, "notes", None),
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
+                # Enrichment fields reset to "pending" on refresh so downstream
+                # pages don't display stale enrichment state from the previous import.
+                enrichment_status="pending",
+                fundamentals_status="pending",
+                peers_status="pending",
             )
             for h in holdings
         ]

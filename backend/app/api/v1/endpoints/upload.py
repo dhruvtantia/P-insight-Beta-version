@@ -26,7 +26,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from typing import Optional
 
@@ -441,6 +441,53 @@ async def confirm_upload(
             + (f" {len(skipped)} row(s) skipped." if skipped else " All rows imported.")
         ),
     )
+
+
+# ─── Spec-compliant status endpoint (query param) ────────────────────────────
+#
+# GET /upload/status?portfolio_id=17
+#
+# This is the URL contract specified in the module spec.
+# It is a thin wrapper around the same get_enrichment_status() logic used by
+# the path-param variant below.  Both endpoints return the same V2StatusResponse.
+
+
+@router.get(
+    "/status",
+    response_model=V2StatusResponse,
+    summary="Poll enrichment status for an uploaded portfolio (spec-compliant URL)",
+)
+async def get_upload_status(
+    portfolio_id: int = Query(..., description="ID of the portfolio to check"),
+) -> V2StatusResponse:
+    """
+    Spec-required query-param variant of the enrichment status endpoint.
+
+    Returns per-holding enrichment state from the DB.
+    Identical response shape to GET /upload/v2/status/{portfolio_id}.
+    Poll after POST /upload/v2/confirm to track background enrichment progress.
+    """
+    try:
+        from app.db.database import SessionLocal
+        from app.models.portfolio import Portfolio as _Portfolio
+        db = SessionLocal()
+        try:
+            p = db.query(_Portfolio).filter(_Portfolio.id == portfolio_id).first()
+            if p is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Portfolio {portfolio_id} not found",
+                )
+            return get_enrichment_status(portfolio_id, db)
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read enrichment status: {exc}",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

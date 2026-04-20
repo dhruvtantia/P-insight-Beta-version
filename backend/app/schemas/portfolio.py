@@ -29,6 +29,7 @@ class HoldingBase(BaseModel):
     currency: Optional[str] = Field("INR", example="INR")
     purchase_date: Optional[str] = Field(None, example="2023-04-15",
         description="Date of purchase (YYYY-MM-DD or as found in the file)")
+    notes: Optional[str] = Field(None, description="Free-text user annotations from the uploaded file")
     # Provenance: which data provider sourced current_price for this holding.
     # "live" = yfinance live quote, "uploaded" = from file, None = default.
     data_source: Optional[str] = Field(None, example="live")

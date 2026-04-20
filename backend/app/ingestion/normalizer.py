@@ -205,6 +205,7 @@ def normalize_to_holdings(
                 sector=row.get("sector"),      # None → enrichment fills it later
                 industry=row.get("industry"),  # None → enrichment fills it later
                 purchase_date=row.get("purchase_date"),
+                notes=row.get("notes"),
                 asset_class="Equity",
                 currency="INR",
                 data_source="uploaded",
@@ -255,6 +256,9 @@ def _map_row(raw: pd.Series, column_mapping: dict[str, Optional[str]]) -> dict:
 
     purchase_date = _clean_date(get("purchase_date"))
 
+    notes_val = get("notes")
+    notes = str(notes_val).strip() if notes_val is not None else None
+
     errors = []
     if not ticker:
         errors.append("missing ticker")
@@ -279,6 +283,7 @@ def _map_row(raw: pd.Series, column_mapping: dict[str, Optional[str]]) -> dict:
         "sector":        sector,
         "industry":      industry,
         "purchase_date": purchase_date,
+        "notes":         notes,
     }
     if errors:
         row["_error"] = "; ".join(errors)

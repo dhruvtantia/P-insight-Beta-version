@@ -116,6 +116,8 @@ def classify_rows_v2(
         industry_v = _get("industry", raw)
         industry  = str(industry_v).strip() if industry_v else None
         pur_date  = _clean_date(_get("purchase_date", raw))
+        notes_v   = _get("notes", raw)
+        notes     = str(notes_v).strip() if notes_v else None
 
         # ── Invalid check — required fields ───────────────────────────────────
         reasons: list[str] = []
@@ -170,6 +172,7 @@ def classify_rows_v2(
                 sector=sector,
                 industry=industry,
                 purchase_date=pur_date,
+                notes=notes,
                 asset_class="Equity",
                 currency="INR",
                 data_source="uploaded",
@@ -347,7 +350,87 @@ async def run_background_enrichment(
                 portfolio_id, exc,
             )
 
-    # ── 5. Refresh in-memory cache with enriched + priced holdings ───────────
+    # ── 5. Update peers_status based on enrichment outcome ───────────────────
+    # peers_status starts as "pending" on every holding.  We don't do a full
+    # peers analysis here (that's the /peers endpoint's job), but we do flip
+    # the status to "found" (sector known → peer candidates plausible) or
+    # "none" (sector unknown → peer lookup will likely fail) so that the
+    # status endpoint doesn't show "pending" forever.
+    if enrich_records:
+        try:
+            from app.db.database import SessionLocal as _SL2
+            from app.models.portfolio import Holding as _DBHolding2
+            db = db_factory()
+            try:
+                db_hs = (
+                    db.query(_DBHolding2)
+                    .filter(_DBHolding2.portfolio_id == portfolio_id)
+                    .all()
+                )
+                ticker_to_peers: dict[str, str] = {}
+                for rec in enrich_records:
+                    # If sector was resolved from any real source → peers plausible
+                    if rec.sector_status not in ("unknown", "ticker_fallback", None):
+                        ticker_to_peers[rec.ticker] = "found"
+                    else:
+                        ticker_to_peers[rec.ticker] = "none"
+
+                for db_h in db_hs:
+                    ps = ticker_to_peers.get(db_h.ticker, "none")
+                    db_h.peers_status = ps
+                db.commit()
+                logger.info(
+                    "V2 peers_status updated for %d holdings (portfolio_id=%s)",
+                    len(db_hs), portfolio_id,
+                )
+            finally:
+                db.close()
+        except Exception as exc:
+            logger.error(
+                "V2 could not update peers_status (portfolio_id=%s): %s",
+                portfolio_id, exc,
+            )
+
+    # ── 6. Crash recovery — mark any holdings still "pending" as "failed" ────
+    # If enrichment crashed or a ticker was silently skipped, its DB row stays
+    # at enrichment_status="pending", which keeps enrichment_complete=False
+    # forever.  Flush them to "failed" now so polling can resolve.
+    try:
+        from app.db.database import SessionLocal as _SL3
+        from app.models.portfolio import Holding as _DBHolding3
+        from datetime import timezone as _tz
+        db = db_factory()
+        try:
+            stuck = (
+                db.query(_DBHolding3)
+                .filter(
+                    _DBHolding3.portfolio_id == portfolio_id,
+                    _DBHolding3.enrichment_status == "pending",
+                )
+                .all()
+            )
+            if stuck:
+                now = datetime.now(_tz.utc)
+                for db_h in stuck:
+                    db_h.enrichment_status   = "failed"
+                    db_h.fundamentals_status = "unavailable"
+                    db_h.failure_reason      = "enrichment_not_reached"
+                    db_h.last_enriched_at    = now
+                db.commit()
+                logger.warning(
+                    "V2 crash recovery: marked %d stuck-pending holdings as 'failed' "
+                    "(portfolio_id=%s)",
+                    len(stuck), portfolio_id,
+                )
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error(
+            "V2 crash-recovery step failed (portfolio_id=%s): %s",
+            portfolio_id, exc,
+        )
+
+    # ── 7. Refresh in-memory cache with enriched + priced holdings ───────────
     try:
         update_memory_cache(enriched_holdings)
         logger.info(
@@ -357,7 +440,7 @@ async def run_background_enrichment(
     except Exception as exc:
         logger.error("V2 cache refresh failed (non-fatal): %s", exc)
 
-    # ── 6. Quant cache pre-warm ───────────────────────────────────────────────
+    # ── 8. Quant cache pre-warm ───────────────────────────────────────────────
     try:
         from app.analytics.quant_service import pre_warm_cache
         from app.data_providers.file_provider import FileDataProvider
@@ -365,7 +448,7 @@ async def run_background_enrichment(
     except Exception as exc:
         logger.warning("V2 quant pre-warm failed (non-fatal): %s", exc)
 
-    # ── 7. Portfolio history build ────────────────────────────────────────────
+    # ── 9. Portfolio history build ────────────────────────────────────────────
     try:
         from app.services.history_service import (
             build_and_store_portfolio_history,
@@ -394,7 +477,8 @@ async def run_background_enrichment(
 def get_enrichment_status(portfolio_id: int, db) -> V2StatusResponse:
     """
     Read current per-holding enrichment state from the DB.
-    Called by GET /upload/v2/status/{portfolio_id}.
+    Called by GET /upload/v2/status/{portfolio_id} and
+    GET /upload/status?portfolio_id=...
     """
     from app.models.portfolio import Holding as _DBHolding
 
@@ -432,6 +516,19 @@ def get_enrichment_status(portfolio_id: int, db) -> V2StatusResponse:
             last_enriched_at=le_at,
         ))
 
+    enrichment_complete = (counts["pending"] == 0)
+
+    # Compute overall: spec-required field
+    # "done"        — no holdings pending (could be mix of enriched/partial/failed)
+    # "failed"      — no holdings pending AND every holding is "failed"
+    # "in_progress" — at least one holding is still pending
+    if not enrichment_complete:
+        overall: str = "in_progress"
+    elif counts["failed"] == len(db_holdings) and len(db_holdings) > 0:
+        overall = "failed"
+    else:
+        overall = "done"
+
     return V2StatusResponse(
         portfolio_id=portfolio_id,
         total_holdings=len(db_holdings),
@@ -439,7 +536,8 @@ def get_enrichment_status(portfolio_id: int, db) -> V2StatusResponse:
         partial=counts["partial"],
         pending=counts["pending"],
         failed=counts["failed"],
-        enrichment_complete=(counts["pending"] == 0),
+        enrichment_complete=enrichment_complete,
+        overall=overall,
         holdings=status_list,
     )
 

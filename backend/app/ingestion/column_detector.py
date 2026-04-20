@@ -111,6 +111,12 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         # Broker-specific
         "order_execution_time", "execution_date",
     ],
+    "notes": [
+        "notes", "note", "remarks", "comment", "comments",
+        "description", "memo", "annotation",
+        # Broker-specific
+        "transaction_notes", "trade_notes", "holding_notes",
+    ],
 }
 
 # Ordered so that required fields are listed first for display purposes
@@ -123,6 +129,7 @@ CANONICAL_FIELDS_ORDER = [
     "sector",         # optional — filled by enrichment if absent
     "industry",       # optional — filled by enrichment if absent
     "purchase_date",  # optional — stored as-is for record keeping
+    "notes",          # optional — free-text user annotations
 ]
 
 # Minimum columns required for a row to be accepted.
@@ -130,7 +137,7 @@ CANONICAL_FIELDS_ORDER = [
 REQUIRED_FIELDS = {"ticker", "quantity", "average_cost"}
 
 # Optional fields — import proceeds without them; enrichment fills them post-import
-OPTIONAL_FIELDS = {"name", "current_price", "sector", "industry", "purchase_date"}
+OPTIONAL_FIELDS = {"name", "current_price", "sector", "industry", "purchase_date", "notes"}
 
 
 # ─── Normalisation helpers ────────────────────────────────────────────────────
