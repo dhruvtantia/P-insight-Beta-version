@@ -18,7 +18,6 @@
 
 'use client'
 
-import { useMemo }                    from 'react'
 import { Activity, RefreshCw, Info }  from 'lucide-react'
 import { usePortfolio }               from '@/hooks/usePortfolio'
 import { useDataMode }                from '@/hooks/useDataMode'
@@ -30,7 +29,6 @@ import { MarketRiskPanel }            from '@/components/risk/MarketRiskPanel'
 import { PerformanceChart }           from '@/components/risk/PerformanceChart'
 import { DrawdownChart }              from '@/components/risk/DrawdownChart'
 import { CorrelationMatrix }          from '@/components/risk/CorrelationMatrix'
-import { computeRiskSnapshot }        from '@/lib/risk'
 import { cn }                         from '@/lib/utils'
 import type { QuantPeriod }           from '@/hooks/useQuantAnalytics'
 
@@ -168,7 +166,12 @@ function ContributionsTable({
 // ─── Risk page ────────────────────────────────────────────────────────────────
 
 export default function RiskPage() {
-  const { holdings, summary, sectors, loading: portLoading, error: portError, refetch: portRefetch } = usePortfolio()
+  const {
+    riskSnapshot,
+    loading: portLoading,
+    error:   portError,
+    refetch: portRefetch,
+  } = usePortfolio()
   const { currentConfig } = useDataMode()
   const {
     data:      quantData,
@@ -178,11 +181,6 @@ export default function RiskPage() {
     setPeriod,
     refetch:   quantRefetch,
   } = useQuantAnalytics()
-
-  const riskSnapshot = useMemo(
-    () => computeRiskSnapshot(holdings, sectors, summary),
-    [holdings, sectors, summary]
-  )
 
   const loading = portLoading || quantLoading
 
@@ -244,21 +242,48 @@ export default function RiskPage() {
         </div>
       )}
 
-      {/* ── Quant integrity notice (shown when any holdings were excluded) ── */}
-      {!portError && !quantLoading && quantData?.meta?.incomplete && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 flex items-start gap-3">
-          <span className="mt-0.5 text-amber-500 text-base leading-none select-none">⚠</span>
+      {/* ── Portfolio not usable at all (< 2 tickers with price history) ────── */}
+      {!portError && !quantLoading && quantData?.meta && !quantData.meta.portfolio_usable && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3">
+          <span className="mt-0.5 text-red-500 text-base leading-none select-none">✕</span>
           <div>
-            <p className="text-sm font-semibold text-amber-800">
-              Partial data — {quantData.meta.invalid_tickers.length} holding
-              {quantData.meta.invalid_tickers.length === 1 ? '' : 's'} excluded from risk calculations
+            <p className="text-sm font-semibold text-red-800">
+              Analytics unavailable — fewer than 2 holdings have usable price history
             </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              No price history: {quantData.meta.invalid_tickers.join(', ')} · Metrics shown reflect available holdings only
+            <p className="text-xs text-red-700 mt-0.5">
+              Market-based metrics (volatility, beta, Sharpe, etc.) require at least 2 holdings with
+              historical price data. Add holdings or check data availability in Live mode.
             </p>
           </div>
         </div>
       )}
+
+      {/* ── Partial data — some holdings excluded, analytics still shown ──── */}
+      {!portError && !quantLoading && quantData?.meta?.incomplete && quantData.meta.portfolio_usable && (() => {
+        const excluded = quantData.meta.excluded_tickers
+        const reasons  = quantData.meta.excluded_reason
+        return (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 flex items-start gap-3">
+            <span className="mt-0.5 text-amber-500 text-base leading-none select-none">⚠</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                Partial analytics — {excluded.length} holding{excluded.length === 1 ? '' : 's'} excluded
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {excluded.map((t) => (
+                  <li key={t} className="text-xs text-amber-700">
+                    <span className="font-semibold">{t.replace(/\.(NS|BO|BSE)$/i, '')}</span>
+                    {reasons[t] ? <span className="text-amber-600"> — {reasons[t]}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-amber-600 mt-1">
+                Metrics shown reflect {quantData.meta.valid_tickers.length} available holding{quantData.meta.valid_tickers.length === 1 ? '' : 's'} only.
+              </p>
+            </div>
+          </div>
+        )
+      })()}
 
       {!portError && (
         <>
@@ -332,10 +357,21 @@ export default function RiskPage() {
                   <> · {quantData.meta.date_range.start} → {quantData.meta.date_range.end}</>
                 )}
                 {quantData.meta.as_of && (
-                  <> · as of {new Date(quantData.meta.as_of).toLocaleTimeString()}</>
+                  <> · computed {new Date(quantData.meta.as_of).toLocaleTimeString()}</>
                 )}
-                {quantData.meta.cached && (
+                {quantData.meta.cached && quantData.meta.cache_age_seconds != null ? (
+                  <> · <span className="text-emerald-500">
+                    cached {quantData.meta.cache_age_seconds < 60
+                      ? `${Math.round(quantData.meta.cache_age_seconds)}s ago`
+                      : `${Math.round(quantData.meta.cache_age_seconds / 60)}m ago`}
+                  </span></>
+                ) : quantData.meta.cached ? (
                   <> · <span className="text-emerald-500">cached</span></>
+                ) : null}
+                {quantData.meta.incomplete && quantData.meta.excluded_tickers.length > 0 && (
+                  <> · <span className="text-amber-500">
+                    {quantData.meta.valid_tickers.length}/{quantData.meta.valid_tickers.length + quantData.meta.excluded_tickers.length} holdings included
+                  </span></>
                 )}
               </span>
             </div>

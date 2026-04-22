@@ -21,7 +21,6 @@
 
 'use client'
 
-import { useMemo }                         from 'react'
 import { useRouter }                       from 'next/navigation'
 import {
   RefreshCw, AlertCircle,
@@ -38,7 +37,6 @@ import { TopHoldingsChart }                from '@/components/charts/TopHoldings
 import { RiskSnapshotCard }                from '@/components/risk/RiskSnapshotCard'
 import { PortfolioAdvisorPanel }           from '@/components/advisor/PortfolioAdvisorPanel'
 import { ActionCenter }                    from '@/components/action/ActionCenter'
-import { computeRiskSnapshot }             from '@/lib/risk'
 import { cn }                              from '@/lib/utils'
 
 // ─── Error banner ─────────────────────────────────────────────────────────────
@@ -183,19 +181,13 @@ function EmptyPortfolioState() {
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { holdings, summary, sectors, loading, error, refetch } = usePortfolio()
+  const { holdings, summary, sectors, riskSnapshot, loading, error, refetch } = usePortfolio()
   const { currentConfig }  = useDataMode()
 
   // Cross-filter store
   const selectedSector  = useFilterStore((s) => s.selectedSector)
   const toggleSector    = useFilterStore((s) => s.toggleSector)
   const clearFilters    = useFilterStore((s) => s.clearFilters)
-
-  // Derived data
-  const riskSnapshot = useMemo(
-    () => computeRiskSnapshot(holdings, sectors, summary),
-    [holdings, sectors, summary]
-  )
 
   // Concentration status helpers (derived from riskSnapshot — zero extra API calls)
   const maxHoldingStatus = (w: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>

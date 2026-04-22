@@ -139,9 +139,9 @@ def _to_response(raw: dict) -> QuantFullResponse:
     dr_raw     = meta_raw.get("date_range")
     date_range = DateRange(**dr_raw) if isinstance(dr_raw, dict) else None
 
-    # Build kwargs: use field default when the key is absent from meta_raw
-    # (important for new fields like ticker_status/benchmark_available
-    #  that may be absent from older cached entries)
+    # Build kwargs: use field default when the key is absent from meta_raw.
+    # This handles new fields (excluded_tickers, portfolio_usable, cache_age_seconds)
+    # missing from any entries that were cached before this phase was deployed.
     from pydantic.fields import FieldInfo
     meta_kwargs: dict = {}
     for k, field_info in QuantMeta.model_fields.items():
@@ -151,6 +151,11 @@ def _to_response(raw: dict) -> QuantFullResponse:
         if raw_val is None and field_info.default is not None:
             raw_val = field_info.default
         meta_kwargs[k] = raw_val
+
+    # Ensure excluded_tickers mirrors invalid_tickers for any pre-phase-3 cached
+    # entries that only have invalid_tickers and not the new canonical field.
+    if not meta_kwargs.get("excluded_tickers") and meta_kwargs.get("invalid_tickers"):
+        meta_kwargs["excluded_tickers"] = meta_kwargs["invalid_tickers"]
 
     meta = QuantMeta(**meta_kwargs, date_range=date_range)
 

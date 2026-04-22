@@ -1,8 +1,15 @@
 """
-Quant Analytics Schemas — Phase 2
-------------------------------------
+Quant Analytics Schemas — Phase 3 (Hardened Contract)
+-------------------------------------------------------
 Pydantic response models for the /api/v1/quant/ endpoints.
 All monetary values are in INR; percentages are decimal-scaled (e.g. 15.2 = 15.2%).
+
+Phase 3 additions to QuantMeta:
+  - excluded_tickers:  canonical field name (replaces invalid_tickers as the contract key)
+  - portfolio_usable:  True when ≥2 tickers had sufficient price history for analytics
+  - cache_age_seconds: seconds since the cached result was computed (null = freshly computed)
+
+Backward compat: invalid_tickers is preserved so existing consumers don't break.
 """
 
 from pydantic import BaseModel, Field
@@ -84,6 +91,11 @@ class QuantMeta(BaseModel):
     provider_mode:       Optional[str]             = None
     period:              str                       = "1y"
     valid_tickers:       list[str]                 = []
+    # ── Excluded tickers (canonical field — Phase 3) ─────────────────────────
+    # Tickers with no usable price history, excluded from all analytics.
+    # This is the canonical contract field. invalid_tickers is kept for compat.
+    excluded_tickers:    list[str]                 = []
+    # Kept for backward compat with optimize page and debug panel.
     invalid_tickers:     list[str]                 = []
     # per-ticker data source: e.g. {"TCS.NS": "yfinance", "WIPRO.NS": "unavailable"}
     ticker_status:       dict[str, str]            = {}
@@ -96,9 +108,13 @@ class QuantMeta(BaseModel):
     benchmark_available: bool                      = True
     risk_free_rate:      float                     = 0.065
     cached:              bool                      = False
+    # Seconds since the cached result was originally computed. None = freshly computed.
+    cache_age_seconds:   Optional[float]           = None
     # ── Integrity metadata ───────────────────────────────────────────────────
     # True when any holdings were excluded from analytics due to missing price data
     incomplete:          bool                      = False
+    # True when ≥2 valid tickers exist so analytics are meaningful
+    portfolio_usable:    bool                      = True
     # Ticker → human-readable exclusion reason for all excluded holdings
     excluded_reason:     dict[str, str]            = {}
     # ISO-8601 UTC timestamp of when this computation ran (or was retrieved from cache)

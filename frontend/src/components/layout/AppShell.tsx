@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Sidebar } from './Sidebar'
-import { Topbar } from './Topbar'
+import { Sidebar }            from './Sidebar'
+import { Topbar }             from './Topbar'
+import { PortfolioProvider }  from '@/context/PortfolioContext'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -114,7 +115,15 @@ export function AppShell({ children }: AppShellProps) {
         <Topbar sidebarWidth={sidebarWidth} />
         <main className="pt-[76px] min-h-screen">
           <div className="p-6">
-            {children}
+            {/*
+              PortfolioProvider mounts here — one level below the chrome (Sidebar,
+              Topbar) so layout renders immediately while portfolio data loads.
+              All pages consume portfolio data via usePortfolio() without triggering
+              independent fetches.
+            */}
+            <PortfolioProvider>
+              {children}
+            </PortfolioProvider>
           </div>
         </main>
       </div>

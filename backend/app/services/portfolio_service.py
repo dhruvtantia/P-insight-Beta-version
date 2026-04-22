@@ -6,6 +6,8 @@ Routes call services. Services call repositories and providers.
 Business rules live here, not in routes or repositories.
 """
 
+import math
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from typing import Optional
 import pandas as pd
@@ -18,6 +20,10 @@ from app.schemas.portfolio import (
     PortfolioResponse,
     PortfolioSummary,
     SectorAllocation,
+    RiskSnapshot,
+    TopHoldingWeight,
+    FundamentalsSummary,
+    PortfolioBundleMeta,
 )
 
 
@@ -99,16 +105,263 @@ class PortfolioService:
             )
         ]
 
+    # ── Risk snapshot computation ──────────────────────────────────────────────
+
+    @staticmethod
+    def _compute_risk_snapshot(
+        enriched: list[dict],
+        sectors:  list[SectorAllocation],
+    ) -> Optional[RiskSnapshot]:
+        """
+        Compute concentration + diversification metrics from pre-enriched holdings.
+
+        Ports computeRiskSnapshot() from frontend/src/lib/risk.ts to Python so
+        the metric is authoritative and consistent across every consumer (dashboard,
+        risk page, advisor context, API clients).
+
+        Formulas match the TypeScript implementation exactly — HHI, effective_n,
+        diversification score, and risk profile classification all use the same
+        thresholds and weighting scheme.
+        """
+        if not enriched:
+            return None
+
+        num_holdings = len(enriched)
+        num_sectors  = len(sectors)
+
+        # ── Sort helpers ───────────────────────────────────────────────────────
+        by_weight = sorted(enriched, key=lambda h: h.get("weight", 0.0), reverse=True)
+        by_sector = sorted(sectors,  key=lambda s: s.weight_pct, reverse=True)
+
+        # ── Concentration metrics ──────────────────────────────────────────────
+        max_holding_weight = by_weight[0].get("weight", 0.0) if by_weight else 0.0
+        top3_weight = sum(h.get("weight", 0.0) for h in by_weight[:3])
+        top5_weight = sum(h.get("weight", 0.0) for h in by_weight[:5])
+
+        max_sector_weight = by_sector[0].weight_pct if by_sector else 0.0
+        max_sector_name   = by_sector[0].sector     if by_sector else "Unknown"
+
+        # ── HHI — Σ(weight_i / 100)² ──────────────────────────────────────────
+        hhi_raw = sum((h.get("weight", 0.0) / 100) ** 2 for h in enriched)
+        hhi     = min(1.0, max(0.0, hhi_raw))  # clamp for floating-point edge cases
+
+        # Effective N = 1/HHI (equivalent equal-weight positions)
+        effective_n = (1.0 / hhi) if hhi > 0 else float(num_holdings)
+
+        # ── Diversification score (0–100) ──────────────────────────────────────
+        # Component A: weight balance (70 pts)
+        hhi_ideal = 1.0 / num_holdings if num_holdings > 1 else 1.0
+        hhi_range = 1.0 - hhi_ideal
+        if num_holdings > 1 and hhi_range > 0:
+            hhi_component = max(0.0, (1.0 - hhi) / hhi_range) * 70.0
+        else:
+            hhi_component = 0.0
+
+        # Component B: sector breadth (30 pts — full credit at ≥5 sectors)
+        sector_component = min(30.0, max(0.0, (num_sectors - 1) * 7.5))
+
+        diversification_score = round(min(100.0, max(0.0, hhi_component + sector_component)))
+
+        # ── Risk profile (priority order — mirrors TypeScript exactly) ─────────
+        top_ticker = (
+            by_weight[0].get("ticker", "Top holding")
+            .upper()
+            .rstrip(".NS").rstrip(".BSE").rstrip(".BO")
+            if by_weight else "Top holding"
+        )
+
+        if max_holding_weight >= 40 or hhi >= 0.30:
+            risk_profile = "highly_concentrated"
+            risk_reason  = (
+                f"{top_ticker} alone represents {max_holding_weight:.1f}% of the portfolio. "
+                "Single-stock concentration is very high — a sharp move in this stock "
+                "heavily impacts overall returns."
+            )
+        elif max_sector_weight >= 60:
+            risk_profile = "sector_concentrated"
+            risk_reason  = (
+                f"{max_sector_name} makes up {max_sector_weight:.1f}% of the portfolio. "
+                "This heavy sector tilt means the portfolio is exposed to industry-wide "
+                "headwinds or regulatory changes."
+            )
+        elif top3_weight >= 60 or num_sectors <= 2:
+            risk_profile = "aggressive"
+            risk_reason  = (
+                f"Top 3 holdings account for {top3_weight:.1f}% of the portfolio across "
+                f"only {num_sectors} sector{'s' if num_sectors != 1 else ''}. "
+                "Limited diversification amplifies both upside and downside."
+            )
+        elif num_sectors >= 5 and hhi <= 0.12:
+            risk_profile = "conservative"
+            risk_reason  = (
+                f"Portfolio is spread across {num_sectors} sectors with balanced position "
+                f"sizes (HHI = {hhi:.3f}). This is a well-diversified, lower-concentration profile."
+            )
+        else:
+            risk_profile = "moderate"
+            risk_reason  = (
+                f"Portfolio shows reasonable diversification across {num_sectors} "
+                f"sector{'s' if num_sectors != 1 else ''} with no single position dominating. "
+                "Some concentration exists but within normal bounds."
+            )
+
+        # ── Flags ──────────────────────────────────────────────────────────────
+        single_stock_flag         = max_holding_weight >= 30.0
+        sector_concentration_flag = max_sector_weight  >= 50.0
+
+        # ── Top holdings for ConcentrationBreakdown chart ──────────────────────
+        top_holdings_by_weight = [
+            TopHoldingWeight(
+                ticker=h.get("ticker", ""),
+                name=h.get("name", "") or "",
+                weight=h.get("weight", 0.0),
+                sector=h.get("sector") or "Unknown",
+            )
+            for h in by_weight[:8]
+        ]
+
+        return RiskSnapshot(
+            max_holding_weight=round(max_holding_weight, 4),
+            top3_weight=round(top3_weight, 4),
+            top5_weight=round(top5_weight, 4),
+            max_sector_weight=round(max_sector_weight, 4),
+            max_sector_name=max_sector_name,
+            num_holdings=num_holdings,
+            num_sectors=num_sectors,
+            hhi=round(hhi, 6),
+            effective_n=round(effective_n, 2),
+            diversification_score=diversification_score,
+            risk_profile=risk_profile,
+            risk_profile_reason=risk_reason,
+            single_stock_flag=single_stock_flag,
+            sector_concentration_flag=sector_concentration_flag,
+            top_holdings_by_weight=top_holdings_by_weight,
+        )
+
+    # ── Fundamentals summary (DB count only — no live API calls) ──────────────
+
+    def _compute_fundamentals_summary(self, portfolio_id: Optional[int]) -> FundamentalsSummary:
+        """
+        Return lightweight fundamentals availability metadata.
+
+        Counts holdings with fundamentals_status = 'fetched' from the DB.
+        Never calls yfinance or any external API — fast indexed query only.
+        Full weighted metrics are served by GET /analytics/ratios.
+        """
+        if portfolio_id is None:
+            return FundamentalsSummary()
+
+        try:
+            from app.models.portfolio import Holding as HoldingORM
+            holdings = (
+                self.db.query(HoldingORM)
+                .filter(HoldingORM.portfolio_id == portfolio_id)
+                .with_entities(HoldingORM.fundamentals_status)
+                .all()
+            )
+            total = len(holdings)
+            if total == 0:
+                return FundamentalsSummary()
+
+            with_data = sum(
+                1 for row in holdings
+                if row.fundamentals_status == "fetched"
+            )
+            coverage_pct = round(with_data / total * 100, 1) if total > 0 else None
+            return FundamentalsSummary(
+                available=with_data > 0,
+                total_holdings=total,
+                holdings_with_data=with_data,
+                coverage_pct=coverage_pct,
+            )
+        except Exception:
+            return FundamentalsSummary()
+
+    # ── Bundle meta ────────────────────────────────────────────────────────────
+
+    def _get_bundle_meta(
+        self,
+        enriched:      list[dict],
+        portfolio_id:  Optional[int],
+        portfolio_name: Optional[str],
+    ) -> PortfolioBundleMeta:
+        """
+        Build provenance metadata for the portfolio bundle response.
+        Includes mode, portfolio identity, timestamp, and data quality flags.
+        """
+        as_of = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Partial data flag — true when any holding is missing a live/uploaded price
+        partial_data = any(
+            h.get("current_price") is None or h.get("data_source") == "unavailable"
+            for h in enriched
+        )
+
+        # Enrichment complete — check whether any holdings are still pending
+        enrichment_complete = True
+        if portfolio_id is not None:
+            try:
+                from app.models.portfolio import Holding as HoldingORM
+                pending_count = (
+                    self.db.query(HoldingORM)
+                    .filter(
+                        HoldingORM.portfolio_id == portfolio_id,
+                        HoldingORM.enrichment_status == "pending",
+                    )
+                    .count()
+                )
+                enrichment_complete = pending_count == 0
+            except Exception:
+                enrichment_complete = True  # safe default
+
+        return PortfolioBundleMeta(
+            mode=self.provider.mode_name,
+            portfolio_id=portfolio_id,
+            portfolio_name=portfolio_name,
+            as_of=as_of,
+            enrichment_complete=enrichment_complete,
+            partial_data=partial_data,
+        )
+
+    # ── Active portfolio resolution ────────────────────────────────────────────
+
+    def _resolve_active_portfolio(self) -> tuple[Optional[int], Optional[str]]:
+        """
+        Return (portfolio_id, portfolio_name) for the currently active portfolio.
+        Returns (None, None) if no active portfolio exists in the DB.
+        This gives the meta field a definitive portfolio identity.
+        """
+        try:
+            from app.models.portfolio import Portfolio
+            active = (
+                self.db.query(Portfolio)
+                .filter(Portfolio.is_active == True)  # noqa: E712
+                .with_entities(Portfolio.id, Portfolio.name)
+                .first()
+            )
+            if active:
+                return active.id, active.name
+        except Exception:
+            pass
+        return None, None
+
+    # ── Main bundle endpoint ───────────────────────────────────────────────────
+
     async def get_full(self) -> dict:
         """
-        Single-pass portfolio bundle: holdings (with pre-computed metrics),
-        summary, and sector allocation.
+        Canonical portfolio intelligence bundle: one provider call, one response.
+
+        Returns holdings (with pre-computed metrics), summary, sector allocation,
+        risk snapshot, fundamentals availability summary, and provenance metadata.
 
         Makes exactly ONE call to the data provider, then computes everything
-        in a single loop.  Replaces three separate /portfolio/* endpoint calls
-        that each independently fetched holdings from the provider.
+        from that result set.  Replaces three separate /portfolio/* endpoint calls.
+
+        Risk snapshot is computed server-side here — eliminates the duplicated
+        client-side computeRiskSnapshot() calls in dashboard and risk pages.
         """
         holdings = await self.provider.get_holdings()
+        portfolio_id, portfolio_name = self._resolve_active_portfolio()
 
         if not holdings:
             return {
@@ -121,20 +374,30 @@ class PortfolioService:
                     num_holdings=0,
                     data_source=self.provider.mode_name,
                 ),
-                "sectors": [],
+                "sectors":              [],
+                "risk_snapshot":        None,
+                "fundamentals_summary": FundamentalsSummary(),
+                "meta": PortfolioBundleMeta(
+                    mode=self.provider.mode_name,
+                    portfolio_id=portfolio_id,
+                    portfolio_name=portfolio_name,
+                    as_of=datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    enrichment_complete=True,
+                    partial_data=False,
+                ),
             }
 
-        # ── One pass: compute portfolio totals first (needed for weight calc) ──
+        # ── Pass 1: portfolio totals (needed for weight calc) ──────────────────
         total_value = sum(
             h.quantity * (h.current_price or h.average_cost) for h in holdings
         )
-        total_cost = sum(h.quantity * h.average_cost for h in holdings)
-        total_pnl = total_value - total_cost
+        total_cost  = sum(h.quantity * h.average_cost for h in holdings)
+        total_pnl     = total_value - total_cost
         total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0.0
 
-        # ── Second pass: enrich holdings + accumulate sector data ──────────────
-        enriched: list[dict] = []
-        sector_data: dict[str, dict] = {}
+        # ── Pass 2: enrich holdings + accumulate sector data ───────────────────
+        enriched:     list[dict]         = []
+        sector_data:  dict[str, dict]    = {}
 
         for h in holdings:
             market_val = h.quantity * (h.current_price or h.average_cost)
@@ -190,10 +453,22 @@ class PortfolioService:
             )
         ]
 
+        # ── Risk snapshot ──────────────────────────────────────────────────────
+        risk_snapshot = self._compute_risk_snapshot(enriched, sectors)
+
+        # ── Fundamentals summary (fast DB count, no API call) ──────────────────
+        fundamentals_summary = self._compute_fundamentals_summary(portfolio_id)
+
+        # ── Bundle meta ────────────────────────────────────────────────────────
+        meta = self._get_bundle_meta(enriched, portfolio_id, portfolio_name)
+
         return {
-            "holdings": enriched,
-            "summary":  summary,
-            "sectors":  sectors,
+            "holdings":             enriched,
+            "summary":              summary,
+            "sectors":              sectors,
+            "risk_snapshot":        risk_snapshot,
+            "fundamentals_summary": fundamentals_summary,
+            "meta":                 meta,
         }
 
     async def process_uploaded_file(self, file_path: str) -> list[HoldingCreate]:

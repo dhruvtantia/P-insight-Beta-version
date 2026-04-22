@@ -1,94 +1,50 @@
 /**
- * usePortfolio Hook
- * ------------------
- * Single source of truth for all portfolio data in the UI.
- * Reacts to data mode changes from the global Zustand store.
+ * usePortfolio Hook — public API for all portfolio consumers
+ * -----------------------------------------------------------
+ * Thin wrapper over PortfolioContext. Pages and components import this hook;
+ * they do NOT import PortfolioContext directly.
  *
- * Architecture note:
- *   Core fetch uses GET /portfolio/full — one bundled call instead of three.
- *   The backend pre-computes market_value, pnl, pnl_pct, and weight per holding,
- *   so no client-side financial math is needed here.
+ * The fetch logic lives in PortfolioContext (mounted once in AppShell).
+ * This hook delegates to context — no local state, no independent fetch.
  *
- *   Commentary fetch is supplementary — failure is swallowed and logged.
- *   This prevents a slow/broken analytics endpoint from crashing the dashboard.
+ * Why this pattern:
+ *   Before: every page calling usePortfolio() triggered its own fetch on mount.
+ *           Dashboard + Risk page each independently called computeRiskSnapshot()
+ *           client-side from the same data.
+ *   After:  one fetch per mode change, shared across all pages.
+ *           riskSnapshot comes from the backend — zero client-side computation.
+ *
+ * Usage (unchanged from caller perspective):
+ *   const { holdings, summary, sectors, riskSnapshot, loading, error, refetch }
+ *     = usePortfolio()
  */
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { portfolioApi, analyticsApi } from '@/services/api'
-import { useDataModeStore } from '@/store/dataModeStore'
-import type { Holding, PortfolioSummary, SectorAllocation, PortfolioInsight } from '@/types'
+import { usePortfolioContext }  from '@/context/PortfolioContext'
+import type {
+  Holding,
+  PortfolioSummary,
+  SectorAllocation,
+  PortfolioInsight,
+  RiskSnapshot,
+  FundamentalsSummary,
+  PortfolioBundleMeta,
+} from '@/types'
 
 export interface UsePortfolioReturn {
-  holdings: Holding[]
-  summary: PortfolioSummary | null
-  sectors: SectorAllocation[]
-  insights: PortfolioInsight[]
-  loading: boolean
-  error: string | null
-  refetch: () => void
+  holdings:            Holding[]
+  summary:             PortfolioSummary | null
+  sectors:             SectorAllocation[]
+  riskSnapshot:        RiskSnapshot | null         // backend-computed (was client-side useMemo)
+  fundamentalsSummary: FundamentalsSummary | null  // availability metadata for dashboard
+  meta:                PortfolioBundleMeta | null  // provenance: mode, portfolio_id, as_of
+  insights:            PortfolioInsight[]
+  loading:             boolean
+  error:               string | null
+  refetch:             () => void
 }
 
 export function usePortfolio(): UsePortfolioReturn {
-  const { mode } = useDataModeStore()
-
-  const [holdings, setHoldings]   = useState<Holding[]>([])
-  const [summary, setSummary]     = useState<PortfolioSummary | null>(null)
-  const [sectors, setSectors]     = useState<SectorAllocation[]>([])
-  const [insights, setInsights]   = useState<PortfolioInsight[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState<string | null>(null)
-
-  const fetchAll = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      // ── Single bundled call (replaces 3 parallel requests) ─────────────────
-      //    Holdings already contain market_value, pnl, pnl_pct, weight —
-      //    pre-computed by the backend in one provider pass.
-      const data = await portfolioApi.getPortfolioFull(mode)
-
-      setHoldings(data.holdings)
-      setSummary(data.summary)
-      setSectors(data.sectors)
-
-      // ── Supplementary: commentary (non-blocking) ───────────────────────────
-      //    Commentary requires additional computation on the backend.
-      //    If it fails, dashboard still renders — insights panel shows empty.
-      analyticsApi
-        .getCommentary(mode)
-        .then((res) => setInsights(res.insights))
-        .catch((err) => {
-          console.warn('[usePortfolio] Commentary unavailable (non-fatal):', err)
-          setInsights([])
-        })
-
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to load portfolio data. Check that the backend is running on port 8000.'
-      setError(message)
-      console.error('[usePortfolio] Core fetch failed:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [mode])
-
-  // Re-fetch automatically whenever data mode changes
-  useEffect(() => {
-    fetchAll()
-  }, [fetchAll])
-
-  return {
-    holdings,
-    summary,
-    sectors,
-    insights,
-    loading,
-    error,
-    refetch: fetchAll,
-  }
+  return usePortfolioContext()
 }

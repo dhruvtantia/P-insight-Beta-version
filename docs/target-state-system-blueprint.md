@@ -5,7 +5,8 @@
 **Audience:** Every engineer, AI agent, or contributor about to modify the codebase.
 
 > **How to use this document.**
-> This is the north star, not a status report. When you are about to write a function, add an endpoint, or redesign a page, ask: *does this align with the target state described here?* If it moves the system toward this target, proceed. If it entrenches the current anti-patterns, stop and redesign. The current codebase is approximately 65% of the way toward this target. This document describes the other 35%.
+> This is the north star, not a status report. When you are about to write a function, add an endpoint, or redesign a page, ask: 
+*does this align with the target state described here?* If it moves the system toward this target, proceed. If it entrenches the current anti-patterns, stop and redesign. The current codebase is approximately 65% of the way toward this target. This document describes the other 35%.
 
 > **What this document is not.**
 > It is not a step-by-step implementation guide (see `refactor-rebuild-blueprint.md`). It is not a feature list (see `product-requirements-mvp.md`). It is the architectural vision: what the system should *be*, expressed as contracts, principles, and constraints.

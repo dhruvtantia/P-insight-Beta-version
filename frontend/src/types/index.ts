@@ -677,6 +677,12 @@ export interface QuantMeta {
   provider_mode:       string | null
   period:              string
   valid_tickers:       string[]
+  /**
+   * Canonical Phase-3 field: tickers excluded from analytics because they had
+   * no usable price history. Same data as invalid_tickers.
+   */
+  excluded_tickers:    string[]
+  /** Kept for backward compat — same list as excluded_tickers. */
   invalid_tickers:     string[]
   /** Per-ticker data source, e.g. {"TCS.NS": "yfinance", "WIPRO.NS": "unavailable"} */
   ticker_status:       Record<string, string>
@@ -689,9 +695,13 @@ export interface QuantMeta {
   benchmark_available: boolean
   risk_free_rate:      number
   cached:              boolean
+  /** Seconds since the cached result was originally computed. null = freshly computed. */
+  cache_age_seconds:   number | null
   /** True when any holdings were excluded from analytics due to missing price data */
   incomplete:          boolean
-  /** Ticker → exclusion reason for all holdings excluded from price-based analytics */
+  /** True when ≥2 valid tickers exist and analytics are meaningful */
+  portfolio_usable:    boolean
+  /** Ticker → human-readable exclusion reason for all holdings excluded from analytics */
   excluded_reason:     Record<string, string>
   /** ISO-8601 UTC timestamp of when this computation ran */
   as_of:               string | null
