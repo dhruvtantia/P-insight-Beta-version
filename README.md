@@ -127,4 +127,8 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 cd backend
 poetry install --no-root
 poetry env activate
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8000'''
+
+### Author
+Dhruv Tantia
+Statistics + Financial Risk Management (University of Waterloo)
