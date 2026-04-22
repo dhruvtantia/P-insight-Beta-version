@@ -5,12 +5,25 @@
  *
  * Exports:
  *   mergeWithFundamentals()     — joins holdings with per-ticker ratio data
- *   computeWeightedMetrics()    — weighted-average fundamentals across portfolio
- *   metricStatus()              — traffic-light status for individual metric values
+ *   DEFAULT_THRESHOLDS          — fallback thresholds (mirrors backend defaults)
+ *   peStatus() / pbStatus() … — traffic-light status (accept thresholds from backend)
  *   formatMetricValue()         — display formatting for ratio values
+ *
+ * Threshold design:
+ *   The canonical threshold values live in:
+ *     backend/app/services/fundamentals_view_service.py
+ *   They are shipped to the frontend in every /analytics/ratios response
+ *   under `thresholds`. All status functions accept a `FundamentalsThresholds`
+ *   parameter — callers should pass the backend-provided thresholds.
+ *   `DEFAULT_THRESHOLDS` is a compile-time fallback used only before the API
+ *   response has loaded; it mirrors the backend defaults exactly.
+ *
+ * Removed in Fundamentals Isolation (Phase):
+ *   computeWeightedMetrics() — was dead code; weighted metrics are backend-owned
+ *                              and returned in the /analytics/ratios `weighted` field.
  */
 
-import type { Holding, FinancialRatio, HoldingWithFundamentals, WeightedFundamentals } from '@/types'
+import type { Holding, FinancialRatio, HoldingWithFundamentals, WeightedFundamentals, FundamentalsThresholds } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,41 +34,78 @@ export interface MetricStatusConfig {
   label: string     // e.g. "Attractive", "Fair", "Expensive"
 }
 
-// ─── Merge holdings with fundamentals ────────────────────────────────────────
+// ─── Default thresholds (compile-time fallback only) ─────────────────────────
+//
+// These values MUST stay in sync with the Python constants in:
+//   backend/app/services/fundamentals_view_service.py
+//
+// They are used ONLY as a fallback before the API response has loaded.
+// All live rendering should use the backend-provided `thresholds` from
+// useFundamentals() → FinancialRatiosResponse.thresholds.
 
-/**
- * Joins holdings array with per-ticker fundamental ratios.
- * Holdings without a matching ratio entry get fundamentals: null.
- */
-export function mergeWithFundamentals(
-  holdings: Holding[],
-  ratios: FinancialRatio[]
-): HoldingWithFundamentals[] {
-  const ratioMap = new Map(ratios.map((r) => [r.ticker, r]))
-  return holdings.map((h) => ({
-    ...h,
-    fundamentals: ratioMap.get(h.ticker) ?? null,
-  }))
+export const DEFAULT_THRESHOLDS: FundamentalsThresholds = {
+  // P/E
+  pe_cheap:        15,
+  pe_fair_max:     30,
+  pe_elevated_max: 50,
+  // PEG
+  peg_undervalued: 1.0,
+  peg_fair_max:    2.0,
+  peg_premium_max: 3.0,
+  // P/B
+  pb_below_book:  1.0,
+  pb_fair_max:    4.0,
+  pb_premium_max: 10.0,
+  // ROE (%)
+  roe_excellent: 25,
+  roe_good:      15,
+  roe_moderate:  8,
+  // ROA (%)
+  roa_excellent: 15,
+  roa_good:      8,
+  roa_moderate:  3,
+  // Margin (%)
+  margin_strong:   20,
+  margin_moderate: 10,
+  margin_thin:     5,
+  // Growth (%)
+  growth_high:    20,
+  growth_healthy: 8,
+  growth_slow:    0,
+  // D/E
+  dte_conservative: 0.5,
+  dte_moderate:     1.5,
+  dte_leveraged:    2.5,
+  // Div yield (%)
+  div_yield_high:     3.0,
+  div_yield_moderate: 1.0,
+  // Insight-level thresholds
+  insight_pe_expensive:    30,
+  insight_pe_cheap:        18,
+  insight_peg_expensive:   2,
+  insight_roe_strong:      20,
+  insight_roe_weak:        12,
+  insight_margin_thin:     10,
+  insight_div_yield_solid: 2,
+  insight_div_yield_low:   0.5,
 }
 
-// ─── Weighted portfolio metrics ───────────────────────────────────────────────
+// ─── Simulation-only: client-side weighted metrics computation ────────────────
+//
+// @deprecated for real portfolio display — the backend owns weighted metrics and
+//   returns them in the /analytics/ratios `weighted` field. Do not call this in
+//   page components or hooks that display the live portfolio.
+//
+// PRESERVED for lib/simulation.ts — the simulation engine computes weighted
+//   metrics for HYPOTHETICAL portfolios (what-if scenarios) that cannot be
+//   serviced by the backend API. This is a legitimate client-side use case.
+//
+// If you are calling this outside of simulation logic, stop and use
+//   useFundamentals().weightedMetrics instead.
 
-/**
- * Computes portfolio-level weighted-average fundamentals.
- *
- * Weighting strategy:
- *   - Each holding's weight = market_value / total_portfolio_value
- *   - If a holding has null for a metric, it is excluded from that metric's average
- *   - Weights are re-normalised among non-null contributors so nulls don't bias toward zero
- *   - coverage[key] = number of holdings that contributed a non-null value
- *
- * Bank holdings (HDFC, ICICI, etc.) naturally have null for D/E, operating_margin,
- * ev_ebitda — this is correct behaviour, not missing data.
- */
 export function computeWeightedMetrics(
   holdings: HoldingWithFundamentals[]
 ): WeightedFundamentals | null {
-  // Need at least one holding with both market_value and fundamentals
   const valid = holdings.filter(
     (h) => (h.market_value ?? 0) > 0 && h.fundamentals !== null
   )
@@ -64,25 +114,19 @@ export function computeWeightedMetrics(
   const totalValue = valid.reduce((sum, h) => sum + (h.market_value ?? 0), 0)
   if (totalValue === 0) return null
 
-  // Helper: compute weighted average for a given metric extractor
-  function wtdAvg(
-    extractor: (f: FinancialRatio) => number | null
-  ): { value: number | null; count: number } {
+  function wtdAvg(extractor: (f: FinancialRatio) => number | null): { value: number | null; count: number } {
     let weightedSum = 0
-    let weightSum = 0
-    let count = 0
-
+    let weightSum   = 0
+    let count       = 0
     for (const h of valid) {
       const val = extractor(h.fundamentals!)
       if (val === null || !isFinite(val)) continue
       const w = (h.market_value ?? 0) / totalValue
       weightedSum += w * val
-      weightSum += w
+      weightSum   += w
       count++
     }
-
     if (count === 0 || weightSum === 0) return { value: null, count: 0 }
-    // Re-normalise to account for excluded nulls
     return { value: weightedSum / weightSum, count }
   }
 
@@ -132,81 +176,135 @@ export function computeWeightedMetrics(
   }
 }
 
-// ─── Metric status (traffic-light) ───────────────────────────────────────────
+// ─── Merge holdings with fundamentals ────────────────────────────────────────
 
 /**
- * Returns a traffic-light status + label for a given metric value.
- * Thresholds are broad, representative of Indian large-cap equities.
+ * Joins holdings array with per-ticker fundamental ratios.
+ * Holdings without a matching ratio entry get fundamentals: null.
+ * This is a pure client-side join — no financial computation.
  */
-export function peStatus(value: number | null): MetricStatusConfig {
+export function mergeWithFundamentals(
+  holdings: Holding[],
+  ratios: FinancialRatio[]
+): HoldingWithFundamentals[] {
+  const ratioMap = new Map(ratios.map((r) => [r.ticker, r]))
+  return holdings.map((h) => ({
+    ...h,
+    fundamentals: ratioMap.get(h.ticker) ?? null,
+  }))
+}
+
+// ─── Metric status (traffic-light) ───────────────────────────────────────────
+//
+// Each function accepts an optional `t: FundamentalsThresholds` parameter.
+// When the backend thresholds have loaded, callers pass them here.
+// Before they load, DEFAULT_THRESHOLDS is used as a fallback.
+
+/** P/E ratio traffic-light. */
+export function peStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
   if (value === null) return { status: 'neutral', label: 'N/A' }
-  if (value < 15)     return { status: 'good',    label: 'Cheap'      }
-  if (value < 30)     return { status: 'neutral',  label: 'Fair'       }
-  if (value < 50)     return { status: 'warning',  label: 'Elevated'   }
-  return               { status: 'danger',  label: 'Expensive'  }
+  if (value < t.pe_cheap)        return { status: 'good',    label: 'Cheap'     }
+  if (value < t.pe_fair_max)     return { status: 'neutral', label: 'Fair'      }
+  if (value < t.pe_elevated_max) return { status: 'warning', label: 'Elevated'  }
+  return                                { status: 'danger',  label: 'Expensive' }
 }
 
-export function pegStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'         }
-  if (value < 1.0)    return { status: 'good',    label: 'Undervalued' }
-  if (value < 2.0)    return { status: 'neutral',  label: 'Fair'        }
-  if (value < 3.0)    return { status: 'warning',  label: 'Premium'     }
-  return               { status: 'danger',  label: 'Expensive'   }
+/** PEG ratio traffic-light. */
+export function pegStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)        return { status: 'neutral', label: 'N/A'         }
+  if (value < t.peg_undervalued) return { status: 'good',    label: 'Undervalued' }
+  if (value < t.peg_fair_max)    return { status: 'neutral', label: 'Fair'        }
+  if (value < t.peg_premium_max) return { status: 'warning', label: 'Premium'     }
+  return                                 { status: 'danger',  label: 'Expensive'   }
 }
 
-export function pbStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'       }
-  if (value < 1.0)    return { status: 'good',    label: 'Below Book' }
-  if (value < 4.0)    return { status: 'neutral',  label: 'Fair'      }
-  if (value < 10.0)   return { status: 'warning',  label: 'Premium'   }
-  return               { status: 'danger',  label: 'High'      }
+/** P/B ratio traffic-light. */
+export function pbStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)        return { status: 'neutral', label: 'N/A'        }
+  if (value < t.pb_below_book)   return { status: 'good',    label: 'Below Book' }
+  if (value < t.pb_fair_max)     return { status: 'neutral', label: 'Fair'       }
+  if (value < t.pb_premium_max)  return { status: 'warning', label: 'Premium'    }
+  return                                 { status: 'danger',  label: 'High'       }
 }
 
-export function roeStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'       }
-  if (value >= 25)    return { status: 'good',    label: 'Excellent'  }
-  if (value >= 15)    return { status: 'good',    label: 'Good'       }
-  if (value >= 8)     return { status: 'warning',  label: 'Moderate'  }
-  return               { status: 'danger',  label: 'Weak'      }
+/** ROE traffic-light. */
+export function roeStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)      return { status: 'neutral', label: 'N/A'      }
+  if (value >= t.roe_excellent) return { status: 'good',    label: 'Excellent' }
+  if (value >= t.roe_good)      return { status: 'good',    label: 'Good'      }
+  if (value >= t.roe_moderate)  return { status: 'warning', label: 'Moderate'  }
+  return                               { status: 'danger',  label: 'Weak'      }
 }
 
-export function roaStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'      }
-  if (value >= 15)    return { status: 'good',    label: 'Excellent' }
-  if (value >= 8)     return { status: 'good',    label: 'Good'      }
-  if (value >= 3)     return { status: 'warning',  label: 'Moderate' }
-  return               { status: 'danger',  label: 'Weak'     }
+/** ROA traffic-light. */
+export function roaStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)      return { status: 'neutral', label: 'N/A'      }
+  if (value >= t.roa_excellent) return { status: 'good',    label: 'Excellent' }
+  if (value >= t.roa_good)      return { status: 'good',    label: 'Good'      }
+  if (value >= t.roa_moderate)  return { status: 'warning', label: 'Moderate'  }
+  return                               { status: 'danger',  label: 'Weak'      }
 }
 
-export function marginStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'      }
-  if (value >= 20)    return { status: 'good',    label: 'Strong'    }
-  if (value >= 10)    return { status: 'neutral',  label: 'Moderate' }
-  if (value >= 5)     return { status: 'warning',  label: 'Thin'     }
-  return               { status: 'danger',  label: 'Very Thin' }
+/** Operating / net margin traffic-light. */
+export function marginStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)       return { status: 'neutral', label: 'N/A'      }
+  if (value >= t.margin_strong)   return { status: 'good',    label: 'Strong'    }
+  if (value >= t.margin_moderate) return { status: 'neutral', label: 'Moderate'  }
+  if (value >= t.margin_thin)     return { status: 'warning', label: 'Thin'      }
+  return                                 { status: 'danger',  label: 'Very Thin' }
 }
 
-export function growthStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'      }
-  if (value >= 20)    return { status: 'good',    label: 'High'      }
-  if (value >= 8)     return { status: 'good',    label: 'Healthy'   }
-  if (value >= 0)     return { status: 'warning',  label: 'Slow'     }
-  return               { status: 'danger',  label: 'Declining' }
+/** Revenue / earnings growth traffic-light. */
+export function growthStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)       return { status: 'neutral', label: 'N/A'       }
+  if (value >= t.growth_high)     return { status: 'good',    label: 'High'      }
+  if (value >= t.growth_healthy)  return { status: 'good',    label: 'Healthy'   }
+  if (value >= t.growth_slow)     return { status: 'warning', label: 'Slow'      }
+  return                                 { status: 'danger',  label: 'Declining' }
 }
 
-export function dteStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'         }
-  if (value <= 0.5)   return { status: 'good',    label: 'Conservative' }
-  if (value <= 1.5)   return { status: 'neutral',  label: 'Moderate'    }
-  if (value <= 2.5)   return { status: 'warning',  label: 'Leveraged'   }
-  return               { status: 'danger',  label: 'High Debt'    }
+/** Debt/Equity ratio traffic-light. */
+export function dteStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)          return { status: 'neutral', label: 'N/A'          }
+  if (value <= t.dte_conservative) return { status: 'good',    label: 'Conservative' }
+  if (value <= t.dte_moderate)     return { status: 'neutral', label: 'Moderate'     }
+  if (value <= t.dte_leveraged)    return { status: 'warning', label: 'Leveraged'    }
+  return                                  { status: 'danger',  label: 'High Debt'    }
 }
 
-export function divYieldStatus(value: number | null): MetricStatusConfig {
-  if (value === null) return { status: 'neutral', label: 'N/A'       }
-  if (value >= 3.0)   return { status: 'good',    label: 'High Yield' }
-  if (value >= 1.0)   return { status: 'neutral',  label: 'Moderate'  }
-  return               { status: 'neutral',  label: 'Low'       }
+/** Dividend yield traffic-light. */
+export function divYieldStatus(
+  value: number | null,
+  t: FundamentalsThresholds = DEFAULT_THRESHOLDS
+): MetricStatusConfig {
+  if (value === null)         return { status: 'neutral', label: 'N/A'       }
+  if (value >= t.div_yield_high)    return { status: 'good',    label: 'High Yield' }
+  if (value >= t.div_yield_moderate) return { status: 'neutral', label: 'Moderate'  }
+  return                                   { status: 'neutral', label: 'Low'        }
 }
 
 // ─── Metric formatting ────────────────────────────────────────────────────────

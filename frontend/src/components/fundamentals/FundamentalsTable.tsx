@@ -19,8 +19,9 @@ import {
   marginStatus, growthStatus, dteStatus, divYieldStatus,
   fmtRatio, fmtPct, fmtX, fmtMarketCap,
   STATUS_TEXT,
+  DEFAULT_THRESHOLDS,
 } from '@/lib/fundamentals'
-import type { HoldingWithFundamentals } from '@/types'
+import type { HoldingWithFundamentals, FundamentalsThresholds } from '@/types'
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
@@ -41,104 +42,111 @@ interface ColDef {
 
 const NA = (_v: number | null) => ({ status: 'neutral' as const, label: '' })
 
-const COLUMNS: ColDef[] = [
-  // Identity
-  {
-    key: 'weight', label: 'Weight', tooltip: 'portfolio_weight', group: 'identity',
-    getValue: (h) => h.weight ?? null,
-    format: (v) => v !== null ? v.toFixed(1) + '%' : '—',
-    getStatus: NA,
-  },
-  // Valuation
-  {
-    key: 'pe', label: 'P/E', tooltip: 'pe_ratio', group: 'valuation',
-    getValue: (h) => h.fundamentals?.pe_ratio ?? null,
-    format: fmtX,
-    getStatus: peStatus,
-  },
-  {
-    key: 'fwd_pe', label: 'Fwd P/E', tooltip: 'forward_pe', group: 'valuation',
-    getValue: (h) => h.fundamentals?.forward_pe ?? null,
-    format: fmtX,
-    getStatus: peStatus,
-  },
-  {
-    key: 'pb', label: 'P/B', tooltip: 'pb_ratio', group: 'valuation',
-    getValue: (h) => h.fundamentals?.pb_ratio ?? null,
-    format: fmtX,
-    getStatus: pbStatus,
-  },
-  {
-    key: 'ev_ebitda', label: 'EV/EBITDA', tooltip: 'ev_ebitda', group: 'valuation',
-    getValue: (h) => h.fundamentals?.ev_ebitda ?? null,
-    format: fmtX,
-    getStatus: NA,
-  },
-  {
-    key: 'peg', label: 'PEG', tooltip: 'peg_ratio', group: 'valuation',
-    getValue: (h) => h.fundamentals?.peg_ratio ?? null,
-    format: fmtRatio,
-    getStatus: pegStatus,
-  },
-  // Quality
-  {
-    key: 'roe', label: 'ROE', tooltip: 'roe', group: 'quality',
-    getValue: (h) => h.fundamentals?.roe ?? null,
-    format: fmtPct,
-    getStatus: roeStatus,
-  },
-  {
-    key: 'roa', label: 'ROA', tooltip: 'roa', group: 'quality',
-    getValue: (h) => h.fundamentals?.roa ?? null,
-    format: fmtPct,
-    getStatus: roaStatus,
-  },
-  {
-    key: 'op_margin', label: 'Op. Margin', tooltip: 'operating_margin', group: 'quality',
-    getValue: (h) => h.fundamentals?.operating_margin ?? null,
-    format: fmtPct,
-    getStatus: marginStatus,
-  },
-  {
-    key: 'pr_margin', label: 'Net Margin', tooltip: 'profit_margin', group: 'quality',
-    getValue: (h) => h.fundamentals?.profit_margin ?? null,
-    format: fmtPct,
-    getStatus: marginStatus,
-  },
-  // Growth
-  {
-    key: 'rev_growth', label: 'Rev. Growth', tooltip: 'revenue_growth', group: 'growth',
-    getValue: (h) => h.fundamentals?.revenue_growth ?? null,
-    format: fmtPct,
-    getStatus: growthStatus,
-  },
-  {
-    key: 'ear_growth', label: 'EPS Growth', tooltip: 'earnings_growth', group: 'growth',
-    getValue: (h) => h.fundamentals?.earnings_growth ?? null,
-    format: fmtPct,
-    getStatus: growthStatus,
-  },
-  // Income
-  {
-    key: 'div_yield', label: 'Div. Yield', tooltip: 'dividend_yield', group: 'income',
-    getValue: (h) => h.fundamentals?.dividend_yield ?? null,
-    format: fmtPct,
-    getStatus: divYieldStatus,
-  },
-  // Leverage
-  {
-    key: 'dte', label: 'D/E', tooltip: 'debt_to_equity', group: 'leverage',
-    getValue: (h) => h.fundamentals?.debt_to_equity ?? null,
-    format: fmtRatio,
-    getStatus: dteStatus,
-  },
-  {
-    key: 'market_cap', label: 'Mkt Cap', tooltip: 'market_cap', group: 'leverage',
-    getValue: (h) => h.fundamentals?.market_cap ?? null,
-    format: fmtMarketCap,
-    getStatus: NA,
-  },
-]
+/**
+ * Build column definitions bound to the given threshold constants.
+ * Called inside the component so that backend-provided thresholds are used
+ * for all traffic-light coloring rather than compile-time defaults.
+ */
+function buildColumns(t: FundamentalsThresholds): ColDef[] {
+  return [
+    // Identity
+    {
+      key: 'weight', label: 'Weight', tooltip: 'portfolio_weight', group: 'identity',
+      getValue: (h) => h.weight ?? null,
+      format: (v) => v !== null ? v.toFixed(1) + '%' : '—',
+      getStatus: NA,
+    },
+    // Valuation
+    {
+      key: 'pe', label: 'P/E', tooltip: 'pe_ratio', group: 'valuation',
+      getValue: (h) => h.fundamentals?.pe_ratio ?? null,
+      format: fmtX,
+      getStatus: (v) => peStatus(v, t),
+    },
+    {
+      key: 'fwd_pe', label: 'Fwd P/E', tooltip: 'forward_pe', group: 'valuation',
+      getValue: (h) => h.fundamentals?.forward_pe ?? null,
+      format: fmtX,
+      getStatus: (v) => peStatus(v, t),
+    },
+    {
+      key: 'pb', label: 'P/B', tooltip: 'pb_ratio', group: 'valuation',
+      getValue: (h) => h.fundamentals?.pb_ratio ?? null,
+      format: fmtX,
+      getStatus: (v) => pbStatus(v, t),
+    },
+    {
+      key: 'ev_ebitda', label: 'EV/EBITDA', tooltip: 'ev_ebitda', group: 'valuation',
+      getValue: (h) => h.fundamentals?.ev_ebitda ?? null,
+      format: fmtX,
+      getStatus: NA,
+    },
+    {
+      key: 'peg', label: 'PEG', tooltip: 'peg_ratio', group: 'valuation',
+      getValue: (h) => h.fundamentals?.peg_ratio ?? null,
+      format: fmtRatio,
+      getStatus: (v) => pegStatus(v, t),
+    },
+    // Quality
+    {
+      key: 'roe', label: 'ROE', tooltip: 'roe', group: 'quality',
+      getValue: (h) => h.fundamentals?.roe ?? null,
+      format: fmtPct,
+      getStatus: (v) => roeStatus(v, t),
+    },
+    {
+      key: 'roa', label: 'ROA', tooltip: 'roa', group: 'quality',
+      getValue: (h) => h.fundamentals?.roa ?? null,
+      format: fmtPct,
+      getStatus: (v) => roaStatus(v, t),
+    },
+    {
+      key: 'op_margin', label: 'Op. Margin', tooltip: 'operating_margin', group: 'quality',
+      getValue: (h) => h.fundamentals?.operating_margin ?? null,
+      format: fmtPct,
+      getStatus: (v) => marginStatus(v, t),
+    },
+    {
+      key: 'pr_margin', label: 'Net Margin', tooltip: 'profit_margin', group: 'quality',
+      getValue: (h) => h.fundamentals?.profit_margin ?? null,
+      format: fmtPct,
+      getStatus: (v) => marginStatus(v, t),
+    },
+    // Growth
+    {
+      key: 'rev_growth', label: 'Rev. Growth', tooltip: 'revenue_growth', group: 'growth',
+      getValue: (h) => h.fundamentals?.revenue_growth ?? null,
+      format: fmtPct,
+      getStatus: (v) => growthStatus(v, t),
+    },
+    {
+      key: 'ear_growth', label: 'EPS Growth', tooltip: 'earnings_growth', group: 'growth',
+      getValue: (h) => h.fundamentals?.earnings_growth ?? null,
+      format: fmtPct,
+      getStatus: (v) => growthStatus(v, t),
+    },
+    // Income
+    {
+      key: 'div_yield', label: 'Div. Yield', tooltip: 'dividend_yield', group: 'income',
+      getValue: (h) => h.fundamentals?.dividend_yield ?? null,
+      format: fmtPct,
+      getStatus: (v) => divYieldStatus(v, t),
+    },
+    // Leverage
+    {
+      key: 'dte', label: 'D/E', tooltip: 'debt_to_equity', group: 'leverage',
+      getValue: (h) => h.fundamentals?.debt_to_equity ?? null,
+      format: fmtRatio,
+      getStatus: (v) => dteStatus(v, t),
+    },
+    {
+      key: 'market_cap', label: 'Mkt Cap', tooltip: 'market_cap', group: 'leverage',
+      getValue: (h) => h.fundamentals?.market_cap ?? null,
+      format: fmtMarketCap,
+      getStatus: NA,
+    },
+  ]
+}
 
 const GROUP_HEADERS: { key: string; label: string; cols: SortKey[] }[] = [
   { key: 'identity',  label: '',          cols: ['weight']                           },
@@ -170,8 +178,10 @@ const GROUP_TEXT: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  holdings: HoldingWithFundamentals[]
-  loading?: boolean
+  holdings:    HoldingWithFundamentals[]
+  loading?:    boolean
+  /** Backend-provided threshold constants. Falls back to DEFAULT_THRESHOLDS if not provided. */
+  thresholds?: FundamentalsThresholds | null
 }
 
 // ─── Staleness helpers ────────────────────────────────────────────────────────
@@ -189,9 +199,13 @@ const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
   unavailable: { label: 'Unavailable', cls: 'bg-red-50 text-red-500 border-red-100'         },
 }
 
-export function FundamentalsTable({ holdings, loading = false }: Props) {
+export function FundamentalsTable({ holdings, loading = false, thresholds }: Props) {
   const [sortKey, setSortKey]   = useState<SortKey>('weight')
   const [sortAsc, setSortAsc]   = useState(false)
+
+  // Build threshold-aware columns. Uses backend thresholds when available,
+  // falls back to compile-time defaults so the table renders during loading.
+  const COLUMNS = buildColumns(thresholds ?? DEFAULT_THRESHOLDS)
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {

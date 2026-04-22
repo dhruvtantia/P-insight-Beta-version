@@ -3,18 +3,27 @@ Analytics API Endpoints
 -------------------------
 Risk metrics, financial ratios, and portfolio insights.
 
-/analytics/ratios  — per-holding fundamentals + portfolio-weighted metrics + trust metadata
+/analytics/ratios  — per-holding fundamentals + weighted metrics + thresholds + trust metadata
 /analytics/risk    — scaffold (quant analytics live on /quant/full)
 /analytics/commentary — rule-based portfolio insights
+
+Weighted metrics and threshold constants are owned by:
+  app/services/fundamentals_view_service.py
+
+The /analytics/ratios response ships `thresholds` so the frontend never
+hardcodes threshold values — it reads them from the API response.
 """
 
-import math
 import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from app.core.dependencies import DbSession, DataProvider
 from app.services.portfolio_service import PortfolioService
+from app.services.fundamentals_view_service import (
+    compute_weighted_metrics,
+    build_thresholds,
+)
 from app.analytics.commentary import generate_commentary
 from app.schemas.portfolio import (
     RiskMetrics,
@@ -27,95 +36,6 @@ from app.schemas.portfolio import (
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 logger = logging.getLogger(__name__)
-
-
-# ─── Weighted metrics helper ──────────────────────────────────────────────────
-
-def _compute_weighted_metrics(
-    ratios: list[FinancialRatioResponse],
-    weights: dict[str, float],
-) -> WeightedFundamentals:
-    """
-    Compute portfolio-weighted average fundamentals.
-
-    Weighting strategy:
-      - weight_i = market_value_i / total_portfolio_value
-      - If a holding has null for a metric, it is excluded from that metric's average
-      - Weights are re-normalised among non-null contributors so nulls don't bias toward zero
-      - coverage[key] = count of holdings that contributed a non-null value
-
-    Mirrors the algorithm in frontend/src/lib/fundamentals.ts → computeWeightedMetrics().
-    Bank holdings naturally have null ev_ebitda / operating_margin / debt_to_equity —
-    this is correct, not missing data.
-    """
-
-    def wtd_avg(metric_name: str) -> tuple[float | None, int]:
-        weighted_sum = 0.0
-        weight_sum = 0.0
-        count = 0
-        for r in ratios:
-            val = getattr(r, metric_name, None)
-            if val is None:
-                continue
-            try:
-                fval = float(val)
-            except (TypeError, ValueError):
-                continue
-            if not math.isfinite(fval):
-                continue
-            w = weights.get(r.ticker, 0.0)
-            weighted_sum += w * fval
-            weight_sum += w
-            count += 1
-        if count == 0 or weight_sum == 0:
-            return None, 0
-        # Re-normalise: divide by weight_sum (sum of weights of non-null holders only)
-        return round(weighted_sum / weight_sum, 4), count
-
-    pe,         pe_n         = wtd_avg("pe_ratio")
-    fwd_pe,     fwd_pe_n     = wtd_avg("forward_pe")
-    pb,         pb_n         = wtd_avg("pb_ratio")
-    ev_ebitda,  ev_ebitda_n  = wtd_avg("ev_ebitda")
-    peg,        peg_n        = wtd_avg("peg_ratio")
-    div_yield,  div_yield_n  = wtd_avg("dividend_yield")
-    roe,        roe_n        = wtd_avg("roe")
-    roa,        roa_n        = wtd_avg("roa")
-    op_margin,  op_margin_n  = wtd_avg("operating_margin")
-    pr_margin,  pr_margin_n  = wtd_avg("profit_margin")
-    rev_growth, rev_growth_n = wtd_avg("revenue_growth")
-    ear_growth, ear_growth_n = wtd_avg("earnings_growth")
-    dte,        dte_n        = wtd_avg("debt_to_equity")
-
-    return WeightedFundamentals(
-        wtd_pe=pe,
-        wtd_forward_pe=fwd_pe,
-        wtd_pb=pb,
-        wtd_ev_ebitda=ev_ebitda,
-        wtd_peg=peg,
-        wtd_div_yield=div_yield,
-        wtd_roe=roe,
-        wtd_roa=roa,
-        wtd_operating_margin=op_margin,
-        wtd_profit_margin=pr_margin,
-        wtd_revenue_growth=rev_growth,
-        wtd_earnings_growth=ear_growth,
-        wtd_debt_to_equity=dte,
-        coverage={
-            "pe":               pe_n,
-            "forward_pe":       fwd_pe_n,
-            "pb":               pb_n,
-            "ev_ebitda":        ev_ebitda_n,
-            "peg":              peg_n,
-            "div_yield":        div_yield_n,
-            "roe":              roe_n,
-            "roa":              roa_n,
-            "operating_margin": op_margin_n,
-            "profit_margin":    pr_margin_n,
-            "revenue_growth":   rev_growth_n,
-            "earnings_growth":  ear_growth_n,
-            "debt_to_equity":   dte_n,
-        },
-    )
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
@@ -199,6 +119,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
                 total_holdings=0,
                 available_holdings=0,
             ),
+            thresholds=build_thresholds(),
         )
 
     # ── Compute holding weights (needed for weighted metric calculation) ───────
@@ -242,8 +163,8 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
             **extra,
         ))
 
-    # ── Compute weighted portfolio metrics ────────────────────────────────────
-    weighted = _compute_weighted_metrics(ratio_list, weights)
+    # ── Compute weighted portfolio metrics (owned by fundamentals_view_service) ─
+    weighted = compute_weighted_metrics(ratio_list, weights)
 
     # ── Build trust metadata ──────────────────────────────────────────────────
     available_count = len(holdings) - len(unavailable_tickers)
@@ -261,6 +182,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
         holdings=ratio_list,
         weighted=weighted,
         meta=meta,
+        thresholds=build_thresholds(),
     )
 
 

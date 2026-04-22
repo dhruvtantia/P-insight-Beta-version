@@ -11,7 +11,7 @@ Benefits of separation:
 """
 
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 
@@ -131,21 +131,117 @@ class SectorAllocation(BaseModel):
     num_holdings: int
 
 
+# ─── Risk Snapshot (concentration + diversification) ─────────────────────────
+
+RiskProfile = Literal[
+    "highly_concentrated",  # max holding ≥ 40% OR HHI ≥ 0.30
+    "sector_concentrated",  # max sector ≥ 60%
+    "aggressive",           # top-3 ≥ 60% OR ≤ 2 sectors
+    "conservative",         # ≥ 5 sectors AND HHI ≤ 0.12
+    "moderate",             # default
+]
+
+
+class TopHoldingWeight(BaseModel):
+    ticker: str
+    name:   str
+    weight: float   # %
+    sector: str
+
+
+class RiskSnapshot(BaseModel):
+    """
+    Concentration + diversification metrics derived from holdings and sectors.
+    Computed server-side in portfolio_service.get_full() — eliminates the need
+    for client-side computeRiskSnapshot() calls.
+
+    Mirrors the RiskSnapshot interface in frontend/src/types/index.ts exactly
+    so the frontend can consume this without any transformation.
+    """
+    # Concentration
+    max_holding_weight:        float
+    top3_weight:               float
+    top5_weight:               float
+    max_sector_weight:         float
+    max_sector_name:           str
+
+    # Breadth
+    num_holdings: int
+    num_sectors:  int
+
+    # Diversification
+    hhi:                  float   # Herfindahl–Hirschman Index (0–1, lower = more diversified)
+    effective_n:          float   # 1/HHI — equivalent equal-weight positions
+    diversification_score: int    # 0–100 composite score
+
+    # Risk profile
+    risk_profile:        RiskProfile
+    risk_profile_reason: str
+
+    # Flags
+    single_stock_flag:          bool   # any holding ≥ 30%
+    sector_concentration_flag:  bool   # any sector ≥ 50%
+
+    # Top holdings for ConcentrationBreakdown chart
+    top_holdings_by_weight: list[TopHoldingWeight]
+
+
+# ─── Fundamentals Summary (lightweight — availability only, no API calls) ─────
+
+class FundamentalsSummary(BaseModel):
+    """
+    Lightweight fundamentals availability metadata for the portfolio bundle.
+    Derived from the holdings' fundamentals_status DB field — no live API call.
+    Tells the UI whether fundamentals data exists and how complete it is.
+    Full weighted metrics remain on GET /analytics/ratios.
+    """
+    available:          bool           = False
+    total_holdings:     int            = 0
+    holdings_with_data: int            = 0
+    coverage_pct:       Optional[float] = None   # % of holdings with fetched fundamentals
+
+
+# ─── Portfolio Bundle Metadata ────────────────────────────────────────────────
+
+class PortfolioBundleMeta(BaseModel):
+    """
+    Provenance and freshness metadata for a /portfolio/full response.
+    Gives the frontend a single authoritative source for portfolio identity
+    rather than stitching it together from multiple store slices.
+    """
+    mode:               str
+    portfolio_id:       Optional[int] = None
+    portfolio_name:     Optional[str] = None
+    as_of:              str           # ISO-8601 UTC datetime of response
+    enrichment_complete: bool         = False   # False while background enrichment is running
+    partial_data:       bool          = False   # True when any holding has no current_price
+
+
+# ─── Portfolio Full Response ──────────────────────────────────────────────────
+
 class PortfolioFullResponse(BaseModel):
     """
-    Bundled portfolio intelligence — one round trip instead of three.
+    Canonical portfolio intelligence bundle — one round trip, zero client-side math.
 
     Replaces:
       GET /portfolio/         → holdings[]
       GET /portfolio/summary  → PortfolioSummary
       GET /portfolio/sectors  → SectorAllocation[]
 
-    Holdings include pre-computed market_value, pnl, pnl_pct, weight so
-    the frontend does not need to recompute them from raw prices.
+    Added in Portfolio Aggregation Isolation:
+      risk_snapshot        — concentration + diversification (was computed client-side)
+      fundamentals_summary — lightweight availability metadata (no API call)
+      meta                 — provenance: mode, portfolio_id, portfolio_name, as_of
+
+    Holdings include pre-computed market_value, pnl, pnl_pct, weight.
+    RiskSnapshot mirrors frontend/src/types/index.ts#RiskSnapshot exactly.
     """
-    holdings: list[HoldingEnriched]
-    summary:  PortfolioSummary
-    sectors:  list[SectorAllocation]
+    holdings:             list[HoldingEnriched]
+    summary:              PortfolioSummary
+    sectors:              list[SectorAllocation]
+    risk_snapshot:        Optional[RiskSnapshot]      = None   # null when portfolio is empty
+    fundamentals_summary: FundamentalsSummary         = Field(default_factory=FundamentalsSummary)
+    meta:                 Optional[PortfolioBundleMeta] = None
 
 
 class RiskMetrics(BaseModel):
@@ -257,17 +353,86 @@ class FundamentalsMeta(BaseModel):
     coverage_pct:        Optional[float] = None   # % of holdings with fundamentals data
 
 
+class FundamentalsThresholds(BaseModel):
+    """
+    Backend-owned threshold constants shipped to the frontend in every
+    /analytics/ratios response. The frontend reads these and uses them for
+    traffic-light coloring and insight rules — it never hardcodes them.
+
+    Single source of truth: app/services/fundamentals_view_service.py
+    If a threshold changes there, it propagates here automatically on next request.
+    """
+    # P/E ratio
+    pe_cheap:        float   # below        → good (Cheap)
+    pe_fair_max:     float   # cheap..this  → neutral (Fair)
+    pe_elevated_max: float   # fair_max..this → warning (Elevated); above → danger
+
+    # PEG ratio
+    peg_undervalued: float
+    peg_fair_max:    float
+    peg_premium_max: float
+
+    # P/B ratio
+    pb_below_book:  float
+    pb_fair_max:    float
+    pb_premium_max: float
+
+    # ROE (%)
+    roe_excellent: float
+    roe_good:      float
+    roe_moderate:  float    # below → danger (Weak)
+
+    # ROA (%)
+    roa_excellent: float
+    roa_good:      float
+    roa_moderate:  float
+
+    # Margin — operating & net (%)
+    margin_strong:   float
+    margin_moderate: float
+    margin_thin:     float   # below → danger (Very Thin)
+
+    # Growth — revenue & earnings (%)
+    growth_high:    float
+    growth_healthy: float
+    growth_slow:    float    # below → danger (Declining)
+
+    # D/E ratio
+    dte_conservative: float
+    dte_moderate:     float
+    dte_leveraged:    float  # above → danger (High Debt)
+
+    # Dividend yield (%)
+    div_yield_high:     float
+    div_yield_moderate: float
+
+    # Portfolio-level insight thresholds (used in insight engine rules)
+    insight_pe_expensive:    float
+    insight_pe_cheap:        float
+    insight_peg_expensive:   float
+    insight_roe_strong:      float
+    insight_roe_weak:        float
+    insight_margin_thin:     float
+    insight_div_yield_solid: float
+    insight_div_yield_low:   float
+
+
 class FinancialRatiosResponse(BaseModel):
     """
     Bundled fundamentals response — per-holding ratios + weighted portfolio metrics
-    + trust metadata.  Replaces the previous list[FinancialRatioResponse] return type.
+    + trust metadata + backend-owned thresholds.
 
     Holdings with unavailable fundamentals are included with source='unavailable'
     and an error field rather than being silently dropped.
+
+    `thresholds` ships the canonical threshold constants from
+    fundamentals_view_service.py to the frontend. The frontend uses these
+    for traffic-light coloring and insight rules and never hardcodes them.
     """
-    holdings: list[FinancialRatioResponse]
-    weighted: WeightedFundamentals
-    meta:     FundamentalsMeta
+    holdings:   list[FinancialRatioResponse]
+    weighted:   WeightedFundamentals
+    meta:       FundamentalsMeta
+    thresholds: FundamentalsThresholds
 
 
 # ─── Upload Schemas ───────────────────────────────────────────────────────────

@@ -14,9 +14,10 @@ import {
   marginStatus, growthStatus, dteStatus, divYieldStatus,
   fmtX, fmtRatio, fmtPct, fmtMarketCap,
   STATUS_DOT, STATUS_TEXT,
+  DEFAULT_THRESHOLDS,
   type MetricStatus,
 } from '@/lib/fundamentals'
-import type { WeightedFundamentals } from '@/types'
+import type { WeightedFundamentals, FundamentalsThresholds } from '@/types'
 import { cn } from '@/lib/utils'
 
 // ─── Section + metric definitions ────────────────────────────────────────────
@@ -36,7 +37,11 @@ interface SectionDef {
   metrics: MetricDef[]
 }
 
-function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionDef[] {
+function buildSections(
+  w: WeightedFundamentals,
+  totalHoldings: number,
+  t: FundamentalsThresholds,
+): SectionDef[] {
   const c = w.coverage
   const n = totalHoldings
 
@@ -48,19 +53,19 @@ function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionD
         {
           label: 'Wtd. P/E',         tooltip: 'wtd_pe',
           value: w.wtd_pe,           format: fmtX,
-          status: peStatus(w.wtd_pe),
+          status: peStatus(w.wtd_pe, t),
           coverage: c.pe,
         },
         {
           label: 'Wtd. Fwd P/E',     tooltip: 'forward_pe',
           value: w.wtd_forward_pe,   format: fmtX,
-          status: peStatus(w.wtd_forward_pe),
+          status: peStatus(w.wtd_forward_pe, t),
           coverage: c.forward_pe,
         },
         {
           label: 'Wtd. P/B',         tooltip: 'pb_ratio',
           value: w.wtd_pb,           format: fmtX,
-          status: pbStatus(w.wtd_pb),
+          status: pbStatus(w.wtd_pb, t),
           coverage: c.pb,
         },
         {
@@ -72,7 +77,7 @@ function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionD
         {
           label: 'Wtd. PEG',         tooltip: 'peg_ratio',
           value: w.wtd_peg,          format: fmtRatio,
-          status: pegStatus(w.wtd_peg),
+          status: pegStatus(w.wtd_peg, t),
           coverage: c.peg,
         },
       ],
@@ -84,25 +89,25 @@ function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionD
         {
           label: 'Wtd. ROE',             tooltip: 'wtd_roe',
           value: w.wtd_roe,              format: fmtPct,
-          status: roeStatus(w.wtd_roe),
+          status: roeStatus(w.wtd_roe, t),
           coverage: c.roe,
         },
         {
           label: 'Wtd. ROA',             tooltip: 'roa',
           value: w.wtd_roa,              format: fmtPct,
-          status: roaStatus(w.wtd_roa),
+          status: roaStatus(w.wtd_roa, t),
           coverage: c.roa,
         },
         {
           label: 'Wtd. Op. Margin',      tooltip: 'wtd_operating_margin',
           value: w.wtd_operating_margin, format: fmtPct,
-          status: marginStatus(w.wtd_operating_margin),
+          status: marginStatus(w.wtd_operating_margin, t),
           coverage: c.operating_margin,
         },
         {
           label: 'Wtd. Net Margin',      tooltip: 'profit_margin',
           value: w.wtd_profit_margin,    format: fmtPct,
-          status: marginStatus(w.wtd_profit_margin),
+          status: marginStatus(w.wtd_profit_margin, t),
           coverage: c.profit_margin,
         },
       ],
@@ -114,13 +119,13 @@ function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionD
         {
           label: 'Wtd. Rev. Growth',    tooltip: 'revenue_growth',
           value: w.wtd_revenue_growth,  format: fmtPct,
-          status: growthStatus(w.wtd_revenue_growth),
+          status: growthStatus(w.wtd_revenue_growth, t),
           coverage: c.revenue_growth,
         },
         {
           label: 'Wtd. EPS Growth',     tooltip: 'earnings_growth',
           value: w.wtd_earnings_growth, format: fmtPct,
-          status: growthStatus(w.wtd_earnings_growth),
+          status: growthStatus(w.wtd_earnings_growth, t),
           coverage: c.earnings_growth,
         },
       ],
@@ -132,13 +137,13 @@ function buildSections(w: WeightedFundamentals, totalHoldings: number): SectionD
         {
           label: 'Wtd. Div. Yield',   tooltip: 'wtd_div_yield',
           value: w.wtd_div_yield,     format: fmtPct,
-          status: divYieldStatus(w.wtd_div_yield),
+          status: divYieldStatus(w.wtd_div_yield, t),
           coverage: c.div_yield,
         },
         {
           label: 'Wtd. D/E Ratio',    tooltip: 'debt_to_equity',
           value: w.wtd_debt_to_equity, format: fmtRatio,
-          status: dteStatus(w.wtd_debt_to_equity),
+          status: dteStatus(w.wtd_debt_to_equity, t),
           coverage: c.debt_to_equity,
         },
       ],
@@ -152,12 +157,15 @@ interface Props {
   weightedMetrics: WeightedFundamentals | null
   totalHoldings:   number
   loading?:        boolean
+  /** Backend-provided threshold constants. Falls back to DEFAULT_THRESHOLDS if not provided. */
+  thresholds?:     FundamentalsThresholds | null
 }
 
 export function PortfolioWeightedMetricsCard({
   weightedMetrics,
   totalHoldings,
   loading = false,
+  thresholds,
 }: Props) {
   if (loading) {
     return (
@@ -177,7 +185,7 @@ export function PortfolioWeightedMetricsCard({
 
   if (!weightedMetrics) return null
 
-  const sections = buildSections(weightedMetrics, totalHoldings)
+  const sections = buildSections(weightedMetrics, totalHoldings, thresholds ?? DEFAULT_THRESHOLDS)
 
   return (
     <div className="card overflow-hidden">

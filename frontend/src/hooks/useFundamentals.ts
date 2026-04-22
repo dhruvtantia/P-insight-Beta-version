@@ -31,6 +31,7 @@ import type {
   WeightedFundamentals,
   HoldingWithFundamentals,
   FundamentalsMeta,
+  FundamentalsThresholds,
 } from '@/types'
 import { mergeWithFundamentals } from '@/lib/fundamentals'
 import { analyticsApi } from '@/services/api'
@@ -42,6 +43,12 @@ export interface UseFundamentalsResult {
   ratios:            FinancialRatio[]
   /** Trust / freshness metadata. Null until the first fetch completes. */
   meta:              FundamentalsMeta | null
+  /**
+   * Backend-owned threshold constants. Null until the first fetch completes.
+   * Use these for traffic-light coloring and insight rules — never hardcode thresholds.
+   * Canonical source: backend/app/services/fundamentals_view_service.py
+   */
+  thresholds:        FundamentalsThresholds | null
   loading:           boolean
   error:             string | null
   refetch:           () => void
@@ -53,6 +60,7 @@ export function useFundamentals(holdings: Holding[]): UseFundamentalsResult {
   const [ratios,          setRatios]          = useState<FinancialRatio[]>([])
   const [weightedMetrics, setWeightedMetrics] = useState<WeightedFundamentals | null>(null)
   const [meta,            setMeta]            = useState<FundamentalsMeta | null>(null)
+  const [thresholds,      setThresholds]      = useState<FundamentalsThresholds | null>(null)
   const [loading,         setLoading]         = useState(true)
   const [error,           setError]           = useState<string | null>(null)
 
@@ -61,16 +69,18 @@ export function useFundamentals(holdings: Holding[]): UseFundamentalsResult {
     setError(null)
     try {
       // Single call — backend returns per-holding ratios, weighted portfolio metrics,
-      // and trust metadata in one bundled response.
+      // trust metadata, and threshold constants in one bundled response.
       const data = await analyticsApi.getFinancialRatios(mode)
       setRatios(data.holdings)
       setWeightedMetrics(data.weighted)
       setMeta(data.meta)
+      setThresholds(data.thresholds)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load fundamentals')
       setRatios([])
       setWeightedMetrics(null)
       setMeta(null)
+      setThresholds(null)
     } finally {
       setLoading(false)
     }
@@ -91,6 +101,7 @@ export function useFundamentals(holdings: Holding[]): UseFundamentalsResult {
     weightedMetrics,
     ratios,
     meta,
+    thresholds,
     loading,
     error,
     refetch: fetchRatios,

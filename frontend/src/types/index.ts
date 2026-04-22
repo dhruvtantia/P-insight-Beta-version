@@ -289,15 +289,80 @@ export interface FundamentalsMeta {
 }
 
 /**
+ * Backend-owned threshold constants shipped in every /analytics/ratios response.
+ * The frontend reads these for traffic-light coloring and insight rules.
+ * It never hardcodes them — canonical source of truth is:
+ *   backend/app/services/fundamentals_view_service.py
+ */
+export interface FundamentalsThresholds {
+  // P/E ratio
+  pe_cheap:        number   // below        → good (Cheap)
+  pe_fair_max:     number   // cheap..this  → neutral (Fair)
+  pe_elevated_max: number   // above fair_max → warning; above this → danger
+
+  // PEG ratio
+  peg_undervalued: number
+  peg_fair_max:    number
+  peg_premium_max: number
+
+  // P/B ratio
+  pb_below_book:  number
+  pb_fair_max:    number
+  pb_premium_max: number
+
+  // ROE (%)
+  roe_excellent: number
+  roe_good:      number
+  roe_moderate:  number   // below → danger (Weak)
+
+  // ROA (%)
+  roa_excellent: number
+  roa_good:      number
+  roa_moderate:  number
+
+  // Margin — operating & net (%)
+  margin_strong:   number
+  margin_moderate: number
+  margin_thin:     number  // below → danger (Very Thin)
+
+  // Growth — revenue & earnings (%)
+  growth_high:    number
+  growth_healthy: number
+  growth_slow:    number  // below → danger (Declining)
+
+  // D/E ratio
+  dte_conservative: number
+  dte_moderate:     number
+  dte_leveraged:    number // above → danger (High Debt)
+
+  // Dividend yield (%)
+  div_yield_high:     number
+  div_yield_moderate: number
+
+  // Portfolio-level insight thresholds (used by insight engine rules)
+  insight_pe_expensive:    number
+  insight_pe_cheap:        number
+  insight_peg_expensive:   number
+  insight_roe_strong:      number
+  insight_roe_weak:        number
+  insight_margin_thin:     number
+  insight_div_yield_solid: number
+  insight_div_yield_low:   number
+}
+
+/**
  * Bundled fundamentals response from GET /api/v1/analytics/ratios.
  * Replaces the previous FinancialRatio[] flat array.
  * Holdings with unavailable fundamentals are included with source='unavailable'
  * rather than being silently dropped.
+ * `thresholds` ships the backend-canonical threshold constants — frontend
+ * never hardcodes these values.
  */
 export interface FinancialRatiosResponse {
-  holdings: FinancialRatio[]
-  weighted: WeightedFundamentals
-  meta:     FundamentalsMeta
+  holdings:   FinancialRatio[]
+  weighted:   WeightedFundamentals
+  meta:       FundamentalsMeta
+  thresholds: FundamentalsThresholds
 }
 
 /**
@@ -341,14 +406,48 @@ export interface PortfolioInsight {
 }
 
 /**
+ * Lightweight fundamentals availability metadata included in /portfolio/full.
+ * Derived from DB-stored fundamentals_status flags — no live API call.
+ * Full weighted metrics are on GET /analytics/ratios.
+ */
+export interface FundamentalsSummary {
+  available:          boolean
+  total_holdings:     number
+  holdings_with_data: number
+  coverage_pct:       number | null
+}
+
+/**
+ * Provenance and freshness metadata included in /portfolio/full.
+ * Single authoritative source for portfolio identity — eliminates frontend
+ * store-stitching between usePortfolioStore and useDataModeStore.
+ */
+export interface PortfolioBundleMeta {
+  mode:                string
+  portfolio_id:        number | null
+  portfolio_name:      string | null
+  as_of:               string    // ISO-8601 UTC datetime
+  enrichment_complete: boolean
+  partial_data:        boolean
+}
+
+/**
  * Bundled portfolio response from GET /api/v1/portfolio/full.
  * Holdings include pre-computed market_value, pnl, pnl_pct, and weight —
  * no client-side financial math needed after receiving this response.
+ *
+ * Extended in Portfolio Aggregation Isolation:
+ *   risk_snapshot        — concentration metrics (was computed client-side in 2 pages)
+ *   fundamentals_summary — availability metadata for dashboard quick-status
+ *   meta                 — provenance, enrichment state, as_of timestamp
  */
 export interface PortfolioFullResponse {
-  holdings: Holding[]
-  summary:  PortfolioSummary
-  sectors:  SectorAllocation[]
+  holdings:              Holding[]
+  summary:               PortfolioSummary
+  sectors:               SectorAllocation[]
+  risk_snapshot?:        RiskSnapshot | null
+  fundamentals_summary?: FundamentalsSummary
+  meta?:                 PortfolioBundleMeta
 }
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────

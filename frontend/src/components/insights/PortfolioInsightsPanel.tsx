@@ -40,8 +40,8 @@ export function PortfolioInsightsPanel({ holdings, sectors, riskSnapshot, loadin
   const [expanded, setExpanded] = useState(false)
 
   // ── Data ────────────────────────────────────────────────────────────────────
-  const { weightedMetrics, loading: fundLoading } = useFundamentals(holdings)
-  const { items: watchlistItems }                 = useWatchlist()
+  const { weightedMetrics, thresholds, loading: fundLoading } = useFundamentals(holdings)
+  const { items: watchlistItems }                              = useWatchlist()
 
   // ── Compute insights ────────────────────────────────────────────────────────
   const allInsights = useMemo(() => {
@@ -53,9 +53,10 @@ export function PortfolioInsightsPanel({ holdings, sectors, riskSnapshot, loadin
         weightedMetrics,
         riskSnapshot,
         watchlistItems,
+        thresholds,   // backend-owned thresholds; insight rules use these, not hardcoded values
       })
     )
-  }, [holdings, sectors, weightedMetrics, riskSnapshot, watchlistItems])
+  }, [holdings, sectors, weightedMetrics, riskSnapshot, watchlistItems, thresholds])
 
   const isLoading     = loading || fundLoading
   const displayCount  = expanded ? allInsights.length : COLLAPSE_AFTER

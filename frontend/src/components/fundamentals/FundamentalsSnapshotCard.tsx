@@ -19,9 +19,10 @@ import {
   peStatus, roeStatus, marginStatus, divYieldStatus,
   fmtX, fmtPct,
   STATUS_TEXT, STATUS_DOT,
+  DEFAULT_THRESHOLDS,
   type MetricStatus,
 } from '@/lib/fundamentals'
-import type { WeightedFundamentals } from '@/types'
+import type { WeightedFundamentals, FundamentalsThresholds } from '@/types'
 import { cn } from '@/lib/utils'
 
 // ─── 4-metric config ──────────────────────────────────────────────────────────
@@ -34,27 +35,30 @@ interface SnapMetric {
   status:  { status: MetricStatus; label: string }
 }
 
-function buildSnapMetrics(w: WeightedFundamentals): SnapMetric[] {
+function buildSnapMetrics(
+  w: WeightedFundamentals,
+  t: FundamentalsThresholds,
+): SnapMetric[] {
   return [
     {
       label: 'Wtd. P/E',   tooltip: 'wtd_pe',
       value: w.wtd_pe,     format: fmtX,
-      status: peStatus(w.wtd_pe),
+      status: peStatus(w.wtd_pe, t),
     },
     {
       label: 'Div. Yield', tooltip: 'wtd_div_yield',
       value: w.wtd_div_yield, format: fmtPct,
-      status: divYieldStatus(w.wtd_div_yield),
+      status: divYieldStatus(w.wtd_div_yield, t),
     },
     {
       label: 'Wtd. ROE',   tooltip: 'wtd_roe',
       value: w.wtd_roe,    format: fmtPct,
-      status: roeStatus(w.wtd_roe),
+      status: roeStatus(w.wtd_roe, t),
     },
     {
       label: 'Op. Margin', tooltip: 'wtd_operating_margin',
       value: w.wtd_operating_margin, format: fmtPct,
-      status: marginStatus(w.wtd_operating_margin),
+      status: marginStatus(w.wtd_operating_margin, t),
     },
   ]
 }
@@ -64,9 +68,11 @@ function buildSnapMetrics(w: WeightedFundamentals): SnapMetric[] {
 interface Props {
   weightedMetrics: WeightedFundamentals | null
   loading?:        boolean
+  /** Backend-provided threshold constants. Falls back to DEFAULT_THRESHOLDS if not provided. */
+  thresholds?:     FundamentalsThresholds | null
 }
 
-export function FundamentalsSnapshotCard({ weightedMetrics, loading = false }: Props) {
+export function FundamentalsSnapshotCard({ weightedMetrics, loading = false, thresholds }: Props) {
   // Loading skeleton
   if (loading) {
     return (
@@ -89,7 +95,7 @@ export function FundamentalsSnapshotCard({ weightedMetrics, loading = false }: P
 
   if (!weightedMetrics) return null
 
-  const metrics = buildSnapMetrics(weightedMetrics)
+  const metrics = buildSnapMetrics(weightedMetrics, thresholds ?? DEFAULT_THRESHOLDS)
 
   return (
     <div className="card px-5 py-4">

@@ -26,7 +26,9 @@ import type {
   WeightedFundamentals,
   RiskSnapshot,
   WatchlistItem,
+  FundamentalsThresholds,
 } from '@/types'
+import { DEFAULT_THRESHOLDS } from '@/lib/fundamentals'
 
 // ─── Insight shape ────────────────────────────────────────────────────────────
 
@@ -61,6 +63,12 @@ export interface InsightEngineInput {
   weightedMetrics: WeightedFundamentals | null
   riskSnapshot:    RiskSnapshot | null
   watchlistItems:  WatchlistItem[]
+  /**
+   * Backend-owned threshold constants from /analytics/ratios.
+   * When provided, insight rules use these instead of compile-time defaults.
+   * Canonical source: backend/app/services/fundamentals_view_service.py
+   */
+  thresholds?:     FundamentalsThresholds | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -124,13 +132,16 @@ function concentrationRules(
   return items
 }
 
-function valuationRules(w: WeightedFundamentals | null): PortfolioInsightItem[] {
+function valuationRules(
+  w: WeightedFundamentals | null,
+  t: FundamentalsThresholds,
+): PortfolioInsightItem[] {
   const items: PortfolioInsightItem[] = []
   if (!w) return items
 
   // 4. P/E vs market benchmark (~20–22× for Nifty 50)
   if (w.wtd_pe !== null) {
-    if (w.wtd_pe > 30) {
+    if (w.wtd_pe > t.insight_pe_expensive) {
       items.push({
         id: 'valuation-pe-expensive',
         category: 'valuation',
@@ -140,7 +151,7 @@ function valuationRules(w: WeightedFundamentals | null): PortfolioInsightItem[] 
         metric: { value: fmtMul(w.wtd_pe), label: 'Wtd P/E' },
         action: { label: 'View fundamentals', href: '/fundamentals' },
       })
-    } else if (w.wtd_pe <= 18) {
+    } else if (w.wtd_pe <= t.insight_pe_cheap) {
       items.push({
         id: 'valuation-pe-cheap',
         category: 'valuation',
@@ -154,13 +165,13 @@ function valuationRules(w: WeightedFundamentals | null): PortfolioInsightItem[] 
   }
 
   // 5. PEG ratio signal
-  if (w.wtd_peg !== null && w.wtd_peg > 2) {
+  if (w.wtd_peg !== null && w.wtd_peg > t.insight_peg_expensive) {
     items.push({
       id: 'valuation-peg',
       category: 'valuation',
       severity: 'info',
       title: 'Growth Premium May Be Expensive',
-      message: `Weighted PEG of ${fmtMul(w.wtd_peg)} suggests the portfolio's growth is priced in. A PEG above 2× means you're paying more per unit of expected growth.`,
+      message: `Weighted PEG of ${fmtMul(w.wtd_peg)} suggests the portfolio's growth is priced in. A PEG above ${t.insight_peg_expensive}× means you're paying more per unit of expected growth.`,
       metric: { value: fmtMul(w.wtd_peg), label: 'Wtd PEG' },
     })
   }
@@ -168,35 +179,38 @@ function valuationRules(w: WeightedFundamentals | null): PortfolioInsightItem[] 
   return items
 }
 
-function qualityRules(w: WeightedFundamentals | null): PortfolioInsightItem[] {
+function qualityRules(
+  w: WeightedFundamentals | null,
+  t: FundamentalsThresholds,
+): PortfolioInsightItem[] {
   const items: PortfolioInsightItem[] = []
   if (!w) return items
 
   // 6. ROE signal
   if (w.wtd_roe !== null) {
-    if (w.wtd_roe >= 20) {
+    if (w.wtd_roe >= t.insight_roe_strong) {
       items.push({
         id: 'quality-roe-strong',
         category: 'quality',
         severity: 'positive',
         title: 'Strong Portfolio Return on Equity',
-        message: `Weighted-average ROE of ${fmtPct(w.wtd_roe)} indicates your holdings generate well above average returns on shareholders' capital. ROE > 20% is a hallmark of quality businesses.`,
+        message: `Weighted-average ROE of ${fmtPct(w.wtd_roe)} indicates your holdings generate well above average returns on shareholders' capital. ROE > ${t.insight_roe_strong}% is a hallmark of quality businesses.`,
         metric: { value: fmtPct(w.wtd_roe), label: 'Wtd ROE' },
       })
-    } else if (w.wtd_roe < 12) {
+    } else if (w.wtd_roe < t.insight_roe_weak) {
       items.push({
         id: 'quality-roe-weak',
         category: 'quality',
         severity: 'warning',
         title: 'Below-Average Return on Equity',
-        message: `Weighted ROE of ${fmtPct(w.wtd_roe)} is below the 15% threshold often used to identify quality businesses. Consider reviewing holdings for capital efficiency.`,
+        message: `Weighted ROE of ${fmtPct(w.wtd_roe)} is below the ${t.insight_roe_weak}% threshold often used to identify quality businesses. Consider reviewing holdings for capital efficiency.`,
         metric: { value: fmtPct(w.wtd_roe), label: 'Wtd ROE' },
       })
     }
   }
 
   // 7. Profit margin
-  if (w.wtd_profit_margin !== null && w.wtd_profit_margin < 10) {
+  if (w.wtd_profit_margin !== null && w.wtd_profit_margin < t.insight_margin_thin) {
     items.push({
       id: 'quality-margin',
       category: 'quality',
@@ -210,11 +224,14 @@ function qualityRules(w: WeightedFundamentals | null): PortfolioInsightItem[] {
   return items
 }
 
-function incomeRules(w: WeightedFundamentals | null): PortfolioInsightItem[] {
+function incomeRules(
+  w: WeightedFundamentals | null,
+  t: FundamentalsThresholds,
+): PortfolioInsightItem[] {
   const items: PortfolioInsightItem[] = []
   if (!w || w.wtd_div_yield === null) return items
 
-  if (w.wtd_div_yield >= 2) {
+  if (w.wtd_div_yield >= t.insight_div_yield_solid) {
     items.push({
       id: 'income-yield-good',
       category: 'income',
@@ -223,7 +240,7 @@ function incomeRules(w: WeightedFundamentals | null): PortfolioInsightItem[] {
       message: `Weighted dividend yield of ${fmtPct(w.wtd_div_yield)} provides meaningful income. This exceeds the Nifty 50's typical 1.3% yield and acts as a partial buffer during downturns.`,
       metric: { value: fmtPct(w.wtd_div_yield), label: 'Wtd Div Yield' },
     })
-  } else if (w.wtd_div_yield < 0.5) {
+  } else if (w.wtd_div_yield < t.insight_div_yield_low) {
     items.push({
       id: 'income-yield-low',
       category: 'income',
@@ -363,15 +380,17 @@ function watchlistRules(
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function computePortfolioInsights(input: InsightEngineInput): PortfolioInsightItem[] {
-  const { holdings, sectors, weightedMetrics, riskSnapshot, watchlistItems } = input
+  const { holdings, sectors, weightedMetrics, riskSnapshot, watchlistItems, thresholds } = input
+  // Use backend-provided thresholds when available; fall back to compile-time defaults.
+  const t = thresholds ?? DEFAULT_THRESHOLDS
 
   if (holdings.length === 0) return []
 
   return [
     ...concentrationRules(holdings, sectors, riskSnapshot),
-    ...valuationRules(weightedMetrics),
-    ...qualityRules(weightedMetrics),
-    ...incomeRules(weightedMetrics),
+    ...valuationRules(weightedMetrics, t),
+    ...qualityRules(weightedMetrics, t),
+    ...incomeRules(weightedMetrics, t),
     ...diversificationRules(sectors, riskSnapshot),
     ...performanceRules(holdings),
     ...watchlistRules(watchlistItems, holdings),

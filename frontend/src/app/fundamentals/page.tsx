@@ -33,6 +33,7 @@ export default function FundamentalsPage() {
     enrichedHoldings,
     weightedMetrics,
     meta,
+    thresholds,
     loading: fundLoading,
     error: fundError,
     refetch: refetchFundamentals,
@@ -113,12 +114,14 @@ export default function FundamentalsPage() {
             weightedMetrics={weightedMetrics}
             totalHoldings={holdings.length}
             loading={loading}
+            thresholds={thresholds}
           />
 
           {/* ── 2. Per-stock sortable table ──────────────────────────────────── */}
           <FundamentalsTable
             holdings={enrichedHoldings}
             loading={loading}
+            thresholds={thresholds}
           />
         </>
       )}
