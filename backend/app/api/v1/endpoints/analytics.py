@@ -134,6 +134,8 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
     # ── Fetch per-holding fundamentals ────────────────────────────────────────
     ratio_list:          list[FinancialRatioResponse] = []
     unavailable_tickers: list[str]                    = []
+    # Per-ticker exclusion reasons — mirrors quant meta's excluded_reason pattern
+    excluded_reason:     dict[str, str]               = {}
 
     for h in holdings:
         fundamentals = await provider.get_fundamentals(h.ticker)
@@ -145,10 +147,12 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
 
         if is_unavailable:
             unavailable_tickers.append(h.ticker)
+            reason = fundamentals.get("error") or "No fundamentals data returned"
+            excluded_reason[h.ticker] = reason
             logger.debug(
                 "Fundamentals unavailable for %s: %s",
                 h.ticker,
-                fundamentals.get("error", "no data returned"),
+                reason,
             )
 
         # Forward only the fields FinancialRatioResponse knows about.
@@ -188,6 +192,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
         coverage_pct=round(available_count / len(holdings) * 100, 1) if holdings else None,
         outliers_excluded_total=outliers_total,
         unknown_sectors_count=unknown_sectors,
+        excluded_reason=excluded_reason,
     )
 
     return FinancialRatiosResponse(

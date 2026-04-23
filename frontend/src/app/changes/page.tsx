@@ -85,9 +85,12 @@ function HistoryBuildBanner({
   buildStatus: string | null
   buildNote:   string | null
 }) {
-  if (!buildStatus || buildStatus === 'done' || buildStatus === 'unknown') return null
+  // Canonical endpoint emits: 'building' | 'complete' | 'failed' | 'not_started'.
+  // 'complete' and 'not_started' are terminal — no banner needed.
+  // null means the first fetch has not yet returned.
+  if (!buildStatus || buildStatus === 'complete' || buildStatus === 'not_started') return null
 
-  if (buildStatus === 'pending' || buildStatus === 'building') {
+  if (buildStatus === 'building') {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
         <Loader2 className="h-4 w-4 shrink-0 animate-spin text-indigo-400" />

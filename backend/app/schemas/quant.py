@@ -115,6 +115,10 @@ class QuantMeta(BaseModel):
     incomplete:          bool                      = False
     # True when ≥2 valid tickers exist so analytics are meaningful
     portfolio_usable:    bool                      = True
+    # Coverage — mirrors /analytics/ratios meta.coverage_pct pattern.
+    # % of portfolio holdings with sufficient price history for analytics.
+    # null when no holdings exist.
+    coverage_pct:        Optional[float]           = None
     # Ticker → human-readable exclusion reason for all excluded holdings
     excluded_reason:     dict[str, str]            = {}
     # ISO-8601 UTC timestamp of when this computation ran (or was retrieved from cache)

@@ -34,6 +34,7 @@ GET /portfolios/{id}/holdings/since-purchase
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -403,6 +404,9 @@ class CanonicalHistoryStatus(BaseModel):
     note:           Optional[str] = None
     is_building:    bool           # convenience flag
     has_data:       bool           # True when rows > 0
+    # ISO-8601 UTC timestamp of when this response was assembled.
+    # Aligned with as_of fields in /analytics/ratios, /quant/full, and /peers/{ticker}.
+    as_of:          Optional[str] = None
 
 
 class CanonicalHistoryDaily(BaseModel):
@@ -415,6 +419,8 @@ class CanonicalHistoryDaily(BaseModel):
     latest_date:   Optional[str] = None
     note:          Optional[str] = None
     build_status:  Optional[str] = None   # raw in-memory status string
+    # ISO-8601 UTC timestamp of when this response was assembled.
+    as_of:         Optional[str] = None
 
 
 @router.get(
@@ -478,6 +484,7 @@ async def get_canonical_history_status(
         note=bst.get("note"),
         is_building=resolved_status == "building",
         has_data=row_count > 0,
+        as_of=datetime.now(timezone.utc).isoformat(),
     )
 
 
@@ -554,6 +561,7 @@ async def get_canonical_history_daily(
         latest_date=points[-1].date if points else None,
         note=note,
         build_status=in_memory_status,
+        as_of=datetime.now(timezone.utc).isoformat(),
     )
 
 

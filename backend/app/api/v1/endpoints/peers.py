@@ -239,6 +239,13 @@ async def get_peers(ticker: str, provider: DataProvider):
     # sparse_set = the usable peer count is too low for a meaningful comparison
     sparse_set = peer_count_available < _SPARSE_THRESHOLD
 
+    # coverage_pct — % of requested peers that returned usable data.
+    # Mirrors /analytics/ratios and /quant/full meta.coverage_pct.
+    coverage_pct = (
+        round(peer_count_available / peer_count_requested * 100, 1)
+        if peer_count_requested > 0 else None
+    )
+
     meta = {
         "ticker":               upper,
         "peer_count_requested": peer_count_requested,
@@ -248,7 +255,11 @@ async def get_peers(ticker: str, provider: DataProvider):
         "incomplete":           incomplete,
         "sparse_set":           sparse_set,
         "source":               dominant_source,
+        # as_of — aligned with /analytics/ratios and /quant/full meta.as_of.
+        # fetched_at is kept for backward compatibility.
+        "as_of":                fetched_at,
         "fetched_at":           fetched_at,
+        "coverage_pct":         coverage_pct,
     }
 
     # ── 4. Server-side rankings (selected first, then peers in order) ─────────

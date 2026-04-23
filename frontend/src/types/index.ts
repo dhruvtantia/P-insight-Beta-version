@@ -286,6 +286,11 @@ export interface FundamentalsMeta {
   available_holdings:  number
   unavailable_tickers: string[]
   coverage_pct:        number | null    // % of holdings with fundamentals data
+  /**
+   * Per-ticker exclusion reasons — mirrors /quant/full meta.excluded_reason.
+   * Maps ticker → human-readable reason string for each unavailable holding.
+   */
+  excluded_reason:     Record<string, string>
 }
 
 /**
@@ -429,6 +434,20 @@ export interface PortfolioBundleMeta {
   as_of:               string    // ISO-8601 UTC datetime
   enrichment_complete: boolean
   partial_data:        boolean
+  /**
+   * Unified incomplete flag — aligned with /analytics/ratios, /quant/full,
+   * and /peers/{ticker} meta.incomplete.
+   * True when enrichment is still running OR any holding is missing a price.
+   */
+  incomplete:          boolean
+  /**
+   * Single discriminated lifecycle label — backend-authoritative.
+   * 'empty'     → no holdings; portfolio has no data yet.
+   * 'enriching' → holdings exist but background enrichment is still running.
+   * 'degraded'  → enrichment complete but some holdings are missing a price.
+   * 'ready'     → enrichment complete and all holdings have prices.
+   */
+  lifecycle_state:     'empty' | 'enriching' | 'degraded' | 'ready'
 }
 
 /**
@@ -542,8 +561,18 @@ export interface PeerComparisonMeta {
    */
   sparse_set:           boolean
   source:               string
-  /** ISO-8601 UTC timestamp of when this response was assembled. */
+  /**
+   * ISO-8601 UTC timestamp of when this response was assembled.
+   * Aligned with as_of fields in /analytics/ratios and /quant/full meta.
+   */
+  as_of:                string | null
+  /** @deprecated Use as_of — kept for backward compatibility. */
   fetched_at:           string | null
+  /**
+   * % of requested peers that returned usable fundamentals data.
+   * Mirrors /analytics/ratios and /quant/full meta.coverage_pct.
+   */
+  coverage_pct:         number | null
 }
 
 /**
@@ -758,6 +787,11 @@ export interface QuantMeta {
   portfolio_usable:    boolean
   /** Ticker → human-readable exclusion reason for all holdings excluded from analytics */
   excluded_reason:     Record<string, string>
+  /**
+   * % of portfolio holdings with sufficient price history for analytics.
+   * Mirrors /analytics/ratios meta.coverage_pct. null when no holdings exist.
+   */
+  coverage_pct:        number | null
   /** ISO-8601 UTC timestamp of when this computation ran */
   as_of:               string | null
   error?:              string | null

@@ -338,6 +338,11 @@ class QuantAnalyticsService:
                 "portfolio_usable":    portfolio_usable,
                 # Human-readable per-ticker exclusion reasons (not just "unavailable")
                 "excluded_reason":     failure_reasons,
+                # Coverage — % of portfolio holdings with sufficient price history.
+                # Mirrors /analytics/ratios meta.coverage_pct.
+                "coverage_pct":        round(
+                    len(valid_tickers) / len(holdings) * 100, 1
+                ) if holdings else None,
                 "as_of":               datetime.now(timezone.utc).isoformat(),
             },
         }
@@ -472,6 +477,10 @@ class QuantAnalyticsService:
                 "incomplete":          len(excluded_tickers) > 0,
                 "portfolio_usable":    False,
                 "excluded_reason":     failure_reasons,
+                # Coverage — % of tickers with usable price history.
+                "coverage_pct":        round(
+                    len(valid_tickers) / (len(valid_tickers) + len(invalid_tickers)) * 100, 1
+                ) if (valid_tickers or invalid_tickers) else None,
                 "as_of":               datetime.now(timezone.utc).isoformat(),
                 "error":               reason,
             },

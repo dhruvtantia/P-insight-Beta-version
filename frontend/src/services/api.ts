@@ -572,6 +572,8 @@ export interface HistoryStatusResponse {
   note:           string | null
   is_building:    boolean
   has_data:       boolean
+  /** ISO-8601 UTC timestamp of when this response was assembled. */
+  as_of:          string | null
 }
 
 // HistoryDailyResponse — new canonical shape from GET /history/{id}/daily
@@ -585,6 +587,8 @@ export interface HistoryDailyResponse {
   latest_date:    string | null
   note:           string | null
   build_status:   string | null
+  /** ISO-8601 UTC timestamp of when this response was assembled. */
+  as_of:          string | null
 }
 
 export const historyApi = {

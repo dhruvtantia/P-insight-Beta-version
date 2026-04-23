@@ -314,6 +314,20 @@ class PortfolioService:
             except Exception:
                 enrichment_complete = True  # safe default
 
+        # Derive cross-module aligned fields
+        # incomplete — mirrors /analytics/ratios, /quant/full, /peers/{ticker}
+        incomplete = not enrichment_complete or partial_data
+
+        # lifecycle_state — single discriminated label consumed directly by the frontend
+        if not enriched:
+            lifecycle_state = "empty"
+        elif not enrichment_complete:
+            lifecycle_state = "enriching"
+        elif partial_data:
+            lifecycle_state = "degraded"
+        else:
+            lifecycle_state = "ready"
+
         return PortfolioBundleMeta(
             mode=self.provider.mode_name,
             portfolio_id=portfolio_id,
@@ -321,6 +335,8 @@ class PortfolioService:
             as_of=as_of,
             enrichment_complete=enrichment_complete,
             partial_data=partial_data,
+            incomplete=incomplete,
+            lifecycle_state=lifecycle_state,
         )
 
     # ── Active portfolio resolution ────────────────────────────────────────────
@@ -384,6 +400,8 @@ class PortfolioService:
                     as_of=datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     enrichment_complete=True,
                     partial_data=False,
+                    incomplete=False,
+                    lifecycle_state="empty",
                 ),
             }
 

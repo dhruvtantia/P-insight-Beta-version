@@ -208,6 +208,19 @@ class PortfolioBundleMeta(BaseModel):
     Provenance and freshness metadata for a /portfolio/full response.
     Gives the frontend a single authoritative source for portfolio identity
     rather than stitching it together from multiple store slices.
+
+    Cross-module alignment notes
+    ----------------------------
+    incomplete     — mirrors the ``incomplete`` flag used by /analytics/ratios,
+                     /quant/full, and /peers/{ticker}.  True whenever the portfolio
+                     is not in a fully-usable state (enriching, degraded, or empty).
+    lifecycle_state — single discriminated label for the portfolio state.
+                     'empty'     → no holdings; nothing to analyse.
+                     'enriching' → holdings exist but background enrichment is still
+                                   running (fundamentals/sector data pending).
+                     'degraded'  → enrichment complete but some holdings are missing
+                                   a current price (partial_data is True).
+                     'ready'     → enrichment complete and all holdings have prices.
     """
     mode:               str
     portfolio_id:       Optional[int] = None
@@ -215,6 +228,11 @@ class PortfolioBundleMeta(BaseModel):
     as_of:              str           # ISO-8601 UTC datetime of response
     enrichment_complete: bool         = False   # False while background enrichment is running
     partial_data:       bool          = False   # True when any holding has no current_price
+    # ── Cross-module aligned fields ───────────────────────────────────────────
+    # ``incomplete`` matches the contract used by analytics/quant/peers modules.
+    incomplete:         bool          = False
+    # ``lifecycle_state`` is the single authoritative state label for this portfolio.
+    lifecycle_state:    str           = "ready"  # empty | enriching | degraded | ready
 
 
 # ─── Portfolio Full Response ──────────────────────────────────────────────────
@@ -362,6 +380,9 @@ class FundamentalsMeta(BaseModel):
     # due to sanity limits.  > 0 means some weighted averages are based on partial data.
     outliers_excluded_total: int         = 0
     unknown_sectors_count:   int         = 0      # holdings with sector = "Unknown"
+    # Per-ticker exclusion reasons — mirrors quant meta's excluded_reason pattern.
+    # Maps ticker → human-readable reason string for each unavailable holding.
+    excluded_reason:         dict[str, str] = Field(default_factory=dict)
 
 
 class FundamentalsThresholds(BaseModel):
