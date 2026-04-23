@@ -6,6 +6,13 @@
  * Layout: metrics as rows, stocks as columns (standard "comp table" format).
  * The selected stock occupies the first data column and is highlighted.
  *
+ * Rankings:
+ *   When the backend ships pre-computed rankings (via the `rankings` prop),
+ *   the component reads them directly. This is the canonical path — the
+ *   backend owns the ranking logic and ships it with the response.
+ *   The local `rankValues()` fallback is retained only for backward compat
+ *   with any response that predates the Peers Isolation phase.
+ *
  * Color coding (direction-aware):
  *   • For metrics where lower is better (P/E, P/B, EV/EBITDA, PEG, D/E):
  *       best value (lowest)  = green, worst = red
@@ -19,47 +26,46 @@
  * Tooltip: metric names show METRIC_TOOLTIPS on hover via title attribute.
  */
 
-import { useMemo }          from 'react'
-import { METRIC_TOOLTIPS }  from '@/constants'
-import { cn }               from '@/lib/utils'
-import type { PeerStock }   from '@/types'
+import { useMemo }                        from 'react'
+import { METRIC_TOOLTIPS }               from '@/constants'
+import { cn }                            from '@/lib/utils'
+import type { PeerStock, PeerRankings }  from '@/types'
 
 // ─── Metric definitions ────────────────────────────────────────────────────────
 
 type MetricKey = keyof PeerStock
 
 interface MetricDef {
-  key:     MetricKey
-  label:   string
-  group:   string
-  suffix:  string
+  key:           MetricKey
+  label:         string
+  group:         string
+  suffix:        string
   lowerIsBetter: boolean
-  fmt:     (v: number) => string
+  fmt:           (v: number) => string
 }
 
-const pct  = (v: number) => `${v.toFixed(1)}%`
-const mul  = (v: number) => `${v.toFixed(1)}×`
-const num  = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 1 })
+const pct = (v: number) => `${v.toFixed(1)}%`
+const mul = (v: number) => `${v.toFixed(1)}×`
 
 const METRICS: MetricDef[] = [
   // Valuation
-  { key: 'pe_ratio',        label: 'P/E (Trailing)',   group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
-  { key: 'forward_pe',      label: 'Forward P/E',      group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
-  { key: 'pb_ratio',        label: 'P/B',              group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
-  { key: 'ev_ebitda',       label: 'EV/EBITDA',        group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
-  { key: 'peg_ratio',       label: 'PEG',              group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'pe_ratio',         label: 'P/E (Trailing)',   group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'forward_pe',       label: 'Forward P/E',      group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'pb_ratio',         label: 'P/B',              group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'ev_ebitda',        label: 'EV/EBITDA',        group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'peg_ratio',        label: 'PEG',              group: 'Valuation', suffix: '×', lowerIsBetter: true,  fmt: mul },
   // Quality
-  { key: 'roe',             label: 'ROE',              group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
-  { key: 'roa',             label: 'ROA',              group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
-  { key: 'operating_margin',label: 'Operating Margin', group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
-  { key: 'profit_margin',   label: 'Profit Margin',    group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'roe',              label: 'ROE',              group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'roa',              label: 'ROA',              group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'operating_margin', label: 'Operating Margin', group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'profit_margin',    label: 'Profit Margin',    group: 'Quality',   suffix: '%', lowerIsBetter: false, fmt: pct },
   // Growth
-  { key: 'revenue_growth',  label: 'Revenue Growth',   group: 'Growth',    suffix: '%', lowerIsBetter: false, fmt: pct },
-  { key: 'earnings_growth', label: 'Earnings Growth',  group: 'Growth',    suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'revenue_growth',   label: 'Revenue Growth',   group: 'Growth',    suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'earnings_growth',  label: 'Earnings Growth',  group: 'Growth',    suffix: '%', lowerIsBetter: false, fmt: pct },
   // Income
-  { key: 'dividend_yield',  label: 'Dividend Yield',   group: 'Income',    suffix: '%', lowerIsBetter: false, fmt: pct },
+  { key: 'dividend_yield',   label: 'Dividend Yield',   group: 'Income',    suffix: '%', lowerIsBetter: false, fmt: pct },
   // Leverage
-  { key: 'debt_to_equity',  label: 'Debt / Equity',    group: 'Leverage',  suffix: '×', lowerIsBetter: true,  fmt: mul },
+  { key: 'debt_to_equity',   label: 'Debt / Equity',    group: 'Leverage',  suffix: '×', lowerIsBetter: true,  fmt: mul },
 ]
 
 const GROUP_COLORS: Record<string, string> = {
@@ -78,7 +84,7 @@ const GROUP_BAR: Record<string, string> = {
   Leverage:  'bg-red-300',
 }
 
-// Traffic-light colors for best/worst ranking
+// Traffic-light colors for best / worst ranking
 const RANK_BG: Record<number, string> = {
   1: 'text-emerald-700 bg-emerald-50',   // best
   2: 'text-emerald-600',
@@ -86,19 +92,20 @@ const RANK_BG: Record<number, string> = {
 }
 const WORST_BG = 'text-red-600 bg-red-50'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Local ranking fallback ────────────────────────────────────────────────────
+// Used only when the response predates the Peers Isolation phase and does not
+// carry pre-computed rankings from the backend.
 
-function rankValues(
+function rankValuesLocal(
   values: (number | null)[],
-  lowerIsBetter: boolean
+  lowerIsBetter: boolean,
 ): number[] {
-  // Returns rank position (1 = best) or 0 if null
   const nonNull = values
     .map((v, i) => ({ v, i }))
-    .filter((x) => x.v !== null) as { v: number; i: number }[]
+    .filter((x): x is { v: number; i: number } => x.v !== null)
 
   const sorted = [...nonNull].sort((a, b) =>
-    lowerIsBetter ? a.v - b.v : b.v - a.v
+    lowerIsBetter ? a.v - b.v : b.v - a.v,
   )
 
   const ranks = new Array(values.length).fill(0)
@@ -111,32 +118,45 @@ function rankValues(
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  selected: PeerStock
-  peers:    PeerStock[]
+  selected:  PeerStock
+  peers:     PeerStock[]
+  /** Server-computed rankings. When present, local ranking logic is skipped. */
+  rankings?: PeerRankings
 }
 
-export function PeerComparisonTable({ selected, peers }: Props) {
-  // All stocks: selected first, then peers
+export function PeerComparisonTable({ selected, peers, rankings }: Props) {
   const allStocks = useMemo(() => [selected, ...peers], [selected, peers])
   const n = allStocks.length
 
-  // Pre-compute bar widths and rank positions per metric
+  // Pre-compute bar widths and rank positions per metric.
+  // Ranks come from the backend when available; local computation is a fallback.
   const metricStats = useMemo(() => {
     return METRICS.map((m) => {
       const values = allStocks.map((s) => s[m.key] as number | null)
 
-      // Bar widths relative to absolute max of non-negative values
+      // Bar widths: proportional to absolute max of positive values
       const positiveVals = values.filter((v): v is number => v !== null && v > 0)
       const absMax = positiveVals.length > 0 ? Math.max(...positiveVals) : 1
-
       const bars = values.map((v) =>
-        v !== null && v > 0 ? Math.round((v / absMax) * 100) : 0
+        v !== null && v > 0 ? Math.round((v / absMax) * 100) : 0,
       )
 
-      const ranks = rankValues(values, m.lowerIsBetter)
-      return { values, bars, ranks }
+      // Ranks: prefer backend-shipped rankings, fall back to local computation
+      let ranks: (number | null)[]
+      const backendEntry = rankings?.[m.key]
+      if (backendEntry) {
+        ranks = backendEntry.ranks
+      } else {
+        // Legacy fallback — 0 means null (no data)
+        const localRanks = rankValuesLocal(values, m.lowerIsBetter)
+        ranks = localRanks.map((r) => (r === 0 ? null : r))
+      }
+
+      const totalNonNull = values.filter((v) => v !== null).length
+
+      return { values, bars, ranks, totalNonNull }
     })
-  }, [allStocks])
+  }, [allStocks, rankings])
 
   if (allStocks.length === 0) return null
 
@@ -155,6 +175,7 @@ export function PeerComparisonTable({ selected, peers }: Props) {
               {allStocks.map((stock, si) => {
                 const isSelected = si === 0
                 const base = stock.ticker.replace(/\.(NS|BSE|BO)$/i, '')
+                const isUnavailable = stock.source === 'timeout' || stock.source === 'unavailable'
                 return (
                   <th
                     key={stock.ticker}
@@ -162,13 +183,20 @@ export function PeerComparisonTable({ selected, peers }: Props) {
                       'px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide min-w-[110px]',
                       isSelected
                         ? 'bg-indigo-50 text-indigo-600 border-x border-indigo-100'
-                        : 'text-slate-500'
+                        : isUnavailable
+                          ? 'text-slate-300'
+                          : 'text-slate-500',
                     )}
                   >
                     <span className="font-mono">{base}</span>
                     {isSelected && (
                       <span className="block text-[9px] font-medium text-indigo-400 normal-case tracking-normal">
                         ← selected
+                      </span>
+                    )}
+                    {isUnavailable && !isSelected && (
+                      <span className="block text-[9px] font-medium text-slate-300 normal-case tracking-normal">
+                        {stock.source === 'timeout' ? 'timed out' : 'unavailable'}
                       </span>
                     )}
                   </th>
@@ -180,13 +208,12 @@ export function PeerComparisonTable({ selected, peers }: Props) {
           {/* ── Metric rows ───────────────────────────────────────────────── */}
           <tbody>
             {METRICS.map((metric, mi) => {
-              const { values, bars, ranks } = metricStats[mi]
-              const tooltip = METRIC_TOOLTIPS[metric.key] ?? metric.label
-              const totalNonNull = values.filter((v) => v !== null).length
+              const { values, bars, ranks, totalNonNull } = metricStats[mi]
+              const tooltip  = METRIC_TOOLTIPS[metric.key] ?? metric.label
               const worstRank = totalNonNull
 
               // Separator row between groups
-              const prevGroup = mi > 0 ? METRICS[mi - 1].group : null
+              const prevGroup  = mi > 0 ? METRICS[mi - 1].group : null
               const isGroupStart = metric.group !== prevGroup
 
               return (
@@ -198,7 +225,7 @@ export function PeerComparisonTable({ selected, peers }: Props) {
                         className={cn(
                           'px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest border-t border-b',
                           GROUP_COLORS[metric.group],
-                          'border-current/10'
+                          'border-current/10',
                         )}
                       >
                         {metric.group}
@@ -221,15 +248,15 @@ export function PeerComparisonTable({ selected, peers }: Props) {
 
                     {/* Value cells */}
                     {allStocks.map((stock, si) => {
-                      const val   = values[si]
-                      const bar   = bars[si]
-                      const rank  = ranks[si]
+                      const val        = values[si]
+                      const bar        = bars[si]
+                      const rank       = ranks[si]
                       const isSelected = si === 0
-                      const isNull = val === null
+                      const isNull     = val === null
 
                       // Color class based on rank
                       let colorClass = 'text-slate-600'
-                      if (!isNull && totalNonNull > 1) {
+                      if (!isNull && totalNonNull > 1 && rank !== null) {
                         if (rank === worstRank) {
                           colorClass = WORST_BG
                         } else if (rank <= 2 && RANK_BG[rank]) {
@@ -242,7 +269,7 @@ export function PeerComparisonTable({ selected, peers }: Props) {
                           key={stock.ticker}
                           className={cn(
                             'px-4 py-2.5 text-right',
-                            isSelected && 'bg-indigo-50/60 border-x border-indigo-100/60'
+                            isSelected && 'bg-indigo-50/60 border-x border-indigo-100/60',
                           )}
                         >
                           {isNull ? (

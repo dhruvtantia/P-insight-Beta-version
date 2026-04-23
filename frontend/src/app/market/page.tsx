@@ -111,11 +111,38 @@ async function fetchWithTimeout<T>(url: string): Promise<T> {
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      // Classify the error for better logging
+      const errType = res.status >= 500 ? 'server_error' : res.status === 404 ? 'not_found' : 'client_error'
+      throw Object.assign(new Error(`HTTP ${res.status}`), { errType })
+    }
     return res.json()
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw Object.assign(new Error('Request timed out'), { errType: 'timeout' })
+    }
+    if (err instanceof TypeError) {
+      throw Object.assign(new Error('Backend unreachable'), { errType: 'network_unreachable' })
+    }
+    throw err
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * Merge fresh index entries with stale ones.
+ * Preserves old (good) data for any indices that come back "unavailable" in the new response.
+ * This prevents indices from "vanishing" when yfinance temporarily fails for a subset.
+ */
+function mergeIndexEntries(stale: IndexEntry[], fresh: IndexEntry[]): IndexEntry[] {
+  const freshMap = new Map(fresh.map(e => [e.symbol, e]))
+  return stale.map(old => {
+    const f = freshMap.get(old.symbol)
+    // Only replace if the fresh entry has actual data (not unavailable)
+    if (f && !f.unavailable && f.status !== 'unavailable') return f
+    return old  // preserve last good data
+  })
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -379,25 +406,48 @@ export default function MarketPage() {
   const [refreshing,  setRefreshing]  = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  const [news,        setNews]        = useState<NewsArticle[]>([])
+  const [news,         setNews]         = useState<NewsArticle[]>([])
   // newsStatus: 'loading' | 'ok' | 'unavailable'
-  const [newsStatus,  setNewsStatus]  = useState<'loading' | 'ok' | 'unavailable'>('loading')
+  const [newsStatus,   setNewsStatus]   = useState<'loading' | 'ok' | 'unavailable'>('loading')
+  // refreshError: non-null when a manual refresh failed (shown in header)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
 
   // ── Market overview ─────────────────────────────────────────────────────────
   const fetchOverview = useCallback(async (manual = false) => {
-    if (manual) setRefreshing(true)
+    if (manual) {
+      setRefreshing(true)
+      setRefreshError(null)
+    }
     try {
       const data = await fetchWithTimeout<MarketOverview>(
         `${BASE_URL}/api/v1/market/overview`
       )
-      setOverview(data)
+
+      // For background (non-manual) refreshes, merge new data with the
+      // existing overview so that indices that temporarily return "unavailable"
+      // from yfinance don't visually disappear — we preserve the last good value.
+      setOverview(prev => {
+        if (!prev || manual) return data
+        return {
+          ...data,
+          main_indices:   mergeIndexEntries(prev.main_indices,   data.main_indices),
+          sector_indices: mergeIndexEntries(prev.sector_indices, data.sector_indices),
+        }
+      })
       setLastUpdated(new Date())
     } catch (err) {
-      console.warn('[MarketPage] overview fetch failed:', err)
+      const msg = err instanceof Error ? err.message : 'Refresh failed'
+      if (manual) {
+        // Surface the error to the user on a manual refresh attempt
+        setRefreshError(msg)
+      }
+      console.warn('[MarketPage] overview fetch failed (stale data preserved):', err)
+      // On failure: existing overview state is intentionally NOT cleared.
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── News headlines (secondary, non-blocking) ────────────────────────────────
@@ -457,6 +507,12 @@ export default function MarketPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {refreshError && (
+              <span className="text-xs text-amber-600 flex items-center gap-1">
+                <WifiOff className="h-3 w-3" />
+                {refreshError}
+              </span>
+            )}
             <button
               onClick={() => fetchOverview(true)}
               disabled={refreshing || loading}

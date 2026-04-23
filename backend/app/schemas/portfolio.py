@@ -315,6 +315,10 @@ class WeightedFundamentals(BaseModel):
     Each metric is weighted by the holding's share of total portfolio market value.
     Weights are re-normalised among non-null contributors so nulls don't bias toward zero.
     Matches the algorithm in frontend/src/lib/fundamentals.ts → computeWeightedMetrics().
+
+    Values that fall outside sanity limits (e.g. PE > 300, negative PB) are excluded
+    from the weighted average and counted in `outliers_excluded`.  This prevents clearly
+    bogus provider data from poisoning portfolio-level signals.
     """
     # Valuation
     wtd_pe:               Optional[float] = None
@@ -334,8 +338,11 @@ class WeightedFundamentals(BaseModel):
     wtd_earnings_growth:  Optional[float] = None
     # Leverage
     wtd_debt_to_equity:   Optional[float] = None
-    # Coverage: how many holdings contributed to each metric (non-null, finite)
+    # Coverage: how many holdings contributed to each metric (non-null, finite, within limits)
     coverage: dict[str, int] = Field(default_factory=dict)
+    # Outliers: how many holdings were excluded per metric due to extreme values
+    # A non-zero count means the weighted value is computed on fewer holdings than coverage implies.
+    outliers_excluded: dict[str, int] = Field(default_factory=dict)
 
 
 class FundamentalsMeta(BaseModel):
@@ -351,6 +358,10 @@ class FundamentalsMeta(BaseModel):
     available_holdings:  int            = 0
     unavailable_tickers: list[str]      = Field(default_factory=list)
     coverage_pct:        Optional[float] = None   # % of holdings with fundamentals data
+    # Outlier filtering: how many metric values were excluded across all holdings
+    # due to sanity limits.  > 0 means some weighted averages are based on partial data.
+    outliers_excluded_total: int         = 0
+    unknown_sectors_count:   int         = 0      # holdings with sector = "Unknown"
 
 
 class FundamentalsThresholds(BaseModel):

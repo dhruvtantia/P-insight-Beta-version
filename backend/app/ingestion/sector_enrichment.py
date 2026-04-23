@@ -87,7 +87,8 @@ class EnrichmentRecord:
         """Overall enrichment quality — persisted to DB as enrichment_status."""
         sector_ok = self.sector_status not in ("unknown",)
         name_ok   = self.name_status not in ("ticker_fallback",)
-        fund_ok   = self.fundamentals_status == "fetched"
+        # ETFs and similar instruments intentionally skip fundamentals
+        fund_ok   = self.fundamentals_status in ("fetched", "not_applicable")
         if sector_ok and name_ok and fund_ok:
             return "enriched"
         if not sector_ok and not name_ok:
@@ -607,7 +608,129 @@ _STATIC_INDUSTRY_MAP: dict[str, str] = {
     "BAJFINANCE": "NBFC",                 "BAJFINANCE.NS": "NBFC",
     "HINDUNILVR": "FMCG",                 "HINDUNILVR.NS": "FMCG",
     "ITC": "Diversified FMCG",            "ITC.NS": "Diversified FMCG",
+    # Banks — explicit subtype for fundamentals handling
+    "PNB": "Public Sector Bank",          "PNB.NS": "Public Sector Bank",
+    "BANKBARODA": "Public Sector Bank",   "BANKBARODA.NS": "Public Sector Bank",
+    "CANARABANK": "Public Sector Bank",   "CANARABANK.NS": "Public Sector Bank",
+    "YESBANK": "Private Sector Bank",     "YESBANK.NS": "Private Sector Bank",
+    "FEDERALBNK": "Private Sector Bank",  "FEDERALBNK.NS": "Private Sector Bank",
+    "IDFCFIRSTB": "Private Sector Bank",  "IDFCFIRSTB.NS": "Private Sector Bank",
+    "AUBANK": "Small Finance Bank",       "AUBANK.NS": "Small Finance Bank",
+    # NBFCs
+    "BAJAJFINSV": "NBFC",                 "BAJAJFINSV.NS": "NBFC",
+    "CHOLAFIN": "NBFC",                   "CHOLAFIN.NS": "NBFC",
+    "MUTHOOTFIN": "NBFC",                 "MUTHOOTFIN.NS": "NBFC",
+    "SHRIRAMFIN": "NBFC",                 "SHRIRAMFIN.NS": "NBFC",
+    "PFC": "Government NBFC",             "PFC.NS": "Government NBFC",
+    "RECLTD": "Government NBFC",          "RECLTD.NS": "Government NBFC",
+    "IRFC": "Government NBFC",            "IRFC.NS": "Government NBFC",
+    # Insurance
+    "HDFCLIFE": "Life Insurance",         "HDFCLIFE.NS": "Life Insurance",
+    "SBILIFE": "Life Insurance",          "SBILIFE.NS": "Life Insurance",
+    "ICICIPRULI": "Life Insurance",       "ICICIPRULI.NS": "Life Insurance",
+    # AMCs / brokerages
+    "HDFCAMC": "Asset Management",        "HDFCAMC.NS": "Asset Management",
+    "ANGELONE": "Stock Broking",          "ANGELONE.NS": "Stock Broking",
 }
+
+
+# ─── ETF / Index Fund detection ───────────────────────────────────────────────
+#
+# ETFs do not have meaningful fundamentals (PE, PB, ROE, etc.) — they are
+# baskets of securities.  Correctly classifying them prevents sector="Unknown"
+# and avoids poisoning weighted fundamentals with fund-level zeros.
+#
+# Detection hierarchy:
+#  1. Exact ticker match in _ETF_EXACT_TICKERS
+#  2. Suffix pattern (BEES family — Benchmark ETF Series / Mirae Asset etc.)
+#  3. Keyword in ticker: "ETF", "LIQUIDCASE", "GOLDETF", etc.
+#
+# Sector set to "ETF" so the sector breakdown shows it explicitly rather than
+# lumping it into "Unknown".  asset_class is set to "ETF" in the holding record.
+
+_ETF_EXACT_TICKERS: set[str] = {
+    # Nippon India (formerly Benchmark / Reliance) BeES series
+    "NIFTYBEES", "NIFTYBEES.NS",
+    "JUNIORBEES", "JUNIORBEES.NS",
+    "BANKBEES", "BANKBEES.NS",
+    "GOLDBEES", "GOLDBEES.NS",
+    "LIQUIDBEES", "LIQUIDBEES.NS",
+    "ITBEES", "ITBEES.NS",
+    "PHARMABEES", "PHARMABEES.NS",
+    "SILVERBEES", "SILVERBEES.NS",
+    "MIDCAPBEES", "MIDCAPBEES.NS",
+    "INFRABEES", "INFRABEES.NS",
+    "PSUBANKBEES", "PSUBANKBEES.NS",
+    "CPSE", "CPSE.NS",
+    # Mirae / UTI / SBI / HDFC ETFs
+    "MON100", "MON100.NS",
+    "MAFANG", "MAFANG.NS",
+    "NETFIT", "NETFIT.NS",
+    "NIFTYIETF", "NIFTYIETF.NS",
+    "SETFNIFBK", "SETFNIFBK.NS",
+    "SETFNIF50", "SETFNIF50.NS",
+    "UTINIFTETF", "UTINIFTETF.NS",
+    "ICICIB22", "ICICIB22.NS",
+    # Kotak ETFs
+    "KOTAKSILVER", "KOTAKSILVER.NS",
+    "KOTAKGOLD", "KOTAKGOLD.NS",
+    "KOTAK50", "KOTAK50.NS",
+    "KOTAKNIFTY", "KOTAKNIFTY.NS",
+    # Other common ETFs / liquid funds
+    "LIQUIDCASE", "LIQUIDCASE.NS",
+    "LIQUIDETF", "LIQUIDETF.NS",
+    "HDFCSENSEX", "HDFCSENSEX.NS",
+    "HDFCNIFTY", "HDFCNIFTY.NS",
+}
+
+_ETF_NAME_MAP: dict[str, str] = {
+    "NIFTYBEES": "Nippon India Nifty 50 BeES ETF",
+    "NIFTYBEES.NS": "Nippon India Nifty 50 BeES ETF",
+    "JUNIORBEES": "Nippon India Junior BeES ETF",
+    "JUNIORBEES.NS": "Nippon India Junior BeES ETF",
+    "BANKBEES": "Nippon India Bank BeES ETF",
+    "BANKBEES.NS": "Nippon India Bank BeES ETF",
+    "GOLDBEES": "Nippon India Gold BeES ETF",
+    "GOLDBEES.NS": "Nippon India Gold BeES ETF",
+    "LIQUIDBEES": "Nippon India Liquid BeES ETF",
+    "LIQUIDBEES.NS": "Nippon India Liquid BeES ETF",
+    "SILVERBEES": "Nippon India Silver BeES ETF",
+    "SILVERBEES.NS": "Nippon India Silver BeES ETF",
+    "MIDCAPBEES": "Nippon India Midcap 150 BeES ETF",
+    "MIDCAPBEES.NS": "Nippon India Midcap 150 BeES ETF",
+    "MON100": "Motilal Oswal Nasdaq 100 ETF",
+    "MON100.NS": "Motilal Oswal Nasdaq 100 ETF",
+    "MAFANG": "Mirae Asset NYSE FANG+ ETF",
+    "MAFANG.NS": "Mirae Asset NYSE FANG+ ETF",
+    "CPSE": "CPSE ETF (PSU basket)",
+    "CPSE.NS": "CPSE ETF (PSU basket)",
+}
+
+
+def _is_etf(ticker: str) -> bool:
+    """
+    Return True if this ticker is a known or likely ETF/index fund.
+    Detection is conservative — prefer known ETFs over guessing.
+    """
+    upper = ticker.upper()
+
+    # 1. Exact match in known ETF set
+    if upper in _ETF_EXACT_TICKERS:
+        return True
+
+    # Strip .NS / .BO suffix for pattern checks
+    base = upper.replace(".NS", "").replace(".BO", "")
+
+    # 2. BeES suffix (Benchmark ETF Series naming convention)
+    if base.endswith("BEES"):
+        return True
+
+    # 3. ETF / LIQUIDCASE / LIQUIDETF keywords in base ticker
+    keywords = ("ETF", "LIQUIDCASE", "GOLDETF", "SILVERETF", "NIFTYETF")
+    if any(kw in base for kw in keywords):
+        return True
+
+    return False
 
 
 def _lookup_static(ticker: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
@@ -618,6 +741,17 @@ def _lookup_static(ticker: str) -> tuple[Optional[str], Optional[str], Optional[
         _STATIC_NAME_MAP.get(upper),
         _STATIC_INDUSTRY_MAP.get(upper),
     )
+
+
+def _resolve_etf(ticker: str) -> tuple[str, str, str]:
+    """
+    Return (sector, name, industry) for a confirmed ETF ticker.
+    Sector is "ETF" so it shows distinctly in sector breakdowns.
+    Name comes from _ETF_NAME_MAP if known, else a generic label.
+    """
+    upper = ticker.upper()
+    name = _ETF_NAME_MAP.get(upper, f"{ticker} (ETF / Index Fund)")
+    return "ETF", name, "Exchange Traded Fund"
 
 
 # ─── Main enrichment function ─────────────────────────────────────────────────
@@ -704,6 +838,39 @@ def enrich_holdings(
             rec.industry_source = h.industry
 
         updates: dict[str, str] = {}
+
+        # ── Step 0: ETF fast-path ─────────────────────────────────────────────
+        # ETFs have no meaningful fundamentals.  Resolve sector/name from our
+        # known ETF maps and skip the yfinance / FMP chain entirely.
+        if _is_etf(h.ticker):
+            etf_sector, etf_name, etf_industry = _resolve_etf(h.ticker)
+            if needs_sector:
+                updates["sector"]   = etf_sector
+                updates["asset_class"] = "ETF"
+                rec.sector_status   = "static_map"
+                rec.sector_source   = etf_sector
+                needs_sector        = False
+            if needs_name:
+                updates["name"]     = etf_name
+                rec.name_status     = "static_map"
+                rec.name_source     = etf_name
+                needs_name          = False
+            if needs_industry:
+                updates["industry"] = etf_industry
+                rec.industry_source = etf_industry
+                needs_industry      = False
+
+            # ETFs intentionally skip fundamentals
+            rec.fundamentals_status = "not_applicable"
+            rec.attempted_sources.append("etf_map")
+            logger.info("ETF detected for %s — sector=ETF, fundamentals skipped", h.ticker)
+
+            # Apply updates and move on — skip the entire yfinance/FMP chain
+            if updates:
+                result[idx] = h.model_copy(update=updates)
+                enriched_count += 1
+            records.append(rec)
+            continue
 
         # ── Step 1: yfinance ──────────────────────────────────────────────────
         if yfinance_ok and _fetch_fundamentals_single:

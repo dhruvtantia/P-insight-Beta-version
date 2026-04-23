@@ -1,44 +1,46 @@
 /**
- * Peer Comparison Page — Phase 1
- * --------------------------------
+ * Peer Comparison Page — Peers Isolation phase
+ * ---------------------------------------------
  * Layout:
  *   1. Page header (title + description + data-mode note)
- *   2. PeerSelector     — pick a portfolio holding to analyse
- *   3. RelativeValuationSummary — insight pills (rank vs peers)
- *   4. Company cards strip — CompanyComparisonCard × (1 selected + N peers)
- *   5. PeerComparisonTable — full 13-metric side-by-side table
+ *   2. PeerSelector              — pick a portfolio holding to analyse
+ *   3. Trust banners             — sparse-set / incomplete notices from meta
+ *   4. RelativeValuationSummary  — insight pills (rank vs peers)
+ *   5. Company cards strip       — CompanyComparisonCard × (1 selected + N peers)
+ *   6. PeerComparisonTable       — full 13-metric side-by-side table
  *
  * Data flow:
  *   usePortfolio()       → holdings[] → PeerSelector (ticker options)
- *   usePeerComparison()  → data { selected, peers } → all display components
+ *   usePeerComparison()  → data { selected, peers, meta, rankings }
+ *                        → all display components
  *
- * Architecture notes for Phase 2:
- *   - Add a live data toggle; swap MockDataProvider with yfinance/FMP provider.
- *   - "Add to Portfolio" CTA in CompanyComparisonCard for what-if analysis.
- *   - Persist selectedTicker in URL query params for shareable links.
+ * Trust surface:
+ *   data.meta.sparse_set  → amber banner ("comparison not statistically meaningful")
+ *   data.meta.incomplete  → amber banner (lists timed-out / unavailable peers)
+ *   Both banners are backend-driven — no frontend heuristics.
  */
 
 'use client'
 
-import { useState, useMemo, useEffect }   from 'react'
-import { useSearchParams }                from 'next/navigation'
+import { useState, useMemo, useEffect }        from 'react'
+import { useSearchParams }                     from 'next/navigation'
 import { GitCompareArrows, AlertCircle,
-         RefreshCw, Info }                from 'lucide-react'
-import { usePortfolio }                   from '@/hooks/usePortfolio'
-import { usePeerComparison }              from '@/hooks/usePeerComparison'
-import { PeerSelector }                   from '@/components/peers/PeerSelector'
-import { CompanyComparisonCard }          from '@/components/peers/CompanyComparisonCard'
-import { PeerComparisonTable }            from '@/components/peers/PeerComparisonTable'
-import { RelativeValuationSummary }       from '@/components/peers/RelativeValuationSummary'
-import { cn }                             from '@/lib/utils'
+         RefreshCw, Info, AlertTriangle }      from 'lucide-react'
+import { usePortfolio }                        from '@/hooks/usePortfolio'
+import { usePeerComparison }                   from '@/hooks/usePeerComparison'
+import { PeerSelector }                        from '@/components/peers/PeerSelector'
+import { CompanyComparisonCard }               from '@/components/peers/CompanyComparisonCard'
+import { PeerComparisonTable }                 from '@/components/peers/PeerComparisonTable'
+import { RelativeValuationSummary }            from '@/components/peers/RelativeValuationSummary'
+import { cn }                                  from '@/lib/utils'
 
 export default function PeersPage() {
   // ── Portfolio holdings (for PeerSelector options) ─────────────────────────
   const { holdings, loading: holdingsLoading } = usePortfolio()
 
   // ── URL query param pre-selection ────────────────────────────────────────
-  const searchParams  = useSearchParams()
-  const tickerParam   = searchParams.get('ticker')?.toUpperCase() ?? null
+  const searchParams = useSearchParams()
+  const tickerParam  = searchParams.get('ticker')?.toUpperCase() ?? null
 
   // ── Selected ticker state ─────────────────────────────────────────────────
   const [selectedTicker, setSelectedTicker] = useState<string | null>(tickerParam)
@@ -60,7 +62,7 @@ export default function PeersPage() {
   // Ticker options for selector
   const tickerOptions = useMemo(
     () => holdings.map((h) => ({ ticker: h.ticker, name: h.name })),
-    [holdings]
+    [holdings],
   )
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -127,7 +129,7 @@ export default function PeersPage() {
         <div className="card px-5 py-4">
           <div className="h-3 w-48 rounded bg-slate-200 animate-pulse mb-3" />
           <div className="flex gap-2">
-            {[1,2,3,4].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-7 w-24 rounded-full bg-slate-200 animate-pulse" />
             ))}
           </div>
@@ -146,15 +148,19 @@ export default function PeersPage() {
         <TableSkeleton />
       ) : data ? (
         <>
-          {/* ── 3. Relative valuation summary (insight pills) ─────────── */}
+          {/* ── 3. Trust banners (backend-driven) ─────────────────────── */}
+          <TrustBanners meta={data.meta} />
+
+          {/* ── 4. Relative valuation summary (insight pills) ─────────── */}
           {data.peers.length > 0 && (
             <RelativeValuationSummary
               selected={data.selected}
               peers={data.peers}
+              rankings={data.rankings}
             />
           )}
 
-          {/* ── 4. Company comparison cards ───────────────────────────── */}
+          {/* ── 5. Company comparison cards ───────────────────────────── */}
           {data.peers.length > 0 ? (
             <div className="flex gap-3 overflow-x-auto pb-1">
               <CompanyComparisonCard stock={data.selected} isSelected />
@@ -166,11 +172,12 @@ export default function PeersPage() {
             <NoPeersState ticker={autoSelected ?? ''} />
           )}
 
-          {/* ── 5. Full comparison table ──────────────────────────────── */}
+          {/* ── 6. Full comparison table ──────────────────────────────── */}
           {data.peers.length > 0 && (
             <PeerComparisonTable
               selected={data.selected}
               peers={data.peers}
+              rankings={data.rankings}
             />
           )}
         </>
@@ -178,6 +185,63 @@ export default function PeersPage() {
         <EmptySelectState />
       ) : null}
 
+    </div>
+  )
+}
+
+// ─── Trust banners ────────────────────────────────────────────────────────────
+
+interface TrustBannersProps {
+  meta?: import('@/types').PeerComparisonMeta
+}
+
+function TrustBanners({ meta }: TrustBannersProps) {
+  if (!meta) return null
+
+  const showSparse     = meta.sparse_set
+  const showIncomplete = meta.incomplete && !meta.sparse_set  // sparse already implies incomplete
+
+  const missingPeers = [
+    ...meta.timed_out_peers.map((t) => `${t} (timed out)`),
+    ...meta.unavailable_peers.map((t) => `${t} (unavailable)`),
+  ]
+
+  if (!showSparse && !showIncomplete) return null
+
+  return (
+    <div className="space-y-2">
+      {showSparse && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-amber-800">
+              Sparse peer set — comparison may not be meaningful
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Only {meta.peer_count_available} of {meta.peer_count_requested} peers returned
+              usable data. Rankings with fewer than 2 comparable stocks are suppressed.
+              {missingPeers.length > 0 && (
+                <> Missing: {missingPeers.join(', ')}.</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showIncomplete && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-amber-800">
+              Incomplete peer set ({meta.peer_count_available} of {meta.peer_count_requested} peers loaded)
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {missingPeers.join(', ')}.{' '}
+              Rankings reflect the available peers only.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -219,7 +283,7 @@ function TableSkeleton() {
             <div className="h-3 w-16 rounded bg-slate-200 mb-2" />
             <div className="h-4 w-24 rounded bg-slate-200 mb-4" />
             <div className="grid grid-cols-2 gap-2">
-              {[1,2,3,4].map((j) => (
+              {[1, 2, 3, 4].map((j) => (
                 <div key={j} className="h-3 rounded bg-slate-100" />
               ))}
             </div>
@@ -232,10 +296,10 @@ function TableSkeleton() {
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
           <div className="h-3 w-32 rounded bg-slate-200" />
         </div>
-        {[1,2,3,4,5,6].map((i) => (
+        {[1, 2, 3, 4, 5, 6].map((i) => (
           <div key={i} className="flex items-center gap-4 px-5 py-3 border-b border-slate-50">
             <div className="h-3 w-32 rounded bg-slate-200 shrink-0" />
-            {[1,2,3,4].map((j) => (
+            {[1, 2, 3, 4].map((j) => (
               <div key={j} className="h-3 flex-1 rounded bg-slate-100" />
             ))}
           </div>

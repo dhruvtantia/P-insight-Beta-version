@@ -2,52 +2,55 @@
  * usePortfolioHistory
  * --------------------
  * Fetches the pre-computed daily portfolio value time series for the active
- * (or specified) portfolio from GET /portfolios/{id}/history.
+ * (or specified) portfolio from the canonical GET /history/{id}/daily endpoint.
  *
- * The data is built once at upload time (background task) and reused everywhere.
- * If no data has been built yet, `hasData` is false and `points` is empty —
- * not an error state; the Changes page falls back to snapshot-based chart.
- *
- * Also fetches benchmark data (^NSEI) so the Changes page can show an overlay.
+ * Also fetches benchmark data (^NSEI) in parallel so the Changes page can
+ * show a performance overlay.
  *
  * Build status:
- *   buildStatus — 'pending' | 'building' | 'done' | 'failed' | 'unknown' | null
- *   Use this to show a "Building history…" banner while data is being computed.
- *   When status is 'pending'/'building' and hasData is false, the chart should
- *   show the banner rather than the generic empty state.
+ *   - Derived from the canonical /history/{id}/status endpoint.
+ *   - While state='building', this hook polls every 5 s until data arrives
+ *     or the state becomes 'complete'/'failed'/'not_started'.
+ *   - Polling stops automatically once a terminal state is reached.
+ *
+ * State machine:
+ *   building     → poll every 5 s; show "Building…" banner
+ *   complete     → data in points[]; stop polling
+ *   failed       → empty points; show error note; stop polling
+ *   not_started  → empty points; no banner (never built)
+ *   null         → initial loading
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { historyApi }                       from '@/services/api'
-import type {
-  PortfolioHistoryPoint,
-  BenchmarkPoint,
-  PortfolioHistoryResponse,
-} from '@/types'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { historyApi }                                from '@/services/api'
+import type { BenchmarkPoint }                       from '@/types'
+import type { HistoryStatusResponse, HistoryDailyResponse } from '@/services/api'
+
+// How often to poll when state is 'building' (ms)
+const POLL_INTERVAL_MS = 5_000
 
 interface UsePortfolioHistoryResult {
   /** Daily portfolio value points, sorted oldest → newest. */
-  points:        PortfolioHistoryPoint[]
+  points:        { date: string; total_value: number }[]
   /** Daily benchmark close prices (^NSEI), sorted oldest → newest. */
   benchmark:     BenchmarkPoint[]
   /** True if at least some history data has been built. */
   hasData:       boolean
-  /** Honest label for the chart — not a "missing data" warning, just context. */
+  /** Honest label for the chart — context note, not an error. */
   note:          string | null
   earliest:      string | null
   latest:        string | null
   loading:       boolean
   error:         string | null
   /**
-   * History build status from the background task.
-   * 'pending'  — upload done, task queued but not yet started
-   * 'building' — task is actively fetching and storing data
-   * 'done'     — complete; rows are in the portfolio_history table
-   * 'failed'   — build encountered an error
-   * 'unknown'  — server restarted; check hasData for existing rows
-   * null       — not yet fetched
+   * Discriminated history state from canonical endpoint.
+   * 'building'    — task actively running; poll continues
+   * 'complete'    — points[] has real data
+   * 'failed'      — build errored; won't retry without re-upload
+   * 'not_started' — never triggered (no upload yet)
+   * null          — not yet fetched
    */
-  buildStatus:   'pending' | 'building' | 'done' | 'failed' | 'unknown' | null
+  buildStatus:   'building' | 'complete' | 'failed' | 'not_started' | null
   buildNote:     string | null
   /** Manually re-fetch (e.g. after taking a new snapshot). */
   refetch:       () => void
@@ -56,34 +59,56 @@ interface UsePortfolioHistoryResult {
 export function usePortfolioHistory(
   portfolioId: number | null,
 ): UsePortfolioHistoryResult {
-  const [response,  setResponse]  = useState<PortfolioHistoryResponse | null>(null)
+  const [daily,     setDaily]     = useState<HistoryDailyResponse | null>(null)
   const [benchmark, setBenchmark] = useState<BenchmarkPoint[]>([])
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
+  // Track whether we're polling to avoid double-scheduling
+  const pollingRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef  = useRef(true)
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current != null) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }, [])
+
+  const fetchData = useCallback(async (isBackground = false) => {
     if (portfolioId == null) {
-      setResponse(null)
+      setDaily(null)
       setBenchmark([])
       return
     }
 
-    setLoading(true)
-    setError(null)
+    if (!isBackground) {
+      setLoading(true)
+      setError(null)
+    }
 
     try {
-      // Fetch both in parallel
-      const [histRes, benchRes] = await Promise.allSettled([
-        historyApi.getPortfolioHistory(portfolioId),
+      // Fetch daily data + benchmark in parallel
+      const [dailyRes, benchRes] = await Promise.allSettled([
+        historyApi.getDaily(portfolioId),
         historyApi.getBenchmarkHistory(portfolioId),
       ])
 
-      if (histRes.status === 'fulfilled') {
-        setResponse(histRes.value)
+      if (!mountedRef.current) return
+
+      if (dailyRes.status === 'fulfilled') {
+        setDaily(dailyRes.value)
+
+        // Stop polling once we're in a terminal state
+        const terminalStates = ['complete', 'failed', 'not_started']
+        if (terminalStates.includes(dailyRes.value.state)) {
+          stopPolling()
+        }
       } else {
-        // Not fatal — fall back to snapshot-based chart
-        setError(null)           // clear any stale error
-        setResponse(null)
+        // Non-fatal — clear data but don't blank benchmark
+        setError(null)
+        setDaily(null)
+        stopPolling()
       }
 
       if (benchRes.status === 'fulfilled') {
@@ -91,27 +116,71 @@ export function usePortfolioHistory(
       }
       // Benchmark fetch failure is silently ignored
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load portfolio history')
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load portfolio history')
+        stopPolling()
+      }
     } finally {
-      setLoading(false)
+      if (!isBackground && mountedRef.current) {
+        setLoading(false)
+      }
     }
-  }, [portfolioId])
+  }, [portfolioId, stopPolling])
 
+  // On portfolioId change: fetch fresh, then set up polling if needed
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    mountedRef.current = true
+    stopPolling()
+    setDaily(null)
+    setBenchmark([])
+    setError(null)
+
+    fetchData(false).then(() => {
+      // After initial fetch, if state is 'building', start background polling
+      // We read the state from the setter to get the most recent value
+      setDaily(prev => {
+        if (prev?.state === 'building' && pollingRef.current == null) {
+          pollingRef.current = setInterval(() => {
+            fetchData(true)
+          }, POLL_INTERVAL_MS)
+        }
+        return prev
+      })
+    })
+
+    return () => {
+      mountedRef.current = false
+      stopPolling()
+    }
+  }, [portfolioId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // intentionally not including fetchData/stopPolling — they are stable callbacks
+  // but adding them would re-run this effect on every render
+
+  // Whenever daily state transitions to building, ensure polling is active
+  useEffect(() => {
+    if (daily?.state === 'building' && pollingRef.current == null && portfolioId != null) {
+      pollingRef.current = setInterval(() => {
+        fetchData(true)
+      }, POLL_INTERVAL_MS)
+    }
+  }, [daily?.state, portfolioId, fetchData])
+
+  // Map canonical state to legacy buildStatus shape the Changes page expects
+  const buildStatus = daily == null
+    ? null
+    : (daily.state as 'building' | 'complete' | 'failed' | 'not_started')
 
   return {
-    points:      response?.points        ?? [],
+    points:      daily?.points        ?? [],
     benchmark,
-    hasData:     response?.has_data      ?? false,
-    note:        response?.note          ?? null,
-    earliest:    response?.earliest_date ?? null,
-    latest:      response?.latest_date   ?? null,
+    hasData:     daily?.has_data      ?? false,
+    note:        daily?.note          ?? null,
+    earliest:    daily?.earliest_date ?? null,
+    latest:      daily?.latest_date   ?? null,
     loading,
     error,
-    buildStatus: response?.build_status  ?? null,
-    buildNote:   response?.build_note    ?? null,
-    refetch:     fetchData,
+    buildStatus,
+    buildNote:   daily?.note          ?? null,
+    refetch:     () => fetchData(false),
   }
 }

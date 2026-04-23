@@ -25,9 +25,54 @@ export interface RefreshResponse {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
+// ─── Typed API Error ──────────────────────────────────────────────────────────
+// Distinguishes error categories so the UI can show specific messages
+// and decide whether to retry / preserve stale data / etc.
+
+export type ApiErrorType =
+  | 'network_unreachable'   // backend is down or unreachable (TypeError: Failed to fetch)
+  | 'timeout'               // request exceeded the 15-second hard timeout
+  | 'not_found'             // 404 — resource doesn't exist
+  | 'server_error'          // 5xx — backend threw an unhandled exception
+  | 'client_error'          // 4xx (other than 404) — bad request
+  | 'parse_error'           // response arrived but wasn't valid JSON
+  | 'unknown'               // none of the above
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly errorType: ApiErrorType,
+    public readonly statusCode?: number,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+
+  /** Short human-readable description suitable for a UI banner. */
+  get friendlyMessage(): string {
+    switch (this.errorType) {
+      case 'network_unreachable':
+        return 'Backend unreachable — make sure the server is running on port 8000.'
+      case 'timeout':
+        return 'Request timed out — the backend may be overloaded. Previous data is preserved.'
+      case 'not_found':
+        return `Resource not found (404).`
+      case 'server_error':
+        return `Backend error (${this.statusCode ?? '5xx'}) — ${this.message}`
+      case 'client_error':
+        return `Request error (${this.statusCode ?? '4xx'}) — ${this.message}`
+      case 'parse_error':
+        return 'Unexpected response format from backend.'
+      default:
+        return this.message
+    }
+  }
+}
+
 // ─── Base Fetch Utility ───────────────────────────────────────────────────────
 // All API calls are given a 15-second hard timeout so that a slow or blocked
 // backend endpoint never leaves the UI in an indefinite loading state.
+// Errors are classified into ApiErrorType so callers can react appropriately.
 
 const API_TIMEOUT_MS = 15_000
 
@@ -43,16 +88,45 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> 
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: response.statusText }))
-      throw new Error(error.detail ?? `API error: ${response.status}`)
+      const body = await response.json().catch(() => ({ detail: response.statusText }))
+      const detail = body?.detail ?? `HTTP ${response.status}`
+      const errorType: ApiErrorType =
+        response.status === 404 ? 'not_found'    :
+        response.status >= 500  ? 'server_error' : 'client_error'
+      throw new ApiError(detail, errorType, response.status)
     }
 
-    return response.json()
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${API_TIMEOUT_MS / 1000}s (${endpoint})`)
+    try {
+      return await response.json()
+    } catch {
+      throw new ApiError('Response was not valid JSON', 'parse_error')
     }
-    throw err
+  } catch (err) {
+    // Re-throw already-classified errors unchanged
+    if (err instanceof ApiError) throw err
+
+    // AbortController fired — the request exceeded API_TIMEOUT_MS
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError(
+        `Request timed out after ${API_TIMEOUT_MS / 1000}s (${endpoint})`,
+        'timeout',
+      )
+    }
+
+    // Network-level failure: backend unreachable, CORS block, DNS failure, etc.
+    // Browser exposes these as TypeError with "Failed to fetch" or similar text.
+    if (err instanceof TypeError) {
+      throw new ApiError(
+        `Backend unreachable (${endpoint}): ${err.message}`,
+        'network_unreachable',
+      )
+    }
+
+    // Anything else (programming error, unexpected throw)
+    throw new ApiError(
+      err instanceof Error ? err.message : 'Unknown error',
+      'unknown',
+    )
   } finally {
     clearTimeout(timer)
   }
@@ -487,12 +561,57 @@ export const advisorApi = {
 
 // ─── Portfolio History + Holdings Status ──────────────────────────────────────
 
+// HistoryStatusResponse — new canonical shape from GET /history/{id}/status
+export interface HistoryStatusResponse {
+  portfolio_id:   number
+  status:         'building' | 'complete' | 'failed' | 'unknown' | 'not_started'
+  rows:           number          // DB row count (0 if not built)
+  earliest_date:  string | null
+  latest_date:    string | null
+  error:          string | null
+  note:           string | null
+  is_building:    boolean
+  has_data:       boolean
+}
+
+// HistoryDailyResponse — new canonical shape from GET /history/{id}/daily
+export interface HistoryDailyResponse {
+  portfolio_id:   number
+  state:          'complete' | 'building' | 'failed' | 'not_started'
+  points:         { date: string; total_value: number }[]
+  count:          number
+  has_data:       boolean
+  earliest_date:  string | null
+  latest_date:    string | null
+  note:           string | null
+  build_status:   string | null
+}
+
 export const historyApi = {
+  // ── NEW canonical endpoints (Stage B) ──────────────────────────────────────
+
+  /**
+   * GET /history/{id}/status  (canonical)
+   * Comprehensive status — checks both in-memory build state AND the DB row count.
+   * After a server restart, returns status="complete" if DB rows exist, rather
+   * than "unknown".  Safe to poll frequently — no heavy computation.
+   */
+  getStatus: (portfolioId: number) =>
+    apiFetch<HistoryStatusResponse>(`/api/v1/history/${portfolioId}/status`),
+
+  /**
+   * GET /history/{id}/daily  (canonical)
+   * Returns a discriminated response with state: complete | building | failed | not_started.
+   * Never returns a fake empty series that looks like a real empty portfolio.
+   */
+  getDaily: (portfolioId: number) =>
+    apiFetch<HistoryDailyResponse>(`/api/v1/history/${portfolioId}/daily`),
+
+  // ── Legacy endpoints (kept for backward compatibility) ─────────────────────
+
   /**
    * GET /portfolios/{id}/history
-   * Daily portfolio value time series (pre-computed at upload, persisted to DB).
-   * Returns has_data=false with empty points[] if history hasn't been built yet.
-   * Includes build_status so the frontend can show a building/failed banner.
+   * @deprecated Use historyApi.getDaily() instead.
    */
   getPortfolioHistory: (portfolioId: number) =>
     apiFetch<PortfolioHistoryResponse>(`/api/v1/portfolios/${portfolioId}/history`),
@@ -508,8 +627,7 @@ export const historyApi = {
 
   /**
    * GET /portfolios/{id}/history/build-status
-   * Lightweight polling endpoint — returns current history build status without
-   * fetching the full time series.  Use this to power a progress banner.
+   * @deprecated Use historyApi.getStatus() instead.
    */
   getHistoryBuildStatus: (portfolioId: number) =>
     apiFetch<HistoryBuildStatusResponse>(

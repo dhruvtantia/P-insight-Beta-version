@@ -168,6 +168,16 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
 
     # ── Build trust metadata ──────────────────────────────────────────────────
     available_count = len(holdings) - len(unavailable_tickers)
+
+    # Count how many holdings have an unknown or missing sector
+    unknown_sectors = sum(
+        1 for r in ratio_list
+        if not r.sector or r.sector.strip().lower() in ("unknown", "")
+    )
+
+    # Sum all outlier exclusions across all metrics
+    outliers_total = sum(weighted.outliers_excluded.values())
+
     meta = FundamentalsMeta(
         source="yfinance",
         as_of=as_of,
@@ -176,6 +186,8 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
         available_holdings=available_count,
         unavailable_tickers=unavailable_tickers,
         coverage_pct=round(available_count / len(holdings) * 100, 1) if holdings else None,
+        outliers_excluded_total=outliers_total,
+        unknown_sectors_count=unknown_sectors,
     )
 
     return FinancialRatiosResponse(

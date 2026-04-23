@@ -487,40 +487,95 @@ export interface WatchlistItemInput {
 /**
  * PeerStock — one stock in the peer comparison response.
  * Same shape as FinancialRatio but name/sector may be null for sparse peer data.
+ * source='timeout'     — peer fetch hit the per-peer server timeout
+ * source='unavailable' — peer fetch failed (yfinance error, unknown ticker)
  */
 export interface PeerStock {
-  ticker: string
-  name: string | null
-  sector: string | null
+  ticker:   string
+  name:     string | null
+  sector:   string | null
   industry: string | null
-  source: string
+  source:   string
+  /** Set when source is 'unavailable' or 'timeout'; describes why data is missing. */
+  error?:   string | null
   // Valuation
-  pe_ratio: number | null
-  forward_pe: number | null
-  pb_ratio: number | null
-  ev_ebitda: number | null
-  peg_ratio: number | null
+  pe_ratio:        number | null
+  forward_pe:      number | null
+  pb_ratio:        number | null
+  ev_ebitda:       number | null
+  peg_ratio:       number | null
   // Income
-  dividend_yield: number | null
+  dividend_yield:  number | null
   // Quality
-  roe: number | null
-  roa: number | null
+  roe:             number | null
+  roa:             number | null
   operating_margin: number | null
-  profit_margin: number | null
+  profit_margin:   number | null
   // Growth
-  revenue_growth: number | null
+  revenue_growth:  number | null
   earnings_growth: number | null
   // Balance sheet
-  debt_to_equity: number | null
-  market_cap: number | null
+  debt_to_equity:  number | null
+  market_cap:      number | null
 }
+
+/**
+ * Trust and coverage metadata for a peer comparison response.
+ * Shipped by the backend on every /peers/{ticker} call so the frontend
+ * can render honest incomplete/sparse notices without computing them itself.
+ */
+export interface PeerComparisonMeta {
+  ticker:               string
+  /** Number of peers the data provider returned as candidates. */
+  peer_count_requested: number
+  /** Number of those peers that returned usable fundamentals data. */
+  peer_count_available: number
+  /** Peers that failed to return data (yfinance error, unknown ticker, etc.). */
+  unavailable_peers:    string[]
+  /** Peers abandoned because they hit the per-peer server timeout. */
+  timed_out_peers:      string[]
+  /** True when any peer timed out or returned an error. */
+  incomplete:           boolean
+  /**
+   * True when fewer than 2 peers returned usable data.
+   * A comparison with 0–1 peers is not statistically meaningful — surface this.
+   */
+  sparse_set:           boolean
+  source:               string
+  /** ISO-8601 UTC timestamp of when this response was assembled. */
+  fetched_at:           string | null
+}
+
+/**
+ * Server-computed rank data for one metric across all stocks in the comparison.
+ * ranks[0] = selected stock, ranks[1..n] = peers in response order.
+ * null means that stock had no data for this metric.
+ * Rank 1 = best (lowest if lower_is_better, highest otherwise).
+ */
+export interface PeerRankEntry {
+  ranks:           (number | null)[]
+  total_with_data: number
+  lower_is_better: boolean
+}
+
+/**
+ * Server-computed rankings for all numeric comparison metrics.
+ * Keyed by metric name (e.g. "pe_ratio", "roe", "revenue_growth", …).
+ * The frontend reads these directly instead of recomputing locally.
+ */
+export type PeerRankings = Record<string, PeerRankEntry>
 
 /** Full response from GET /api/v1/peers/{ticker} */
 export interface PeerComparisonData {
-  ticker: string
-  selected: PeerStock
-  peers: PeerStock[]
-  source: string
+  ticker:     string
+  selected:   PeerStock
+  peers:      PeerStock[]
+  source:     string
+  peer_count: number
+  /** Trust/coverage metadata — undefined only on legacy cached responses. */
+  meta?:      PeerComparisonMeta
+  /** Server-side rankings — undefined only on legacy cached responses. */
+  rankings?:  PeerRankings
 }
 
 // ─── News & Events ────────────────────────────────────────────────────────────

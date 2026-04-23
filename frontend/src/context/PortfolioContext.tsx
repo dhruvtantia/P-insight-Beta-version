@@ -29,10 +29,11 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
-import { portfolioApi, analyticsApi } from '@/services/api'
-import { useDataModeStore }           from '@/store/dataModeStore'
+import { portfolioApi, analyticsApi, ApiError } from '@/services/api'
+import { useDataModeStore }                      from '@/store/dataModeStore'
 import type {
   Holding,
   PortfolioSummary,
@@ -66,6 +67,8 @@ export interface PortfolioContextValue {
   // Fetch state
   loading:             boolean
   error:               string | null
+  /** true when we're showing stale data because a refresh failed */
+  stale:               boolean
   refetch:             () => void
 }
 
@@ -87,6 +90,12 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const [insights,            setInsights]            = useState<PortfolioInsight[]>([])
   const [loading,             setLoading]             = useState(true)
   const [error,               setError]               = useState<string | null>(null)
+  const [stale,               setStale]               = useState(false)
+
+  // Track whether we have ever successfully loaded data in this session.
+  // If we have good data and a subsequent refresh fails, we preserve the
+  // existing state rather than blanking the UI.
+  const hasGoodDataRef = useRef(false)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -104,6 +113,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       setRiskSnapshot(data.risk_snapshot ?? null)
       setFundamentalsSummary(data.fundamentals_summary ?? null)
       setMeta(data.meta ?? null)
+      setStale(false)
+      hasGoodDataRef.current = true
 
       // ── Supplementary: commentary (non-blocking) ─────────────────────────────
       //    If it fails, dashboard still renders — insights panel shows empty.
@@ -116,19 +127,37 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
         })
 
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to load portfolio data. Check that the backend is running on port 8000.'
+      // ── Classify the error for a useful message ──────────────────────────────
+      let message: string
+      if (err instanceof ApiError) {
+        message = err.friendlyMessage
+      } else if (err instanceof Error) {
+        message = err.message
+      } else {
+        message = 'Failed to load portfolio data. Check that the backend is running on port 8000.'
+      }
+
       setError(message)
       console.error('[PortfolioContext] Core fetch failed:', err)
+
+      // ── Preserve stale data rather than blanking the UI ──────────────────────
+      // If we have previously loaded good data, mark as stale and keep the
+      // existing holdings/summary/sectors in state so the page remains usable.
+      // Only on the very first load (no data yet) does the error state replace content.
+      if (hasGoodDataRef.current) {
+        setStale(true)
+        // Do NOT reset holdings/summary/sectors/etc. — they remain from last good fetch.
+      }
     } finally {
       setLoading(false)
     }
   }, [mode])
 
-  // Re-fetch automatically when data mode changes
+  // Re-fetch automatically when data mode changes.
+  // When mode changes, clear stale flag so the user doesn't see old-mode data
+  // while new-mode data loads.
   useEffect(() => {
+    setStale(false)
     fetchAll()
   }, [fetchAll])
 
@@ -142,6 +171,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     insights,
     loading,
     error,
+    stale,
     refetch: fetchAll,
   }
 

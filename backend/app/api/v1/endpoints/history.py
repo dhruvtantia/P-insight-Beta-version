@@ -386,6 +386,177 @@ async def get_history_build_status_endpoint(
     )
 
 
+# ─── Canonical history status — /history/{id}/status ────────────────────────
+# These are the endpoints that api.ts historyApi.getStatus() and getDaily() call.
+# They differ from the older /portfolios/{id}/history/build-status in two ways:
+#   1. They live under /history/{id}/... (not /portfolios/{id}/history/...)
+#   2. Status does a DB row-count fallback when in-memory status is "unknown" —
+#      so a server restart doesn't make the frontend think there's no history.
+
+class CanonicalHistoryStatus(BaseModel):
+    portfolio_id:   int
+    status:         str            # building | complete | failed | not_started | unknown
+    rows:           int            # DB row count (authoritative)
+    earliest_date:  Optional[str] = None
+    latest_date:    Optional[str] = None
+    error:          Optional[str] = None
+    note:           Optional[str] = None
+    is_building:    bool           # convenience flag
+    has_data:       bool           # True when rows > 0
+
+
+class CanonicalHistoryDaily(BaseModel):
+    portfolio_id:  int
+    state:         str                 # complete | building | failed | not_started
+    points:        list[HistoryPoint]  # empty when state != 'complete'
+    count:         int
+    has_data:      bool
+    earliest_date: Optional[str] = None
+    latest_date:   Optional[str] = None
+    note:          Optional[str] = None
+    build_status:  Optional[str] = None   # raw in-memory status string
+
+
+@router.get(
+    "/history/{portfolio_id}/status",
+    response_model=CanonicalHistoryStatus,
+    summary="Canonical history build status (DB-aware after server restart)",
+)
+async def get_canonical_history_status(
+    portfolio_id: int,
+    db: DbSession,
+) -> CanonicalHistoryStatus:
+    """
+    Canonical status for the history build.  Returns the in-memory build status,
+    but when the server has restarted (status='unknown'), it checks the DB to see
+    if rows actually exist — and returns 'complete' if they do.
+
+    This prevents the frontend from treating a server restart as "no data ever built".
+
+    Status values:
+      building     — task actively running
+      complete     — rows exist in DB (either just built or from a prior session)
+      failed       — build failed; error field explains why
+      not_started  — no upload has occurred for this portfolio
+      unknown      — in-memory status lost (shouldn't happen with DB fallback above)
+    """
+    from app.services.history_service import get_history_build_status, get_portfolio_history_status
+    from app.models.portfolio import Portfolio
+
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
+
+    bst = get_history_build_status(portfolio_id)
+    in_memory_status = bst["status"]
+
+    # DB check — authoritative row count and date range
+    db_status = get_portfolio_history_status(portfolio_id, db)
+    row_count = db_status.get("count", 0)
+
+    # Resolve the canonical status:
+    # If in-memory is "unknown" (server restarted), check DB.
+    # If DB has rows → "complete".  If DB is empty → "not_started".
+    if in_memory_status == "unknown":
+        resolved_status = "complete" if row_count > 0 else "not_started"
+    elif in_memory_status == "done":
+        resolved_status = "complete"
+    else:
+        resolved_status = in_memory_status   # building | failed | pending → as-is
+
+    # "pending" is transitional — treat it like "building" for the frontend
+    if resolved_status == "pending":
+        resolved_status = "building"
+
+    return CanonicalHistoryStatus(
+        portfolio_id=portfolio_id,
+        status=resolved_status,
+        rows=row_count,
+        earliest_date=db_status.get("earliest"),
+        latest_date=db_status.get("latest"),
+        error=bst.get("error"),
+        note=bst.get("note"),
+        is_building=resolved_status == "building",
+        has_data=row_count > 0,
+    )
+
+
+@router.get(
+    "/history/{portfolio_id}/daily",
+    response_model=CanonicalHistoryDaily,
+    summary="Canonical daily portfolio value series with discriminated state",
+)
+async def get_canonical_history_daily(
+    portfolio_id: int,
+    db: DbSession,
+) -> CanonicalHistoryDaily:
+    """
+    Returns the daily portfolio value time series along with a discriminated `state` field.
+
+    Unlike the legacy /portfolios/{id}/history, this endpoint never returns a
+    misleading empty series — it tells you exactly why it's empty:
+      complete     — points[] contains real data; has_data=True
+      building     — task in progress; points=[] but will arrive soon
+      failed       — build errored; points=[] permanently unless re-uploaded
+      not_started  — no history was ever built; upload again to trigger
+
+    The frontend should poll this endpoint (e.g. every 5s) while state='building'.
+    """
+    from app.services.history_service import get_history_build_status, get_portfolio_history, get_portfolio_history_status
+    from app.models.portfolio import Portfolio
+
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
+
+    bst = get_history_build_status(portfolio_id)
+    in_memory_status = bst["status"]
+
+    # Fetch actual DB rows (cheap — just a query)
+    points_raw = get_portfolio_history(portfolio_id, db)
+    points = [HistoryPoint(**p) for p in points_raw]
+    has_data = len(points) > 0
+
+    # Resolve state
+    if has_data:
+        state = "complete"
+    elif in_memory_status in ("pending", "building"):
+        state = "building"
+    elif in_memory_status == "failed":
+        state = "failed"
+    elif in_memory_status == "done":
+        # "done" but no rows — build completed with 0 rows (ticker errors etc.)
+        state = "failed"
+    else:
+        # unknown / not in-memory — if no rows exist, it was never built
+        state = "not_started"
+
+    note: Optional[str] = None
+    if state == "complete":
+        note = (
+            "Estimated daily value based on current holdings × historical prices. "
+            "Assumes current quantities were held throughout the period."
+        )
+    elif state == "building":
+        note = "History is being built — fetching 1-year daily prices. Check back in a few seconds."
+    elif state == "failed":
+        note = f"History build failed: {bst.get('error') or 'unknown error'}."
+    elif state == "not_started":
+        note = "No historical data. Data is fetched automatically on upload."
+
+    return CanonicalHistoryDaily(
+        portfolio_id=portfolio_id,
+        state=state,
+        points=points,
+        count=len(points),
+        has_data=has_data,
+        earliest_date=points[0].date if points else None,
+        latest_date=points[-1].date if points else None,
+        note=note,
+        build_status=in_memory_status,
+    )
+
+
 # ─── Since-purchase P&L ───────────────────────────────────────────────────────
 
 @router.get(
