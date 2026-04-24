@@ -19,8 +19,10 @@ interface DataModeState {
   isBrokerEnabled: boolean
 }
 
+type PersistedDataModeState = Pick<DataModeState, 'mode'>
+
 export const useDataModeStore = create<DataModeState>()(
-  persist(
+  persist<DataModeState, [], [], PersistedDataModeState>(
     (set, get) => ({
       // Default to 'uploaded' — mock mode is disabled
       mode: 'uploaded' as DataMode,
@@ -55,9 +57,9 @@ export const useDataModeStore = create<DataModeState>()(
       name: 'p-insight-data-mode',
       // Only persist the mode selection, not the flags
       // Migrate any stored 'mock' value to 'uploaded' on hydration
-      partialize: (state) => ({ mode: state.mode }),
-      merge: (persisted: Partial<DataModeState>, current: DataModeState) => {
-        const stored = (persisted as { mode?: string }).mode
+      partialize: (state): PersistedDataModeState => ({ mode: state.mode }),
+      merge: (persisted: unknown, current: DataModeState): DataModeState => {
+        const stored = (persisted as Partial<PersistedDataModeState> | undefined)?.mode
         const safeModes: DataMode[] = ['uploaded', 'live', 'broker']
         return {
           ...current,
