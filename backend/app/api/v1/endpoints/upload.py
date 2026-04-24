@@ -40,10 +40,10 @@ from app.ingestion.normalizer import (
 from app.ingestion.sector_enrichment import enrich_holdings, EnrichmentRecord
 from app.data_providers.file_provider import FileDataProvider, UPLOADS_PATH
 from app.schemas.upload_v2 import V2ConfirmResponse, V2StatusResponse
+from app.services.post_upload_workflow import PostUploadWorkflow, UploadCompleted
 from app.services.upload_v2_service import (
     classify_rows_v2,
     persist_base_portfolio,
-    update_memory_cache,
     run_background_enrichment,
     build_v2_response,
     get_enrichment_status,
@@ -593,46 +593,21 @@ async def confirm_upload_v2(
             detail=f"Could not save portfolio to database: {exc}",
         )
 
-    # ── 3. Update in-memory cache immediately (unenriched holdings) ──────────
-    update_memory_cache(accepted)
+    # ── 3. Post-upload side effects ──────────────────────────────────────────
+    from app.db.database import SessionLocal as _SessionLocal
 
-    # ── 4. Save canonical CSV (same as legacy path) ───────────────────────────
-    try:
-        import pandas as _pd
-        UPLOADS_PATH.mkdir(parents=True, exist_ok=True)
-        _pd.DataFrame([
-            {
-                "ticker":       h.ticker,
-                "name":         h.name,
-                "quantity":     h.quantity,
-                "average_cost": h.average_cost,
-                "current_price": h.current_price or h.average_cost,
-                "sector":       h.sector or "",
-                "asset_class":  h.asset_class or "Equity",
-                "currency":     h.currency or "INR",
-            }
-            for h in accepted
-        ]).to_csv(UPLOADS_PATH / "portfolio_uploaded.csv", index=False)
-    except Exception as exc:
-        logger.warning("V2 CSV save failed (non-fatal): %s", exc)
+    PostUploadWorkflow(
+        background_tasks=background_tasks,
+        db_factory=_SessionLocal,
+        uploads_path=UPLOADS_PATH,
+        enrichment_task=run_background_enrichment,
+    ).run(UploadCompleted(
+        portfolio_id=portfolio_id,
+        holdings=list(accepted),
+        filename=filename,
+    ))
 
-    # ── 5. Fire background enrichment + price fetch + history ────────────────
-    try:
-        from app.db.database import SessionLocal as _SessionLocal
-        background_tasks.add_task(
-            run_background_enrichment,
-            portfolio_id,
-            list(accepted),
-            _SessionLocal,
-        )
-        logger.info(
-            "V2: scheduled background enrichment for portfolio_id=%s (%d holdings)",
-            portfolio_id, len(accepted),
-        )
-    except Exception as exc:
-        logger.warning("V2 could not schedule background enrichment (non-fatal): %s", exc)
-
-    # ── 6. Return immediately ─────────────────────────────────────────────────
+    # ── 4. Return immediately ─────────────────────────────────────────────────
     result = build_v2_response(
         portfolio_id=portfolio_id,
         filename=filename,
