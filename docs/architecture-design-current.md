@@ -57,6 +57,15 @@ The backend is a FastAPI app under `backend/app`.
 - `app/analytics` and `app/optimization` own computation-heavy logic.
 - `app/ingestion` owns upload parsing, normalization, and enrichment.
 
+Current backend module boundaries:
+
+- Portfolio aggregation is read through `PortfolioReadService`.
+- Upload side effects are coordinated by `PostUploadWorkflow`.
+- History APIs expose canonical states through endpoint-level resolver helpers.
+- Quant cache and history build status are wrapped by `cache_service.py`.
+- Snapshot history for context consumers is read through `SnapshotReadService`.
+- Advisor service orchestrates provider calls and consumes read boundaries instead of owning portfolio/snapshot calculations.
+
 ## Primary Data Flow
 
 ```mermaid
@@ -74,6 +83,7 @@ sequenceDiagram
   U->>FE: Confirm mapping
   FE->>API: POST /api/v1/upload/v2/confirm
   API->>DB: Save active portfolio + pending holdings
+  API->>API: Run PostUploadWorkflow
   API-->>FE: Accepted/rejected/warning rows + portfolio_id
   API->>BG: Enrich sectors/prices/fundamentals, prewarm quant, build history
   FE->>Dash: Navigate to dashboard
@@ -176,7 +186,7 @@ The implemented system generally tries to:
 - expose health and readiness endpoints;
 - isolate slow enrichment/history/quant work from upload confirmation.
 
-Remaining design concern: several caches and status maps are process-local. A production deployment should introduce persistent job state and durable cache/storage for expensive data.
+Remaining design concern: several caches and status maps are still process-local, although the quant cache and history build status now sit behind wrappers. A production deployment should introduce persistent job state and durable cache/storage for expensive data.
 
 ## Non-Goals In Current Architecture
 

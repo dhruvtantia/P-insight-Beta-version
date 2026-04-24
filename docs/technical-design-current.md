@@ -53,7 +53,7 @@ Primary settings live in `backend/app/core/config.py`:
 - feature flags: `LIVE_API_ENABLED`, `BROKER_SYNC_ENABLED`, `AI_CHAT_ENABLED`, `ADVANCED_ANALYTICS_ENABLED`;
 - keys: Alpha Vantage, FMP, NewsAPI, OpenAI, Anthropic, Zerodha.
 
-Important current-state mismatch: `backend/.env.example` still shows `DEFAULT_DATA_MODE=mock`, while runtime dependency code rejects `mock` mode. Documentation and env examples should be aligned to `uploaded`.
+`DEFAULT_DATA_MODE=uploaded` is the documented default. Runtime mode selection accepts `uploaded`, `live`, and `broker`; `mock` provider code remains in the tree but is not a supported runtime option.
 
 ## API Router Map
 
@@ -154,12 +154,26 @@ Relationships:
 
 The current schema is created by `init_db()`. There is no Alembic migration tree in the inspected repository.
 
+## Backend Module Boundaries
+
+Current backend module boundaries are documented in `docs/backend-module-contracts.md`.
+
+Implemented service boundaries:
+
+- `PortfolioReadService`: default/active portfolio lookup, holdings reads, summary, sector allocation, and concentration risk.
+- `PostUploadWorkflow`: post-confirm upload side effects after base portfolio persistence.
+- Canonical history helpers in `history.py`: map internal labels to `building`, `complete`, `failed`, and `not_started`.
+- `TimedMemoryCache` and `HistoryBuildStatusStore`: wrappers around current process-local cache/status behavior.
+- `SnapshotReadService`: recent snapshot briefs and recent-change summaries for advisor/context consumers.
+- `AIAdvisorService`: orchestration layer that consumes portfolio/context/snapshot read boundaries.
+
 ## Upload And Enrichment Pipeline
 
 Main files:
 
 - `backend/app/api/v1/endpoints/upload.py`
 - `backend/app/services/upload_v2_service.py`
+- `backend/app/services/post_upload_workflow.py`
 - `backend/app/ingestion/normalizer.py`
 - `backend/app/ingestion/column_detector.py`
 - `backend/app/ingestion/sector_enrichment.py`
@@ -170,8 +184,8 @@ V2 stages:
 2. Detect/map columns.
 3. Classify rows as accepted, rejected, or accepted-with-warning.
 4. Persist portfolio and holdings with `enrichment_status="pending"`.
-5. Update uploaded holdings in-memory cache.
-6. Create upload snapshot.
+5. Pass an `UploadCompleted` payload to `PostUploadWorkflow`.
+6. Workflow updates uploaded holdings cache, writes the canonical uploaded CSV, and schedules background work.
 7. Background enrichment:
    - resolve ticker/name/sector;
    - fetch prices/fundamentals where available;
@@ -193,6 +207,8 @@ The quant service:
 - handles unavailable benchmark data by returning null relative metrics rather than synthetic fallback;
 - caches computed bundles by mode and period;
 - caches raw one-year histories by mode and slices them for shorter periods.
+
+The current cache implementation is still process-local, but quant cache access now goes through `TimedMemoryCache` in `backend/app/services/cache_service.py`.
 
 ## Optimization Design
 
@@ -253,20 +269,17 @@ The API helper uses a 15-second timeout and classifies errors as network, timeou
 
 Frontend:
 
-- `pnpm type-check` currently fails.
-- Failing files: `frontend/src/app/changes/page.tsx`, `frontend/src/store/dataModeStore.ts`.
+- `pnpm type-check` passes.
 
 Backend:
 
 - `poetry run python -m compileall app` passes.
-- `poetry run pytest` could not run because `pytest` was not installed in the created Poetry environment.
+- `poetry run pytest` passes.
 
 ## Technical Debt
 
-- TypeScript compile errors block clean release verification.
-- Poetry environment/dev dependency setup needs repair.
 - Migration strategy is absent.
-- Process-local caches/status maps need production replacement.
+- Process-local caches/status maps need production replacement if the app is deployed across multiple workers.
 - Some mock references remain in schemas, docs, debug UI, comments, and provider code.
 - Some route/docs comments still describe earlier architecture states.
 - Some direct frontend fetch calls bypass `apiFetch`, usually for form-data flows.

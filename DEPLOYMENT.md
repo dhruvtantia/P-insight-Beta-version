@@ -32,7 +32,7 @@ Copy `backend/.env.example` to `backend/.env` and fill in every value.
 | `FRONTEND_URL` | `http://localhost:3000` | Yes | Single allowed CORS origin |
 | `ALLOWED_ORIGINS` | *(empty)* | Preferred | Comma-separated list; overrides `FRONTEND_URL` |
 | `DATABASE_URL` | SQLite path | Yes — use PostgreSQL | See §4 below |
-| `DEFAULT_DATA_MODE` | `mock` | Optional | `mock` / `uploaded` / `live` / `broker` |
+| `DEFAULT_DATA_MODE` | `uploaded` | Optional | `uploaded` / `live` / `broker` |
 | `LIVE_API_ENABLED` | `true` | Optional | Enables yfinance live price fetching |
 | `BROKER_SYNC_ENABLED` | `false` | Leave `false` | Scaffolded — not yet implemented |
 | `AI_CHAT_ENABLED` | `false` | Leave `false` | Deprecated scaffold |

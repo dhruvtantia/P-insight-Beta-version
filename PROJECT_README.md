@@ -102,6 +102,19 @@ Important backend folders:
 - `app/analytics`: returns, risk, benchmark, quant calculations.
 - `app/optimization`: efficient frontier and rebalance logic.
 
+## Backend Module Boundaries
+
+The backend is a modular monolith. The current isolation work defines these service boundaries:
+
+- Portfolio reads: `PortfolioReadService` owns active/default portfolio lookup, holdings reads, summary, sector allocation, and concentration risk calculations.
+- Upload workflow: `PostUploadWorkflow` owns post-confirm upload side effects after the base portfolio is persisted.
+- History contract: canonical history APIs expose only `building`, `complete`, `failed`, and `not_started`.
+- Cache/status wrappers: `TimedMemoryCache` and `HistoryBuildStatusStore` isolate process-local cache/status state.
+- Snapshot reads: `SnapshotReadService` owns recent snapshot briefs and recent-change summaries for context consumers.
+- Advisor orchestration: `AIAdvisorService` consumes portfolio/context/snapshot read boundaries instead of owning portfolio aggregation logic.
+
+Detailed module contracts live in `docs/backend-module-contracts.md`.
+
 Health endpoints:
 
 - `GET /health`
@@ -192,7 +205,7 @@ cd frontend
 pnpm type-check
 ```
 
-Current result: fails. Known failures are in `src/app/changes/page.tsx` history-state comparisons and `src/store/dataModeStore.ts` Zustand persist typing.
+Current result: passes.
 
 Backend:
 
@@ -208,7 +221,7 @@ cd backend
 poetry run pytest
 ```
 
-Current result: could not run because `pytest` was not available in the created Poetry environment.
+Current result: passes.
 
 ## Known Limitations
 
@@ -216,10 +229,9 @@ Current result: could not run because `pytest` was not available in the created 
 - Backend test environment is not currently verified.
 - SQLite/local-first persistence is the current default.
 - No Alembic migration tree was observed.
-- Several caches and build statuses are process-local.
+- Several caches and build statuses are process-local, now behind lightweight service wrappers.
 - Broker sync is scaffolded, not production-ready.
 - Corporate event coverage is limited/scaffolded.
-- Some docs and env examples still contain stale mock/deprecated references.
 - Some mock-mode code remains even though mock mode is disabled.
 
 ## Best Starting Points For New Contributors
@@ -231,6 +243,7 @@ Read these first:
 - `docs/architecture-design-current.md`
 - `docs/technical-design-current.md`
 - `docs/feature-specification-current.md`
+- `docs/backend-module-contracts.md`
 - `docs/02-status-and-backlog.md`
 
 Then inspect these files:
@@ -241,6 +254,10 @@ Then inspect these files:
 - `backend/app/core/dependencies.py`
 - `backend/app/services/portfolio_service.py`
 - `backend/app/services/upload_v2_service.py`
+- `backend/app/services/post_upload_workflow.py`
+- `backend/app/services/cache_service.py`
+- `backend/app/services/snapshot_service.py`
+- `backend/app/services/context_builder.py`
 - `frontend/src/context/PortfolioContext.tsx`
 - `frontend/src/services/api.ts`
 - `frontend/src/components/layout/Sidebar.tsx`

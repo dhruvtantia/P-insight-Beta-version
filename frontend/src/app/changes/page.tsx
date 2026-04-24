@@ -618,7 +618,7 @@ export default function ChangesPage(): React.ReactElement {
                   {dailyPoints.length} days of price history
                 </span>
               )}
-              {!hasDailyData && (buildStatus === 'pending' || buildStatus === 'building') && (
+              {!hasDailyData && buildStatus === 'building' && (
                 <span className="text-[11px] text-indigo-500 font-medium flex items-center gap-1">
                   <Clock className="h-3 w-3 animate-pulse" />
                   Building history…
@@ -704,7 +704,7 @@ export default function ChangesPage(): React.ReactElement {
 
           {/* ── No snapshots + no history ────────────────────────────────── */}
           {summaries.length === 0 && !hasDailyData &&
-            buildStatus !== 'pending' && buildStatus !== 'building' && (
+            buildStatus !== 'building' && (
             <div className="rounded-xl border-2 border-dashed border-slate-200 py-16 text-center">
               <Camera className="h-10 w-10 text-slate-300 mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-600 mb-1">No snapshots yet</p>
@@ -748,7 +748,7 @@ export default function ChangesPage(): React.ReactElement {
 
           {/* Need more snapshots notice — only when no daily data, <2 snaps, and not building */}
           {!hasDailyData && summaries.length === 1 &&
-            buildStatus !== 'pending' && buildStatus !== 'building' && (
+            buildStatus !== 'building' && (
             <div className="rounded-xl border-2 border-dashed border-slate-200 py-12 text-center">
               <TrendingUp className="h-8 w-8 text-slate-300 mx-auto mb-3" />
               <p className="text-sm font-medium text-slate-500">Need at least 2 snapshots for history charts</p>

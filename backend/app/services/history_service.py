@@ -19,7 +19,7 @@ What gets stored:
   - benchmark_history: (ticker, date, close_price) — shared across all portfolios
 
 Build status tracking:
-  - _HISTORY_BUILD_STATUS: in-memory dict keyed by portfolio_id
+  - HistoryBuildStatusStore: in-memory status store keyed by portfolio_id
   - Values: 'pending' | 'building' | 'done' | 'failed'
   - Set to 'pending' before background task is scheduled (upload.py)
   - Set to 'building' when the task starts, 'done'/'failed' on completion
@@ -41,10 +41,10 @@ IMPORTANT — honest labelling:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Session
+from app.services.cache_service import HistoryBuildStatusStore
 
 if TYPE_CHECKING:
     from app.schemas.portfolio import HoldingBase
@@ -56,12 +56,12 @@ _DEFAULT_BENCHMARK = "^NSEI"
 
 
 # ─── Build Status Tracking ─────────────────────────────────────────────────────
-# Lightweight in-memory status dict.  Keyed by portfolio_id (int).
+# Lightweight in-memory status store.  Keyed by portfolio_id (int).
 # Survives within a server process; resets on restart.
 # The DB rows (portfolio_history table) are the durable source of truth —
 # this is only for surfacing live build progress to the frontend.
 
-_HISTORY_BUILD_STATUS: dict[int, dict] = {}
+_HISTORY_BUILD_STATUS = HistoryBuildStatusStore()
 
 
 def set_history_build_status(
@@ -78,21 +78,14 @@ def set_history_build_status(
     Called by upload.py (to set 'pending') and by the background task
     itself (to set 'building' → 'done' / 'failed').
     """
-    now = datetime.now(timezone.utc).isoformat()
-    entry = _HISTORY_BUILD_STATUS.setdefault(portfolio_id, {})
-    entry["status"]         = status
-    entry["error"]          = error
-    entry["note"]           = note
-    entry["rows_written"]   = rows_written
-    entry["benchmark_rows"] = benchmark_rows
-
-    if status in ("pending", "building"):
-        entry["started_at"]  = now
-        entry["finished_at"] = None
-    else:
-        # done or failed — record finish time
-        entry.setdefault("started_at", now)
-        entry["finished_at"] = now
+    _HISTORY_BUILD_STATUS.set_status(
+        portfolio_id,
+        status,
+        rows_written=rows_written,
+        benchmark_rows=benchmark_rows,
+        error=error,
+        note=note,
+    )
 
 
 def get_history_build_status(portfolio_id: int) -> dict:
@@ -111,18 +104,7 @@ def get_history_build_status(portfolio_id: int) -> dict:
     'unknown' means no upload has been triggered in this server session
     (the DB may still have data from a prior session).
     """
-    return _HISTORY_BUILD_STATUS.get(
-        portfolio_id,
-        {
-            "status":         "unknown",
-            "rows_written":   0,
-            "benchmark_rows": 0,
-            "error":          None,
-            "note":           None,
-            "started_at":     None,
-            "finished_at":    None,
-        },
-    )
+    return _HISTORY_BUILD_STATUS.get_status(portfolio_id)
 
 
 # ─── Build + Store ─────────────────────────────────────────────────────────────

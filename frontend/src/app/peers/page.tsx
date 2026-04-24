@@ -22,7 +22,7 @@
 
 'use client'
 
-import { useState, useMemo, useEffect }        from 'react'
+import { Suspense, useState, useMemo, useEffect } from 'react'
 import { useSearchParams }                     from 'next/navigation'
 import { GitCompareArrows, AlertCircle,
          RefreshCw, Info, AlertTriangle }      from 'lucide-react'
@@ -34,7 +34,7 @@ import { PeerComparisonTable }                 from '@/components/peers/PeerComp
 import { RelativeValuationSummary }            from '@/components/peers/RelativeValuationSummary'
 import { cn }                                  from '@/lib/utils'
 
-export default function PeersPage() {
+function PeersPageContent() {
   // ── Portfolio holdings (for PeerSelector options) ─────────────────────────
   const { holdings, loading: holdingsLoading } = usePortfolio()
 
@@ -186,6 +186,14 @@ export default function PeersPage() {
       ) : null}
 
     </div>
+  )
+}
+
+export default function PeersPage() {
+  return (
+    <Suspense fallback={<TableSkeleton />}>
+      <PeersPageContent />
+    </Suspense>
   )
 }
 
