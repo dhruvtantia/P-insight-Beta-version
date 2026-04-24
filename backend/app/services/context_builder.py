@@ -26,9 +26,9 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.snapshot  import Snapshot
 from app.schemas.portfolio import RiskSnapshot, SectorAllocation
 from app.services.portfolio_service import PortfolioReadService
+from app.services.snapshot_service import SnapshotReadService
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,7 @@ class PortfolioContextBuilder:
     def __init__(self, db: Session):
         self.db = db
         self.portfolio_reader = PortfolioReadService(db)
+        self.snapshot_reader = SnapshotReadService(db)
 
     # ── Public entry point ────────────────────────────────────────────────────
 
@@ -327,78 +328,29 @@ class PortfolioContextBuilder:
         Fetch last 5 snapshots and compute a delta between the two most recent.
         Returns (snapshot_list, recent_changes | None).
         """
-        snaps = (
-            self.db.query(Snapshot)
-            .filter(Snapshot.portfolio_id == portfolio_id)
-            .order_by(Snapshot.captured_at.desc())
-            .limit(5)
-            .all()
-        )
+        snapshots, recent_read = self.snapshot_reader.get_recent_history(portfolio_id, limit=5)
 
-        snap_ctx = []
-        for s in snaps:
-            snap_ctx.append(SnapshotCtx(
-                id           = s.id,
-                label        = s.label,
-                captured_at  = s.captured_at.isoformat() if s.captured_at else "",
-                total_value  = round(float(s.total_value or 0), 2),
-                num_holdings = int(s.num_holdings or 0),
-            ))
+        snap_ctx = [
+            SnapshotCtx(
+                id=s.id,
+                label=s.label,
+                captured_at=s.captured_at,
+                total_value=s.total_value,
+                num_holdings=s.num_holdings,
+            )
+            for s in snapshots
+        ]
 
         recent = None
-        if len(snaps) >= 2:
-            recent = self._compute_recent_changes(snaps[0], snaps[1])
+        if recent_read:
+            recent = RecentChangesCtx(
+                days_apart=recent_read.days_apart,
+                value_delta=recent_read.value_delta,
+                value_delta_pct=recent_read.value_delta_pct,
+                added_tickers=recent_read.added_tickers,
+                removed_tickers=recent_read.removed_tickers,
+                increased_count=recent_read.increased_count,
+                decreased_count=recent_read.decreased_count,
+            )
 
         return snap_ctx, recent
-
-    def _compute_recent_changes(
-        self,
-        snap_new: Snapshot,
-        snap_old: Snapshot,
-    ) -> Optional[RecentChangesCtx]:
-        """
-        Lightweight delta between two snapshots using their SnapshotHolding records.
-        Falls back to value-only comparison if holding records are empty.
-        """
-        try:
-            # Build ticker → SnapshotHolding maps from the selectin-loaded relationships
-            new_h: dict[str, object] = {h.ticker: h for h in (snap_new.holdings or [])}
-            old_h: dict[str, object] = {h.ticker: h for h in (snap_old.holdings or [])}
-
-            added   = sorted(set(new_h) - set(old_h))
-            removed = sorted(set(old_h) - set(new_h))
-
-            increased = 0
-            decreased = 0
-            common    = set(new_h) & set(old_h)
-            for ticker in common:
-                new_qty = getattr(new_h[ticker], "quantity", 0) or 0
-                old_qty = getattr(old_h[ticker], "quantity", 0) or 0
-                if new_qty > old_qty:
-                    increased += 1
-                elif new_qty < old_qty:
-                    decreased += 1
-
-            val_new       = float(snap_new.total_value or 0)
-            val_old       = float(snap_old.total_value or 0)
-            val_delta     = val_new - val_old
-            val_delta_pct = (val_delta / val_old * 100) if val_old > 0 else 0.0
-
-            # Days apart
-            days = 0
-            if snap_new.captured_at and snap_old.captured_at:
-                diff = snap_new.captured_at - snap_old.captured_at
-                days = max(0, diff.days)
-
-            return RecentChangesCtx(
-                days_apart      = days,
-                value_delta     = round(val_delta, 2),
-                value_delta_pct = round(val_delta_pct, 2),
-                added_tickers   = added,
-                removed_tickers = removed,
-                increased_count = increased,
-                decreased_count = decreased,
-            )
-        except Exception as exc:
-            logger.warning("Could not compute recent changes from snapshots: %s", exc)
-            return None

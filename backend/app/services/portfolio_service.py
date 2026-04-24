@@ -49,6 +49,16 @@ class PortfolioReadService:
             .first()
         )
 
+    def get_default_portfolio(self) -> Optional[PortfolioORM]:
+        active = self.get_active_portfolio()
+        if active:
+            return active
+        return (
+            self.db.query(PortfolioORM)
+            .order_by(PortfolioORM.updated_at.desc())
+            .first()
+        )
+
     def get_portfolio(self, portfolio_id: int) -> Optional[PortfolioORM]:
         return self.db.query(PortfolioORM).filter(PortfolioORM.id == portfolio_id).first()
 
