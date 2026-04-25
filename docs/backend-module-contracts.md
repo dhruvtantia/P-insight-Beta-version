@@ -55,16 +55,25 @@ Tests:
 Owner files:
 
 - `backend/app/api/v1/endpoints/upload.py`
+- `backend/app/services/isolated_upload_module.py`
 - `backend/app/services/upload_v2_service.py`
 - `backend/app/services/post_upload_workflow.py`
 
 Primary boundary:
 
+- `IsolatedUploadModule`
+- `UploadParseRequest` / `UploadParseResult`
+- `UploadConfirmRequest` / `UploadConfirmResult`
+- `UploadValidationResult`
+- `UploadEnrichmentJob`
+- `UploadModuleStatus`
 - `UploadCompleted`
 - `PostUploadWorkflow`
 
 Inputs:
 
+- uploaded CSV/XLS/XLSX file path
+- confirmed canonical column mapping
 - `portfolio_id`
 - accepted holdings
 - source filename
@@ -72,6 +81,9 @@ Inputs:
 
 Outputs and side effects:
 
+- parse result with detected mapping and preview rows
+- validation result with accepted, rejected, and warning rows
+- persisted base portfolio compatible with V2
 - Uploaded holdings memory cache update
 - Canonical uploaded CSV write
 - Background enrichment scheduling
@@ -79,11 +91,20 @@ Outputs and side effects:
 
 Safe edit rule:
 
-Upload endpoints should validate and persist the base portfolio, then hand a single `UploadCompleted` payload to `PostUploadWorkflow`. New post-upload side effects should be added inside the workflow, not scattered into the route handler.
+The current public V2 upload routes remain the production path. `IsolatedUploadModule` is a parallel internal candidate that must be tested against V2 before it replaces anything. Upload endpoints should validate and persist the base portfolio, then hand a single `UploadCompleted` payload to `PostUploadWorkflow`. New post-upload side effects should be added inside the workflow, not scattered into the route handler.
+
+Replacement gate:
+
+1. Golden comparison tests prove the isolated module matches V2 row classification and core holding output.
+2. Existing V2 route tests still pass.
+3. Provider failures are represented as explicit status/failure metadata.
+4. Manual upload smoke tests pass across dashboard, holdings, risk, changes, peers, and advisor.
+5. Only then should a public `/upload/v3` route or V2 replacement be considered.
 
 Tests:
 
 - `backend/tests/test_upload_contracts.py`
+- `backend/tests/test_isolated_upload_module.py`
 
 ## History Contract
 
