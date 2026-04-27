@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -33,6 +34,114 @@ from app.schemas.snapshot import (
 from app.lib.delta import compute_delta
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SnapshotBriefRead:
+    id: int
+    label: Optional[str]
+    captured_at: str
+    total_value: float
+    num_holdings: int
+
+
+@dataclass(frozen=True)
+class RecentSnapshotChanges:
+    days_apart: int
+    value_delta: float
+    value_delta_pct: float
+    added_tickers: list[str]
+    removed_tickers: list[str]
+    increased_count: int
+    decreased_count: int
+
+
+class SnapshotReadService:
+    """
+    Read boundary for snapshot history consumers.
+
+    Advisor/context code should use this service instead of querying Snapshot
+    ORM rows directly.
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_recent_history(
+        self,
+        portfolio_id: int,
+        limit: int = 5,
+    ) -> tuple[list[SnapshotBriefRead], Optional[RecentSnapshotChanges]]:
+        snaps = (
+            self.db.query(Snapshot)
+            .filter(Snapshot.portfolio_id == portfolio_id)
+            .order_by(Snapshot.captured_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        briefs = [
+            SnapshotBriefRead(
+                id=s.id,
+                label=s.label,
+                captured_at=s.captured_at.isoformat() if s.captured_at else "",
+                total_value=round(float(s.total_value or 0), 2),
+                num_holdings=int(s.num_holdings or 0),
+            )
+            for s in snaps
+        ]
+
+        recent = None
+        if len(snaps) >= 2:
+            recent = self._compute_recent_changes(snaps[0], snaps[1])
+
+        return briefs, recent
+
+    def _compute_recent_changes(
+        self,
+        snap_new: Snapshot,
+        snap_old: Snapshot,
+    ) -> Optional[RecentSnapshotChanges]:
+        try:
+            new_h: dict[str, object] = {h.ticker: h for h in (snap_new.holdings or [])}
+            old_h: dict[str, object] = {h.ticker: h for h in (snap_old.holdings or [])}
+
+            added = sorted(set(new_h) - set(old_h))
+            removed = sorted(set(old_h) - set(new_h))
+
+            increased = 0
+            decreased = 0
+            common = set(new_h) & set(old_h)
+            for ticker in common:
+                new_qty = getattr(new_h[ticker], "quantity", 0) or 0
+                old_qty = getattr(old_h[ticker], "quantity", 0) or 0
+                if new_qty > old_qty:
+                    increased += 1
+                elif new_qty < old_qty:
+                    decreased += 1
+
+            val_new = float(snap_new.total_value or 0)
+            val_old = float(snap_old.total_value or 0)
+            val_delta = val_new - val_old
+            val_delta_pct = (val_delta / val_old * 100) if val_old > 0 else 0.0
+
+            days = 0
+            if snap_new.captured_at and snap_old.captured_at:
+                diff = snap_new.captured_at - snap_old.captured_at
+                days = max(0, diff.days)
+
+            return RecentSnapshotChanges(
+                days_apart=days,
+                value_delta=round(val_delta, 2),
+                value_delta_pct=round(val_delta_pct, 2),
+                added_tickers=added,
+                removed_tickers=removed,
+                increased_count=increased,
+                decreased_count=decreased,
+            )
+        except Exception as exc:
+            logger.warning("Could not compute recent changes from snapshots: %s", exc)
+            return None
 
 
 class SnapshotService:

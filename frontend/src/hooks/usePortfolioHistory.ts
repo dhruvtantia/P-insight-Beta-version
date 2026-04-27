@@ -165,7 +165,7 @@ export function usePortfolioHistory(
     }
   }, [daily?.state, portfolioId, fetchData])
 
-  // Map canonical state to legacy buildStatus shape the Changes page expects
+  // Map canonical state to the buildStatus name used by the Changes page
   const buildStatus = daily == null
     ? null
     : (daily.state as 'building' | 'complete' | 'failed' | 'not_started')

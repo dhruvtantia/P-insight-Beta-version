@@ -44,6 +44,32 @@ from app.core.dependencies import DbSession
 
 router = APIRouter(tags=["History"])
 
+CANONICAL_HISTORY_STATES = {"building", "complete", "failed", "not_started"}
+
+
+def _resolve_canonical_history_status(in_memory_status: str, row_count: int) -> str:
+    """Map internal build-status labels to the frontend-facing status contract."""
+    if in_memory_status == "unknown":
+        return "complete" if row_count > 0 else "not_started"
+    if in_memory_status == "done":
+        return "complete"
+    if in_memory_status in ("pending", "building"):
+        return "building"
+    if in_memory_status == "failed":
+        return "failed"
+    return "not_started"
+
+
+def _resolve_canonical_daily_state(in_memory_status: str, has_data: bool) -> str:
+    """Resolve the discriminated daily-history state without leaking legacy labels."""
+    if has_data:
+        return "complete"
+    if in_memory_status in ("pending", "building"):
+        return "building"
+    if in_memory_status in ("failed", "done"):
+        return "failed"
+    return "not_started"
+
 
 # ─── Response schemas ─────────────────────────────────────────────────────────
 
@@ -396,7 +422,7 @@ async def get_history_build_status_endpoint(
 
 class CanonicalHistoryStatus(BaseModel):
     portfolio_id:   int
-    status:         str            # building | complete | failed | not_started | unknown
+    status:         str            # building | complete | failed | not_started
     rows:           int            # DB row count (authoritative)
     earliest_date:  Optional[str] = None
     latest_date:    Optional[str] = None
@@ -418,7 +444,7 @@ class CanonicalHistoryDaily(BaseModel):
     earliest_date: Optional[str] = None
     latest_date:   Optional[str] = None
     note:          Optional[str] = None
-    build_status:  Optional[str] = None   # raw in-memory status string
+    build_status:  Optional[str] = None   # canonical mirror of state for compatibility
     # ISO-8601 UTC timestamp of when this response was assembled.
     as_of:         Optional[str] = None
 
@@ -444,7 +470,6 @@ async def get_canonical_history_status(
       complete     — rows exist in DB (either just built or from a prior session)
       failed       — build failed; error field explains why
       not_started  — no upload has occurred for this portfolio
-      unknown      — in-memory status lost (shouldn't happen with DB fallback above)
     """
     from app.services.history_service import get_history_build_status, get_portfolio_history_status
     from app.models.portfolio import Portfolio
@@ -460,19 +485,7 @@ async def get_canonical_history_status(
     db_status = get_portfolio_history_status(portfolio_id, db)
     row_count = db_status.get("count", 0)
 
-    # Resolve the canonical status:
-    # If in-memory is "unknown" (server restarted), check DB.
-    # If DB has rows → "complete".  If DB is empty → "not_started".
-    if in_memory_status == "unknown":
-        resolved_status = "complete" if row_count > 0 else "not_started"
-    elif in_memory_status == "done":
-        resolved_status = "complete"
-    else:
-        resolved_status = in_memory_status   # building | failed | pending → as-is
-
-    # "pending" is transitional — treat it like "building" for the frontend
-    if resolved_status == "pending":
-        resolved_status = "building"
+    resolved_status = _resolve_canonical_history_status(in_memory_status, row_count)
 
     return CanonicalHistoryStatus(
         portfolio_id=portfolio_id,
@@ -524,19 +537,7 @@ async def get_canonical_history_daily(
     points = [HistoryPoint(**p) for p in points_raw]
     has_data = len(points) > 0
 
-    # Resolve state
-    if has_data:
-        state = "complete"
-    elif in_memory_status in ("pending", "building"):
-        state = "building"
-    elif in_memory_status == "failed":
-        state = "failed"
-    elif in_memory_status == "done":
-        # "done" but no rows — build completed with 0 rows (ticker errors etc.)
-        state = "failed"
-    else:
-        # unknown / not in-memory — if no rows exist, it was never built
-        state = "not_started"
+    state = _resolve_canonical_daily_state(in_memory_status, has_data)
 
     note: Optional[str] = None
     if state == "complete":
@@ -560,7 +561,7 @@ async def get_canonical_history_daily(
         earliest_date=points[0].date if points else None,
         latest_date=points[-1].date if points else None,
         note=note,
-        build_status=in_memory_status,
+        build_status=state,
         as_of=datetime.now(timezone.utc).isoformat(),
     )
 

@@ -44,6 +44,7 @@ from app.analytics import returns as ret_utils
 from app.analytics import risk as rsk
 from app.analytics import benchmark as bm
 from app.analytics import correlation as corr
+from app.services.cache_service import TimedMemoryCache
 
 logger = logging.getLogger(__name__)
 
@@ -51,52 +52,47 @@ RISK_FREE_RATE = 0.065
 TRADING_DAYS   = 252
 
 # ─── In-process result cache for quant computations ───────────────────────────
-# Key: "{mode}_{period}"  |  Value: (result_dict, timestamp)
-import time as _time
-_QUANT_CACHE: dict[str, tuple[dict, float]] = {}
+# Key: "{mode}_{period}"  |  Value: result_dict
 MOCK_QUANT_TTL = 3_600.0 * 24   # mock data is deterministic — cache 24h
 LIVE_QUANT_TTL = 600.0           # live data — cache 10 minutes
 
 
+def _quant_cache_ttl(key: str) -> float:
+    return MOCK_QUANT_TTL if key.startswith("mock_") else LIVE_QUANT_TTL
+
+
+_QUANT_CACHE = TimedMemoryCache(_quant_cache_ttl)
+
+
 def _cache_get(key: str) -> Optional[dict]:
-    entry = _QUANT_CACHE.get(key)
-    if not entry:
-        return None
-    ttl = MOCK_QUANT_TTL if key.startswith("mock_") else LIVE_QUANT_TTL
-    if (_time.time() - entry[1]) < ttl:
-        return entry[0]
-    return None
+    return _QUANT_CACHE.get(key)
 
 
 def _cache_set(key: str, data: dict) -> None:
-    _QUANT_CACHE[key] = (data, _time.time())
+    _QUANT_CACHE.set(key, data)
 
 
 # ─── Raw price history cache (Part 3 — avoids re-downloading on period switch) ─
-# Key: "{mode}"  |  Value: (raw_hists, ticker_status, failure_reasons, timestamp)
+# Key: "{mode}"  |  Value: (raw_hists, ticker_status, failure_reasons)
 # Always populated with the widest available fetch (1y). Shorter periods are
 # derived by slicing this data — no extra network round-trips required.
 from datetime import datetime as _dt, timedelta as _td
-_RAW_HIST_CACHE: dict[str, tuple[dict, dict, dict, float]] = {}
 
 
 def _raw_cache_ttl(mode: str) -> float:
     return MOCK_QUANT_TTL if mode == "mock" else LIVE_QUANT_TTL
 
 
+_RAW_HIST_CACHE = TimedMemoryCache(_raw_cache_ttl)
+
+
 def _raw_cache_get(mode: str) -> Optional[tuple[dict, dict, dict]]:
     """Return (raw_hists, ticker_status, failure_reasons) if cache is fresh."""
-    entry = _RAW_HIST_CACHE.get(mode)
-    if not entry:
-        return None
-    raw_hists, ticker_status, failure_reasons, stored_at = entry
-    if (_time.time() - stored_at) < _raw_cache_ttl(mode):
-        return raw_hists, ticker_status, failure_reasons
-    return None
+    return _RAW_HIST_CACHE.get(mode)
 
 
 def _raw_cache_set(mode: str, raw_hists: dict, ticker_status: dict, failure_reasons: dict) -> None:
-    _RAW_HIST_CACHE[mode] = (raw_hists, ticker_status, failure_reasons, _time.time())
+    _RAW_HIST_CACHE.set(mode, (raw_hists, ticker_status, failure_reasons))
 
 
 def _slice_histories_to_period(
@@ -169,22 +165,19 @@ class QuantAnalyticsService:
         """
         self.period = period
         cache_key   = f"{self.mode}_{period}"
-        entry       = _QUANT_CACHE.get(cache_key)
+        cached      = _QUANT_CACHE.get_with_age(cache_key)
 
-        if entry:
-            stored_result, stored_at = entry
-            ttl = MOCK_QUANT_TTL if cache_key.startswith("mock_") else LIVE_QUANT_TTL
-            age = _time.time() - stored_at
-            if age < ttl:
-                logger.debug(f"Quant cache hit: {cache_key} (age={age:.0f}s)")
-                # Return a view with accurate cache metadata — shallow-copy meta only.
-                result = dict(stored_result)
-                result["meta"] = {
-                    **stored_result["meta"],
-                    "cached":            True,
-                    "cache_age_seconds": round(age, 1),
-                }
-                return result
+        if cached is not None:
+            stored_result, age = cached
+            logger.debug(f"Quant cache hit: {cache_key} (age={age:.0f}s)")
+            # Return a view with accurate cache metadata — shallow-copy meta only.
+            result = dict(stored_result)
+            result["meta"] = {
+                **stored_result["meta"],
+                "cached":            True,
+                "cache_age_seconds": round(age, 1),
+            }
+            return result
 
         result = await self._compute(period)
         _cache_set(cache_key, result)

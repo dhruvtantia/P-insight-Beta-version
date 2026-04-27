@@ -125,6 +125,24 @@ Important backend details:
 - History build status uses in-process status tracking plus durable DB rows for historical values.
 - Advisor can use Anthropic, OpenAI, or a fallback provider depending on configured keys.
 
+<<<<<<< HEAD
+=======
+## Backend Module Isolation Update
+
+Updated: 2026-04-25
+
+The backend remains a modular monolith, but the core feature boundaries are now more explicit:
+
+- Portfolio aggregation is owned by `PortfolioReadService`, which provides active/default portfolio lookup, holdings reads, summary, sector allocation, and concentration risk calculations.
+- Upload confirmation now persists the base portfolio and passes an `UploadCompleted` payload into `PostUploadWorkflow` for post-upload side effects.
+- Canonical history endpoints expose only `building`, `complete`, `failed`, and `not_started`; legacy internal labels are mapped before reaching frontend-facing fields.
+- Quant cache and history build status are accessed through `TimedMemoryCache` and `HistoryBuildStatusStore` wrappers.
+- Advisor context building consumes `PortfolioReadService` and `SnapshotReadService` rather than querying portfolio/snapshot internals directly.
+- Backend contract tests now cover system, portfolio, upload, history, cache/status, and advisor-boundary behavior.
+
+See `docs/backend-module-contracts.md` for ownership, inputs, outputs, and safe-edit rules.
+
+>>>>>>> 62ebaca6615a2a31797d270875862ac7ba49ce7a
 ## Frontend Architecture Findings
 
 The frontend is a Next.js App Router app with a persistent application shell:
@@ -159,6 +177,15 @@ Commands run during the audit:
 - `poetry run python -m compileall app` in `backend/`: passed after Poetry was allowed to use its virtualenv cache.
 - `poetry run pytest` in `backend/`: failed because `pytest` was not installed in the created Poetry environment.
 
+<<<<<<< HEAD
+=======
+Post-isolation verification on 2026-04-25:
+
+- `pnpm type-check` in `frontend/`: passed.
+- `poetry run python -m compileall app` in `backend/`: passed.
+- `poetry run pytest` in `backend/`: passed.
+
+>>>>>>> 62ebaca6615a2a31797d270875862ac7ba49ce7a
 Frontend type errors observed:
 
 - `frontend/src/app/changes/page.tsx`: comparisons against `"pending"` are incompatible with the current union type `"failed" | "building" | "complete" | "not_started" | null`.
@@ -172,10 +199,14 @@ Backend verification notes:
 
 ## Major Risks And Gaps
 
+<<<<<<< HEAD
 - TypeScript currently does not pass, which blocks a clean frontend release until fixed.
 - The backend has no passing test confirmation from this audit because the Poetry test environment lacked pytest.
 - Several docs mention stale states, such as `DEFAULT_DATA_MODE=mock`, scaffolded history endpoints, or `/frontier` replacement details that differ from current code.
 - In-process caches are used for quant, uploaded holdings, live provider data, and history build status; process restart can still affect freshness/status visibility.
+=======
+- In-process caches are used for quant, uploaded holdings, live provider data, and history build status; process restart can still affect freshness/status visibility. Quant cache and history build status now have wrapper services, but they are still process-local.
+>>>>>>> 62ebaca6615a2a31797d270875862ac7ba49ce7a
 - Broker sync is architected but not production implemented.
 - News events/calendar support is still weak and depends on optional external providers.
 - Some frontend direct fetches bypass the central API helper for form-data and local market/upload flows.

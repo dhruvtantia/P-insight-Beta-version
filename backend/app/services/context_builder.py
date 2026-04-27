@@ -4,10 +4,8 @@ Portfolio Context Builder
 Builds a clean, LLM-friendly context object from the database.
 
 Responsibilities:
-  - Query portfolio + holdings directly from DB (no async provider overhead)
-  - Compute summary KPIs inline (total value/cost/pnl)
-  - Compute sector allocation from holding values
-  - Compute risk metrics inline (HHI, diversification score, concentration flags)
+  - Read portfolio + holdings through the portfolio read boundary
+  - Reuse canonical portfolio summary, sector, and risk calculations
   - Pull last 5 snapshot metadata for history context
   - Compute an abbreviated delta between the two most recent snapshots
   - Return a JSON-serializable PortfolioContext dataclass — no ORM objects leak out
@@ -28,8 +26,9 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.portfolio import Portfolio, Holding
-from app.models.snapshot  import Snapshot
+from app.schemas.portfolio import RiskSnapshot, SectorAllocation
+from app.services.portfolio_service import PortfolioReadService
+from app.services.snapshot_service import SnapshotReadService
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +144,8 @@ class PortfolioContextBuilder:
 
     def __init__(self, db: Session):
         self.db = db
+        self.portfolio_reader = PortfolioReadService(db)
+        self.snapshot_reader = SnapshotReadService(db)
 
     # ── Public entry point ────────────────────────────────────────────────────
 
@@ -153,24 +154,32 @@ class PortfolioContextBuilder:
         Build context for the given portfolio_id.
         Returns a PortfolioContext with all sections populated (empty if no data).
         """
-        portfolio = self.db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+        portfolio = self.portfolio_reader.get_portfolio(portfolio_id)
         if not portfolio:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
-        holdings = list(portfolio.holdings)  # loaded via selectin
+        holdings = self.portfolio_reader.get_portfolio_holdings(portfolio_id)
+        enriched = self.portfolio_reader.compute_holding_metrics(holdings)
+        source = portfolio.source or "unknown"
 
-        summary         = self._compute_summary(holdings)
-        top_holdings    = self._compute_top_holdings(holdings, summary["total_value"])
-        sectors         = self._compute_sectors(holdings, summary["total_value"])
-        risk            = self._compute_risk(holdings, sectors, summary["total_value"])
+        summary         = self.portfolio_reader.compute_summary_from_enriched(enriched, source)
+        sector_models   = self.portfolio_reader.compute_sector_allocation_from_enriched(enriched)
+        risk_snapshot   = self.portfolio_reader.compute_risk_snapshot(enriched, sector_models)
+        top_holdings    = self._build_top_holdings_context(enriched)
+        sectors         = self._build_sector_context(sector_models)
+        risk            = self._build_risk_context(risk_snapshot, sectors)
         snap_ctx, recent = self._compute_snapshot_history(portfolio_id)
-        source_meta     = self._compute_source_metadata(holdings, portfolio.source or "unknown")
+        source_meta     = self._compute_source_metadata(holdings, source)
 
         return PortfolioContext(
             portfolio_id   = portfolio_id,
             portfolio_name = portfolio.name,
-            source         = portfolio.source,
-            **summary,
+            source         = source,
+            total_value    = summary.total_value,
+            total_cost     = summary.total_cost,
+            total_pnl      = summary.total_pnl,
+            total_pnl_pct  = summary.total_pnl_pct,
+            num_holdings   = summary.num_holdings,
             top_holdings       = top_holdings,
             sector_allocation  = sectors,
             **risk,
@@ -182,77 +191,41 @@ class PortfolioContextBuilder:
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    def _compute_summary(self, holdings: list[Holding]) -> dict:
-        total_value = 0.0
-        total_cost  = 0.0
-        for h in holdings:
-            price        = h.current_price or h.average_cost
-            total_value += h.quantity * price
-            total_cost  += h.quantity * h.average_cost
-        total_pnl     = total_value - total_cost
-        total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0.0
-        return {
-            "total_value":   round(total_value,   2),
-            "total_cost":    round(total_cost,    2),
-            "total_pnl":     round(total_pnl,     2),
-            "total_pnl_pct": round(total_pnl_pct, 2),
-            "num_holdings":  len(holdings),
-        }
-
-    def _compute_top_holdings(
+    def _build_top_holdings_context(
         self,
-        holdings: list[Holding],
-        total_value: float,
+        enriched: list[dict],
         top_n: int = 10,
     ) -> list[HoldingCtx]:
-        rows = []
-        for h in holdings:
-            price      = h.current_price or h.average_cost
-            value      = h.quantity * price
-            cost       = h.quantity * h.average_cost
-            weight_pct = (value / total_value * 100) if total_value > 0 else 0.0
-            pnl_pct    = ((value - cost) / cost * 100) if cost > 0 else 0.0
-            rows.append(HoldingCtx(
-                ticker     = h.ticker,
-                name       = h.name,
-                weight_pct = round(weight_pct, 2),
-                value      = round(value, 2),
-                pnl_pct    = round(pnl_pct, 2),
-                sector     = h.sector or "Unknown",
-            ))
+        rows = [
+            HoldingCtx(
+                ticker     = h.get("ticker") or "",
+                name       = h.get("name") or "",
+                weight_pct = round(float(h.get("weight") or 0), 2),
+                value      = round(float(h.get("market_value") or 0), 2),
+                pnl_pct    = round(float(h.get("pnl_pct") or 0), 2),
+                sector     = h.get("sector") or "Unknown",
+            )
+            for h in enriched
+        ]
         rows.sort(key=lambda x: x.weight_pct, reverse=True)
         return rows[:top_n]
 
-    def _compute_sectors(
-        self,
-        holdings: list[Holding],
-        total_value: float,
-    ) -> list[SectorCtx]:
-        sector_values: dict[str, float] = {}
-        sector_counts: dict[str, int]   = {}
-        for h in holdings:
-            price  = h.current_price or h.average_cost
-            value  = h.quantity * price
-            sector = h.sector or "Unknown"
-            sector_values[sector] = sector_values.get(sector, 0.0) + value
-            sector_counts[sector] = sector_counts.get(sector, 0) + 1
-        result = []
-        for sector, value in sorted(sector_values.items(), key=lambda x: -x[1]):
-            weight_pct = (value / total_value * 100) if total_value > 0 else 0.0
-            result.append(SectorCtx(
-                sector       = sector,
-                weight_pct   = round(weight_pct, 2),
-                num_holdings = sector_counts[sector],
-            ))
-        return result
+    def _build_sector_context(self, sectors: list[SectorAllocation]) -> list[SectorCtx]:
+        return [
+            SectorCtx(
+                sector=s.sector,
+                weight_pct=s.weight_pct,
+                num_holdings=s.num_holdings,
+            )
+            for s in sectors
+        ]
 
-    def _compute_risk(
+    def _build_risk_context(
         self,
-        holdings: list[Holding],
+        risk_snapshot: Optional[RiskSnapshot],
         sectors: list[SectorCtx],
-        total_value: float,
     ) -> dict:
-        if not holdings or total_value == 0:
+        if risk_snapshot is None:
             return {
                 "risk_profile":          "moderate",
                 "hhi":                   0.0,
@@ -263,58 +236,16 @@ class PortfolioContextBuilder:
                 "num_sectors":           0,
             }
 
-        weights: list[tuple[str, float]] = []
-        for h in holdings:
-            price  = h.current_price or h.average_cost
-            value  = h.quantity * price
-            w      = value / total_value
-            weights.append((h.ticker, w))
-
-        weights.sort(key=lambda x: -x[1])
-
-        # HHI (sum of squared weights)
-        hhi = sum(w ** 2 for _, w in weights)
-
-        # Top holdings
-        max_ticker = weights[0][0]
-        max_weight = round(weights[0][1] * 100, 2)
-        top3_weight = round(sum(w for _, w in weights[:3]) * 100, 2)
-
-        # Diversification score: 0–100
-        # Weight diversity component (70%): 1 - HHI normalised to equal-weight
-        n          = len(weights)
-        hhi_min    = 1 / n if n > 0 else 1
-        hhi_max    = 1.0
-        hhi_range  = hhi_max - hhi_min
-        weight_div = (1 - (hhi - hhi_min) / hhi_range) if hhi_range > 0 else 0.5
-
-        # Sector breadth component (30%): num sectors / 11 (max realistic)
-        num_sectors   = len(sectors)
-        sector_score  = min(num_sectors / 11, 1.0)
-
-        div_score = round((weight_div * 70 + sector_score * 30), 1)
-        div_score = max(0.0, min(100.0, div_score))
-
-        # Risk profile classification (priority order)
-        if max_weight >= 40 or hhi >= 0.30:
-            profile = "highly_concentrated"
-        elif any(s.weight_pct >= 60 for s in sectors):
-            profile = "sector_concentrated"
-        elif top3_weight >= 60 or num_sectors <= 2:
-            profile = "aggressive"
-        elif num_sectors >= 5 and hhi <= 0.12:
-            profile = "conservative"
-        else:
-            profile = "moderate"
+        top_holding = risk_snapshot.top_holdings_by_weight[0] if risk_snapshot.top_holdings_by_weight else None
 
         return {
-            "risk_profile":          profile,
-            "hhi":                   round(hhi, 4),
-            "diversification_score": div_score,
-            "max_holding_ticker":    max_ticker,
-            "max_holding_weight":    max_weight,
-            "top3_weight":           top3_weight,
-            "num_sectors":           num_sectors,
+            "risk_profile":          risk_snapshot.risk_profile,
+            "hhi":                   risk_snapshot.hhi,
+            "diversification_score": risk_snapshot.diversification_score,
+            "max_holding_ticker":    top_holding.ticker if top_holding else "—",
+            "max_holding_weight":    risk_snapshot.max_holding_weight,
+            "top3_weight":           risk_snapshot.top3_weight,
+            "num_sectors":           len(sectors),
         }
 
     def _compute_source_metadata(
@@ -397,78 +328,29 @@ class PortfolioContextBuilder:
         Fetch last 5 snapshots and compute a delta between the two most recent.
         Returns (snapshot_list, recent_changes | None).
         """
-        snaps = (
-            self.db.query(Snapshot)
-            .filter(Snapshot.portfolio_id == portfolio_id)
-            .order_by(Snapshot.captured_at.desc())
-            .limit(5)
-            .all()
-        )
+        snapshots, recent_read = self.snapshot_reader.get_recent_history(portfolio_id, limit=5)
 
-        snap_ctx = []
-        for s in snaps:
-            snap_ctx.append(SnapshotCtx(
-                id           = s.id,
-                label        = s.label,
-                captured_at  = s.captured_at.isoformat() if s.captured_at else "",
-                total_value  = round(float(s.total_value or 0), 2),
-                num_holdings = int(s.num_holdings or 0),
-            ))
+        snap_ctx = [
+            SnapshotCtx(
+                id=s.id,
+                label=s.label,
+                captured_at=s.captured_at,
+                total_value=s.total_value,
+                num_holdings=s.num_holdings,
+            )
+            for s in snapshots
+        ]
 
         recent = None
-        if len(snaps) >= 2:
-            recent = self._compute_recent_changes(snaps[0], snaps[1])
+        if recent_read:
+            recent = RecentChangesCtx(
+                days_apart=recent_read.days_apart,
+                value_delta=recent_read.value_delta,
+                value_delta_pct=recent_read.value_delta_pct,
+                added_tickers=recent_read.added_tickers,
+                removed_tickers=recent_read.removed_tickers,
+                increased_count=recent_read.increased_count,
+                decreased_count=recent_read.decreased_count,
+            )
 
         return snap_ctx, recent
-
-    def _compute_recent_changes(
-        self,
-        snap_new: Snapshot,
-        snap_old: Snapshot,
-    ) -> Optional[RecentChangesCtx]:
-        """
-        Lightweight delta between two snapshots using their SnapshotHolding records.
-        Falls back to value-only comparison if holding records are empty.
-        """
-        try:
-            # Build ticker → SnapshotHolding maps from the selectin-loaded relationships
-            new_h: dict[str, object] = {h.ticker: h for h in (snap_new.holdings or [])}
-            old_h: dict[str, object] = {h.ticker: h for h in (snap_old.holdings or [])}
-
-            added   = sorted(set(new_h) - set(old_h))
-            removed = sorted(set(old_h) - set(new_h))
-
-            increased = 0
-            decreased = 0
-            common    = set(new_h) & set(old_h)
-            for ticker in common:
-                new_qty = getattr(new_h[ticker], "quantity", 0) or 0
-                old_qty = getattr(old_h[ticker], "quantity", 0) or 0
-                if new_qty > old_qty:
-                    increased += 1
-                elif new_qty < old_qty:
-                    decreased += 1
-
-            val_new       = float(snap_new.total_value or 0)
-            val_old       = float(snap_old.total_value or 0)
-            val_delta     = val_new - val_old
-            val_delta_pct = (val_delta / val_old * 100) if val_old > 0 else 0.0
-
-            # Days apart
-            days = 0
-            if snap_new.captured_at and snap_old.captured_at:
-                diff = snap_new.captured_at - snap_old.captured_at
-                days = max(0, diff.days)
-
-            return RecentChangesCtx(
-                days_apart      = days,
-                value_delta     = round(val_delta, 2),
-                value_delta_pct = round(val_delta_pct, 2),
-                added_tickers   = added,
-                removed_tickers = removed,
-                increased_count = increased,
-                decreased_count = decreased,
-            )
-        except Exception as exc:
-            logger.warning("Could not compute recent changes from snapshots: %s", exc)
-            return None

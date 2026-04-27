@@ -30,7 +30,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config       import settings
-from app.models.portfolio  import Portfolio
 from app.schemas.advisor   import (
     AIAdvisorResponse,
     AdvisorQueryRequest,
@@ -43,6 +42,7 @@ from app.schemas.advisor   import (
     SectorBrief,
 )
 from app.services.context_builder import PortfolioContextBuilder, PortfolioContext
+from app.services.portfolio_service import PortfolioReadService
 from app.services.ai.provider     import get_provider, get_provider_status, FallbackProvider, ProviderError, ConversationHistory
 
 logger = logging.getLogger(__name__)
@@ -255,28 +255,17 @@ class AIAdvisorService:
     def __init__(self, db: Session):
         self.db      = db
         self.builder = PortfolioContextBuilder(db)
+        self.portfolio_reader = PortfolioReadService(db)
 
     # ── Resolve portfolio_id ─────────────────────────────────────────────────
 
     def _resolve_portfolio_id(self, portfolio_id: Optional[int]) -> int:
         if portfolio_id is not None:
             return portfolio_id
-        # Use the active portfolio
-        active = (
-            self.db.query(Portfolio)
-            .filter(Portfolio.is_active.is_(True))
-            .first()
-        )
-        if not active:
-            # Fall back to most recently updated
-            active = (
-                self.db.query(Portfolio)
-                .order_by(Portfolio.updated_at.desc())
-                .first()
-            )
-        if not active:
+        portfolio = self.portfolio_reader.get_default_portfolio()
+        if not portfolio:
             raise ValueError("No portfolios exist in the database")
-        return active.id
+        return portfolio.id
 
     # ── Build context payload (also used for debug endpoint) ─────────────────
 
