@@ -18,6 +18,7 @@ from typing import Literal
 from app.core.dependencies import DataProvider
 from app.optimization.optimizer_service import OptimizerService
 from app.schemas.optimization import OptimizationFullResponse
+from app.services.feature_registry import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ async def get_optimization_full(
     - **inputs**: Expected returns and covariance diagonal (for debug/audit)
     - **meta**: Computation metadata, method choices, exclusions
     """
+    require_feature("risk_quant")
     service = OptimizerService(provider)
     result  = await service.compute(
         period=period,
@@ -79,6 +81,7 @@ async def get_optimization_status(
     """
     Return only the meta section (fast). Used by the debug panel.
     """
+    require_feature("risk_quant")
     service = OptimizerService(provider)
     result  = await service.compute(period=period)
     return result.get("meta", {})

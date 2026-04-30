@@ -48,6 +48,7 @@ from app.services.upload_v2_service import (
     build_v2_response,
     get_enrichment_status,
 )
+from app.services.feature_registry import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,7 @@ async def parse_upload(file: UploadFile = File(...)) -> ParseResponse:
     Reads the file, auto-detects column roles, returns a preview.
     No data is saved at this stage.
     """
+    require_feature("upload_import")
     _validate_file(file)
     tmp_path = await _save_temp(file)
 
@@ -182,6 +184,7 @@ async def confirm_upload(
     The column_mapping JSON looks like:
       {"ticker": "Symbol", "name": "Company Name", "quantity": "Qty", ...}
     """
+    require_feature("upload_import")
     _validate_file(file)
 
     # Parse column mapping JSON
@@ -467,6 +470,7 @@ async def get_upload_status(
     Identical response shape to GET /upload/v2/status/{portfolio_id}.
     Poll after POST /upload/v2/confirm to track background enrichment progress.
     """
+    require_feature("upload_import")
     try:
         from app.db.database import SessionLocal
         from app.models.portfolio import Portfolio as _Portfolio
@@ -530,6 +534,7 @@ async def confirm_upload_v2(
       - enrichment_complete: false (poll /v2/status/{portfolio_id} for progress)
       - portfolio_usable: true (dashboard/holdings/fundamentals work immediately)
     """
+    require_feature("upload_import")
     _validate_file(file)
 
     # Parse column mapping
@@ -639,6 +644,7 @@ async def get_upload_status_v2(portfolio_id: int) -> V2StatusResponse:
     Typically completes within 10–60 seconds depending on portfolio size and
     yfinance response times.
     """
+    require_feature("upload_import")
     try:
         from app.db.database import SessionLocal
         from app.models.portfolio import Portfolio as _Portfolio

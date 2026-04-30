@@ -108,6 +108,45 @@ export interface SectorAllocation {
   num_holdings: number
 }
 
+// ─── Modular Feature Registry ───────────────────────────────────────────────
+
+export type FeatureStatus = 'enabled' | 'disabled' | 'degraded' | 'unavailable'
+
+export type FeatureId =
+  | 'portfolio_core'
+  | 'upload_import'
+  | 'watchlist'
+  | 'risk_quant'
+  | 'fundamentals'
+  | 'history'
+  | 'market_data'
+  | 'news'
+  | 'advisor'
+  | 'broker_sync'
+
+export interface FeatureDependencyHealth {
+  name: string
+  status: FeatureStatus
+  reason?: string | null
+}
+
+export interface FeatureHealth {
+  feature_id: FeatureId
+  label: string
+  status: FeatureStatus
+  route_prefix: string
+  reason?: string | null
+  dependencies: FeatureDependencyHealth[]
+  side_effects: string[]
+  failure_behavior: string
+  frontend_owner_hook?: string | null
+  disable_behavior: string
+}
+
+export interface FeatureRegistryResponse {
+  features: FeatureHealth[]
+}
+
 // ─── Portfolio History ────────────────────────────────────────────────────────
 
 /** One daily data point from the portfolio_history table. */

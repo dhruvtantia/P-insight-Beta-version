@@ -64,6 +64,20 @@ class Settings(BaseSettings):
     AI_CHAT_ENABLED:           bool = False
     ADVANCED_ANALYTICS_ENABLED: bool = False
 
+    # Modular feature switches. These are intentionally separate from provider
+    # availability flags so a feature can be disconnected while the rest of the
+    # application remains usable.
+    FEATURE_PORTFOLIO_CORE: bool = True
+    FEATURE_UPLOAD:         bool = True
+    FEATURE_WATCHLIST:      bool = True
+    FEATURE_QUANT:          bool = True
+    FEATURE_FUNDAMENTALS:   bool = True
+    FEATURE_HISTORY:        bool = True
+    FEATURE_MARKET_DATA:    bool = True
+    FEATURE_NEWS:           bool = True
+    FEATURE_ADVISOR:        bool = True
+    FEATURE_BROKER_SYNC:    bool = False
+
     # ─── External API Keys (all optional) ────────────────────────────────────
     ALPHA_VANTAGE_API_KEY:          str = ""
     FINANCIAL_MODELING_PREP_API_KEY: str = ""

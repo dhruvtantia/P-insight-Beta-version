@@ -19,6 +19,8 @@ import {
   Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFeatureRegistry } from '@/hooks/useFeatureRegistry'
+import type { FeatureId } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ interface NavItem {
   label: string
   href:  string
   Icon:  React.ElementType
+  featureId?: FeatureId
   /** Short badge rendered inline after the label. Use "BETA" or "SCAFFOLD". */
   badge?: 'BETA' | 'SCAFFOLD'
 }
@@ -55,23 +58,23 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Core',
     items: [
-      { label: 'Market',       href: '/market',       Icon: TrendingUp      },
-      { label: 'Dashboard',    href: '/dashboard',    Icon: LayoutDashboard },
-      { label: 'Holdings',     href: '/holdings',     Icon: Briefcase       },
-      { label: 'Fundamentals', href: '/fundamentals', Icon: BarChart2       },
-      { label: 'Risk',         href: '/risk',         Icon: Activity        },
-      { label: 'Changes',      href: '/changes',      Icon: GitCompare      },
+      { label: 'Market',       href: '/market',       Icon: TrendingUp,      featureId: 'market_data'    },
+      { label: 'Dashboard',    href: '/dashboard',    Icon: LayoutDashboard, featureId: 'portfolio_core' },
+      { label: 'Holdings',     href: '/holdings',     Icon: Briefcase,       featureId: 'portfolio_core' },
+      { label: 'Fundamentals', href: '/fundamentals', Icon: BarChart2,       featureId: 'fundamentals'   },
+      { label: 'Risk',         href: '/risk',         Icon: Activity,        featureId: 'risk_quant'     },
+      { label: 'Changes',      href: '/changes',      Icon: GitCompare,      featureId: 'history'        },
     ],
   },
   {
     label: 'Secondary',
     items: [
       { label: 'Peers',        href: '/peers',      Icon: Users         },
-      { label: 'News',         href: '/news',       Icon: Newspaper     },
-      { label: 'Watchlist',    href: '/watchlist',  Icon: Star          },
-      { label: 'My Portfolio', href: '/portfolios', Icon: FolderOpen    },
-      { label: 'Upload',       href: '/upload',     Icon: Upload        },
-      { label: 'Advisor',      href: '/advisor',    Icon: MessageCircle },
+      { label: 'News',         href: '/news',       Icon: Newspaper,     featureId: 'news'           },
+      { label: 'Watchlist',    href: '/watchlist',  Icon: Star,          featureId: 'watchlist'      },
+      { label: 'My Portfolio', href: '/portfolios', Icon: FolderOpen,    featureId: 'portfolio_core' },
+      { label: 'Upload',       href: '/upload',     Icon: Upload,        featureId: 'upload_import'  },
+      { label: 'Advisor',      href: '/advisor',    Icon: MessageCircle, featureId: 'advisor'        },
     ],
   },
 ]
@@ -108,6 +111,7 @@ interface SidebarProps {
 
 export function Sidebar({ width }: SidebarProps) {
   const pathname = usePathname()
+  const { isDisabled } = useFeatureRegistry()
 
   const renderLink = ({ href, label, Icon, badge }: NavItem) => {
     const isActive = pathname === href || pathname.startsWith(href + '/')
@@ -161,7 +165,9 @@ export function Sidebar({ width }: SidebarProps) {
               {group.label}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map((item) => renderLink(item))}
+              {group.items
+                .filter((item) => !isDisabled(item.featureId))
+                .map((item) => renderLink(item))}
             </ul>
           </div>
         ))}

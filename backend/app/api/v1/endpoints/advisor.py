@@ -31,6 +31,7 @@ from app.schemas.advisor    import (
 )
 from app.services.ai_advisor_service import AIAdvisorService
 from app.services.ai.provider        import get_provider_status
+from app.services.feature_registry   import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def get_advisor_status():
     Returns which LLM provider is configured and whether AI responses
     are available. Frontend calls this once on mount.
     """
+    require_feature("advisor")
     status = get_provider_status()
     return AdvisorStatusResponse(**status)
 
@@ -74,6 +76,7 @@ def ask_advisor(
     When fallback_used=True the frontend should run rule-based routeQuery()
     locally and display its response instead.
     """
+    require_feature("advisor")
     try:
         svc      = AIAdvisorService(db)
         response = svc.ask(req)
@@ -108,6 +111,7 @@ def get_portfolio_context(
     Intended for the /debug page so developers can inspect exactly
     what data is being provided to the LLM.
     """
+    require_feature("advisor")
     try:
         svc     = AIAdvisorService(db)
         payload = svc.build_context_payload(portfolio_id)

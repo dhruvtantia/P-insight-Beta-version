@@ -25,6 +25,7 @@ from app.services.fundamentals_view_service import (
     build_thresholds,
 )
 from app.analytics.commentary import generate_commentary
+from app.services.feature_registry import require_feature
 from app.schemas.portfolio import (
     RiskMetrics,
     SectorAllocation,
@@ -48,6 +49,7 @@ async def get_risk_metrics(db: DbSession, provider: DataProvider):
     Phase 2: Compute from historical price data.
     Full quant analytics (with live data) are available at /quant/full.
     """
+    require_feature("risk_quant")
     # TODO (Phase 2): Pull price history, compute returns, call analytics/risk.py
     return RiskMetrics(
         beta=None,
@@ -105,6 +107,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
     Null values for individual metrics indicate not applicable for that business
     type (e.g. banks: null ev_ebitda, operating_margin, debt_to_equity).
     """
+    require_feature("fundamentals")
     holdings = await provider.get_holdings()
 
     as_of = datetime.now(timezone.utc).isoformat()

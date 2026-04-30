@@ -36,6 +36,8 @@ from typing import Optional
 
 from fastapi import APIRouter
 
+from app.services.feature_registry import require_feature
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market", tags=["Market"])
@@ -397,6 +399,7 @@ async def get_market_overview() -> dict:
 
     Cached for 2 minutes. When yfinance is not installed, available=false.
     """
+    require_feature("market_data")
     cached = _from_cache("overview")
     if cached:
         return cached

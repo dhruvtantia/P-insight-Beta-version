@@ -37,12 +37,18 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core.dependencies import DbSession
+from app.services.feature_registry import require_feature
 
-router = APIRouter(tags=["History"])
+
+def _require_history_feature():
+    require_feature("history")
+
+
+router = APIRouter(tags=["History"], dependencies=[Depends(_require_history_feature)])
 
 CANONICAL_HISTORY_STATES = {"building", "complete", "failed", "not_started"}
 

@@ -21,6 +21,7 @@ from typing import Literal
 from app.core.dependencies import DataProvider
 from app.analytics.quant_service import QuantAnalyticsService
 from app.schemas.quant import QuantFullResponse
+from app.services.feature_registry import require_feature
 
 router = APIRouter(prefix="/quant", tags=["Quantitative Analytics"])
 
@@ -52,6 +53,7 @@ async def get_quant_full(
     Results are computed from 1 year of daily historical price data (mock or yfinance).
     Cached for 10 minutes (live) or 24 hours (mock) to avoid repeated price fetches.
     """
+    require_feature("risk_quant")
     service = QuantAnalyticsService(provider)
     result  = await service.compute_all(period=period)
 
@@ -71,6 +73,7 @@ async def get_quant_status(
     Useful for the /debug page to inspect data availability without triggering
     the full expensive computation when data is already cached.
     """
+    require_feature("risk_quant")
     service = QuantAnalyticsService(provider)
     result  = await service.compute_all(period=period)
     return result.get("meta", {})

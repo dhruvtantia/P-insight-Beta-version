@@ -28,6 +28,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.dependencies import DataProvider
+from app.services.feature_registry import require_feature
 
 router = APIRouter(prefix="/news", tags=["News & Events"])
 
@@ -68,6 +69,7 @@ async def get_news(
     Phase 1: Served from mock_data/portfolio.json (static).
     Phase 2: Fetched from live news API by ticker.
     """
+    require_feature("news")
     # Resolve ticker list
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
@@ -121,6 +123,7 @@ async def get_events(
     Events are sorted soonest-first.
     Phase 1: Static mock events. Phase 2: Live corporate calendar API.
     """
+    require_feature("news")
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     else:
