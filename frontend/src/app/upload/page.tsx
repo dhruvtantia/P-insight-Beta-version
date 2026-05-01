@@ -32,10 +32,7 @@ import { ColumnMapper, type ColumnMappingState } from '@/components/upload/Colum
 import { PortfolioPreviewTable } from '@/components/upload/PortfolioPreviewTable'
 import { useDataModeStore } from '@/store/dataModeStore'
 import { cn } from '@/lib/utils'
-
-// ─── API base URL ─────────────────────────────────────────────────────────────
-// All upload calls must hit FastAPI (port 8000), not Next.js (port 3000).
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+import { uploadApi } from '@/services/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -328,15 +325,7 @@ export default function UploadPage() {
     setLoading(true)
 
     try {
-      const form = new FormData()
-      form.append('file', f)
-
-      const res = await fetch(`${BASE_URL}/api/v1/upload/parse`, { method: 'POST', body: form })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Server error ${res.status}`)
-      }
-      const data: ParseResult = await res.json()
+      const data = await uploadApi.parse<ParseResult>(f)
       setParseResult(data)
       setMapping(data.detected_mapping)
 
@@ -369,16 +358,7 @@ export default function UploadPage() {
     setStep('importing')
 
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('column_mapping', JSON.stringify(mapping))
-
-      const res = await fetch(`${BASE_URL}/api/v1/upload/v2/confirm`, { method: 'POST', body: form })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Server error ${res.status}`)
-      }
-      const data: V2ConfirmResult = await res.json()
+      const data = await uploadApi.confirmV2<V2ConfirmResult>(file, mapping)
       setV2Result(data)
       setMode('uploaded')   // auto-activate uploaded data mode
       setStep('done')

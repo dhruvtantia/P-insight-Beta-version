@@ -16,11 +16,11 @@ so the frontend can display an "available but not yet configured" state.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.dependencies import DbSession
 from app.services.broker_service import BrokerService
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency
 from app.schemas.broker import (
     BrokerListResponse,
     BrokerConnectionMeta,
@@ -29,11 +29,14 @@ from app.schemas.broker import (
     SyncResponse,
     DisconnectResponse,
 )
-from app.connectors.base import ConnectorNotConfiguredError
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/brokers", tags=["Brokers"])
+router = APIRouter(
+    prefix="/brokers",
+    tags=["Brokers"],
+    dependencies=[Depends(feature_dependency("broker_sync"))],
+)
 
 
 # ─── List available connectors ────────────────────────────────────────────────
@@ -49,7 +52,6 @@ async def list_brokers(db: DbSession) -> BrokerListResponse:
     Includes both configured (ready to use) and scaffolded (not yet implemented) connectors.
     The `is_implemented` field tells the UI which connectors are active vs. coming soon.
     """
-    require_feature("broker_sync")
     svc = BrokerService(db)
     return svc.list_available()
 
@@ -66,7 +68,6 @@ async def get_connection(portfolio_id: int, db: DbSession) -> BrokerConnectionMe
     Returns the current broker connection state for a given portfolio.
     If no connection exists, returns `connection_state: "disconnected"`.
     """
-    require_feature("broker_sync")
     svc = BrokerService(db)
     return svc.get_connection(portfolio_id)
 
@@ -96,7 +97,6 @@ async def connect_broker(
     API keys and tokens must be passed via environment variables until
     secure credential storage is implemented.
     """
-    require_feature("broker_sync")
     svc = BrokerService(db)
     try:
         return svc.connect(portfolio_id, body)
@@ -122,7 +122,6 @@ async def sync_broker(portfolio_id: int, db: DbSession) -> SyncResponse:
     Returns HTTP 501 with `scaffolded: true` for unimplemented connectors.
     Returns HTTP 400 if no connection exists or state is not connected.
     """
-    require_feature("broker_sync")
     svc = BrokerService(db)
     try:
         return svc.sync(portfolio_id)
@@ -142,7 +141,6 @@ async def sync_broker(portfolio_id: int, db: DbSession) -> SyncResponse:
 )
 async def disconnect_broker(portfolio_id: int, db: DbSession) -> DisconnectResponse:
     """Remove the broker connection for a portfolio."""
-    require_feature("broker_sync")
     svc = BrokerService(db)
     try:
         return svc.disconnect(portfolio_id)

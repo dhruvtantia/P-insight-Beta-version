@@ -18,7 +18,6 @@ NEVER store API secrets or tokens in this field — use env vars or a KMS.
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
 from app.db.database import Base

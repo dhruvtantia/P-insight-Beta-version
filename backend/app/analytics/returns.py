@@ -9,7 +9,6 @@ Used by quant_service.py to build the return pipeline before risk computation.
 
 import numpy as np
 import pandas as pd
-from typing import Optional
 
 TRADING_DAYS = 252
 

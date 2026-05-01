@@ -7,25 +7,27 @@ Fields: ticker, name, tag, sector, target_price, notes
 PATCH /{ticker} allows partial updates without delete-and-recreate.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from app.core.dependencies import DbSession
 from app.repositories.portfolio_repository import WatchlistRepository
 from app.schemas.portfolio import WatchlistItem, WatchlistItemResponse, WatchlistItemUpdate
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency
 
-router = APIRouter(prefix="/watchlist", tags=["Watchlist"])
+router = APIRouter(
+    prefix="/watchlist",
+    tags=["Watchlist"],
+    dependencies=[Depends(feature_dependency("watchlist"))],
+)
 
 
 @router.get("/", response_model=list[WatchlistItemResponse], summary="Get watchlist")
 async def get_watchlist(db: DbSession):
-    require_feature("watchlist")
     repo = WatchlistRepository(db)
     return repo.get_all()
 
 
 @router.post("/", response_model=WatchlistItemResponse, summary="Add to watchlist")
 async def add_to_watchlist(item: WatchlistItem, db: DbSession):
-    require_feature("watchlist")
     repo = WatchlistRepository(db)
     existing = repo.get_by_ticker(item.ticker.upper())
     if existing:
@@ -49,7 +51,6 @@ async def update_watchlist_item(ticker: str, payload: WatchlistItemUpdate, db: D
     Updatable fields: name, tag, sector, target_price, notes.
     Ticker cannot be changed (use delete + re-add instead).
     """
-    require_feature("watchlist")
     repo = WatchlistRepository(db)
     updates = payload.model_dump(exclude_none=True)
     if not updates:
@@ -62,7 +63,6 @@ async def update_watchlist_item(ticker: str, payload: WatchlistItemUpdate, db: D
 
 @router.delete("/{ticker}", summary="Remove from watchlist")
 async def remove_from_watchlist(ticker: str, db: DbSession):
-    require_feature("watchlist")
     repo = WatchlistRepository(db)
     success = repo.remove(ticker.upper())
     if not success:

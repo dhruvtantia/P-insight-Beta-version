@@ -15,16 +15,12 @@ Pipeline stages:
      Single session, single commit.  All holdings enter the DB with
      enrichment_status="pending".
 
-  3. update_memory_cache(accepted_holdings)
-     Immediately populates FileDataProvider._uploaded_holdings so the
-     dashboard is live before enrichment completes.
-
-  4. [background] run_background_enrichment(portfolio_id, holdings, db_factory)
-     Runs enrich_holdings() + price batch fetch + cache update + quant pre-warm
+  3. [background] run_background_enrichment(portfolio_id, holdings, db_factory)
+     Runs enrich_holdings() + price batch fetch + DB-backed quant pre-warm
      + history build — identical to what the old confirm endpoint did inline,
      but now as a background task so the HTTP response is not blocked.
 
-  5. get_enrichment_status(portfolio_id, db) → V2StatusResponse
+  4. get_enrichment_status(portfolio_id, db) → V2StatusResponse
      Reads current per-holding enrichment state from the DB for polling.
 
 Downstream compatibility:
@@ -36,21 +32,30 @@ Downstream compatibility:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
+from fastapi import BackgroundTasks
+
+from app.data_providers.file_provider import UPLOADS_PATH
+from app.ingestion.column_detector import REQUIRED_FIELDS
 from app.schemas.portfolio import HoldingBase
 from app.schemas.upload_v2 import (
     RejectedRow,
     WarningRow,
-    ValidatedRow,
     HoldingEnrichmentStatus,
     V2StatusResponse,
     V2ConfirmResponse,
 )
+from app.services.upload_file_utils import (
+    UploadServiceError,
+    load_dataframe_from_upload,
+    upload_filename,
+)
 from app.ingestion.normalizer import (
-    read_file_as_dataframe,
     _clean_ticker,
     _clean_numeric,
     _clean_date,
@@ -226,17 +231,42 @@ def persist_base_portfolio(
     return portfolio.id
 
 
-# ─── In-memory cache update ───────────────────────────────────────────────────
+# ─── DB-backed quant pre-warm ────────────────────────────────────────────────
 
-def update_memory_cache(holdings: list[HoldingBase]) -> None:
+async def pre_warm_uploaded_quant_cache(
+    db_factory,
+    portfolio_id: int,
+    period: str = "1y",
+) -> None:
     """
-    Push the accepted holdings into the FileDataProvider in-memory cache so
-    that the dashboard and all downstream pages are live immediately without
-    waiting for background enrichment.
+    Pre-warm quant analytics from durable DB state, not FileDataProvider memory.
+
+    The active uploaded portfolio can change while background work is still
+    running. To avoid warming the shared "uploaded" quant cache with stale
+    holdings, skip the job if this portfolio is no longer active.
     """
-    import app.data_providers.file_provider as _fp
-    _fp._uploaded_holdings = list(holdings)
-    logger.debug("V2: updated in-memory cache with %d holdings", len(holdings))
+    db = db_factory()
+    try:
+        from app.analytics.quant_service import pre_warm_cache
+        from app.data_providers.uploaded_provider import UploadedPortfolioProvider
+        from app.models.portfolio import Portfolio
+
+        portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+        if portfolio is None:
+            logger.info("Skipping quant pre-warm; portfolio_id=%s no longer exists", portfolio_id)
+            return
+        if not portfolio.is_active:
+            logger.info("Skipping quant pre-warm; portfolio_id=%s is no longer active", portfolio_id)
+            return
+
+        await pre_warm_cache(
+            UploadedPortfolioProvider(db=db, portfolio_id=portfolio_id),
+            period,
+        )
+    except Exception as exc:
+        logger.warning("V2 quant pre-warm failed (non-fatal): %s", exc)
+    finally:
+        db.close()
 
 
 # ─── Background enrichment task ──────────────────────────────────────────────
@@ -247,8 +277,8 @@ async def run_background_enrichment(
     db_factory,            # callable → Session (e.g. SessionLocal)
 ) -> None:
     """
-    Background task: enrich holdings, fetch live prices, update DB and cache,
-    pre-warm quant cache, and build portfolio history.
+    Background task: enrich holdings, fetch live prices, update DB,
+    pre-warm quant cache from DB-backed holdings, and build portfolio history.
 
     Designed to be fire-and-forget via FastAPI BackgroundTasks.  All errors
     are caught and logged — they must NEVER surface to the user or crash the
@@ -329,7 +359,6 @@ async def run_background_enrichment(
             for h in enriched_holdings
         ]
         try:
-            from app.db.database import SessionLocal as _SL
             from app.models.portfolio import Holding as _DBHolding
             db = db_factory()
             try:
@@ -358,7 +387,6 @@ async def run_background_enrichment(
     # status endpoint doesn't show "pending" forever.
     if enrich_records:
         try:
-            from app.db.database import SessionLocal as _SL2
             from app.models.portfolio import Holding as _DBHolding2
             db = db_factory()
             try:
@@ -396,7 +424,6 @@ async def run_background_enrichment(
     # at enrichment_status="pending", which keeps enrichment_complete=False
     # forever.  Flush them to "failed" now so polling can resolve.
     try:
-        from app.db.database import SessionLocal as _SL3
         from app.models.portfolio import Holding as _DBHolding3
         from datetime import timezone as _tz
         db = db_factory()
@@ -430,25 +457,10 @@ async def run_background_enrichment(
             portfolio_id, exc,
         )
 
-    # ── 7. Refresh in-memory cache with enriched + priced holdings ───────────
-    try:
-        update_memory_cache(enriched_holdings)
-        logger.info(
-            "V2 in-memory cache refreshed with enriched holdings (portfolio_id=%s)",
-            portfolio_id,
-        )
-    except Exception as exc:
-        logger.error("V2 cache refresh failed (non-fatal): %s", exc)
+    # ── 7. Quant cache pre-warm ───────────────────────────────────────────────
+    await pre_warm_uploaded_quant_cache(db_factory, portfolio_id, "1y")
 
-    # ── 8. Quant cache pre-warm ───────────────────────────────────────────────
-    try:
-        from app.analytics.quant_service import pre_warm_cache
-        from app.data_providers.file_provider import FileDataProvider
-        await pre_warm_cache(FileDataProvider(), "1y")
-    except Exception as exc:
-        logger.warning("V2 quant pre-warm failed (non-fatal): %s", exc)
-
-    # ── 9. Portfolio history build ────────────────────────────────────────────
+    # ── 8. Portfolio history build ────────────────────────────────────────────
     try:
         from app.services.history_service import (
             build_and_store_portfolio_history,
@@ -470,6 +482,109 @@ async def run_background_enrichment(
     logger.info(
         "V2 background enrichment complete: portfolio_id=%s", portfolio_id
     )
+
+
+# ─── V2 confirm orchestration ────────────────────────────────────────────────
+
+async def confirm_upload_v2_file(
+    *,
+    filename: str | None,
+    content: bytes,
+    column_mapping: str,
+    background_tasks: BackgroundTasks,
+    uploads_path: Path = UPLOADS_PATH,
+    enrichment_task=run_background_enrichment,
+) -> V2ConfirmResponse:
+    """
+    Confirm a V2 upload from raw file bytes.
+
+    Route handlers own HTTP concerns; this service owns row classification,
+    base persistence, post-upload side-effect scheduling, and response assembly.
+    """
+    col_map = _parse_v2_column_mapping(column_mapping)
+    df = load_dataframe_from_upload(filename, content)
+    if df.empty:
+        raise UploadServiceError(422, "The uploaded file has no data rows.")
+
+    total_rows = len(df)
+    accepted, rejected, warning_rows = classify_rows_v2(df, col_map)
+
+    if not accepted:
+        raise UploadServiceError(
+            422,
+            (
+                f"No valid rows could be parsed. "
+                f"{len(rejected)} row(s) had errors: "
+                f"{[row.reasons for row in rejected[:3]]}"
+            ),
+        )
+
+    resolved_filename = upload_filename(filename)
+    portfolio_id = _persist_v2_base_portfolio(accepted, resolved_filename)
+
+    from app.db.database import SessionLocal
+    from app.services.post_upload_workflow import PostUploadWorkflow, UploadCompleted
+
+    PostUploadWorkflow(
+        background_tasks=background_tasks,
+        db_factory=SessionLocal,
+        uploads_path=uploads_path,
+        enrichment_task=enrichment_task,
+    ).run(UploadCompleted(
+        portfolio_id=portfolio_id,
+        holdings=list(accepted),
+        filename=resolved_filename,
+    ))
+
+    result = build_v2_response(
+        portfolio_id=portfolio_id,
+        filename=resolved_filename,
+        accepted=accepted,
+        rejected=rejected,
+        warning_rows=warning_rows,
+        total_rows=total_rows,
+    )
+
+    logger.info(
+        "V2 confirm: portfolio_id=%s, accepted=%d (warnings=%d), rejected=%d",
+        portfolio_id,
+        len(accepted),
+        len(warning_rows),
+        len(rejected),
+    )
+    return result
+
+
+def _parse_v2_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:
+    try:
+        col_map: dict[str, Optional[str]] = json.loads(column_mapping)
+    except json.JSONDecodeError as exc:
+        raise UploadServiceError(422, f"Invalid column_mapping JSON: {exc}") from exc
+
+    missing_required = [field for field in REQUIRED_FIELDS if col_map.get(field) is None]
+    if missing_required:
+        raise UploadServiceError(
+            422,
+            (
+                f"Required columns are not mapped: {missing_required}. "
+                f"ticker, quantity, and average_cost must all be mapped."
+            ),
+        )
+    return col_map
+
+
+def _persist_v2_base_portfolio(accepted: list[HoldingBase], filename: str) -> int:
+    try:
+        from app.db.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            return persist_base_portfolio(accepted, filename, db)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error("V2 DB persist failed: %s", exc)
+        raise UploadServiceError(500, f"Could not save portfolio to database: {exc}") from exc
 
 
 # ─── Enrichment status polling ────────────────────────────────────────────────

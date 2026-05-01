@@ -9,19 +9,8 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, FeatureRegistryResponse } from '@/types'
-
-// ─── Refresh Response (not yet in types/index.ts — defined inline) ────────────
-export interface RefreshResponse {
-  success:                   boolean
-  portfolio_id:              number
-  filename:                  string
-  holdings_parsed:           number
-  rows_skipped:              number
-  pre_refresh_snapshot_id:   number | null
-  post_refresh_snapshot_id:  number | null
-  message:                   string
-}
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
+import type { ApiFeatureRegistryResponse, ApiParseResponse, ApiRefreshResponse, ApiV2ConfirmResponse, ApiV2StatusResponse } from '@/generated/api-contracts'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -132,8 +121,67 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> 
   }
 }
 
+async function formFetch<T>(endpoint: string, formData: FormData): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ detail: response.statusText }))
+      const detail = body?.detail ?? `HTTP ${response.status}`
+      const errorType: ApiErrorType =
+        response.status === 404 ? 'not_found'    :
+        response.status >= 500  ? 'server_error' : 'client_error'
+      throw new ApiError(detail, errorType, response.status)
+    }
+
+    try {
+      return await response.json()
+    } catch {
+      throw new ApiError('Response was not valid JSON', 'parse_error')
+    }
+  } catch (err) {
+    if (err instanceof ApiError) throw err
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError(
+        `Request timed out after ${API_TIMEOUT_MS / 1000}s (${endpoint})`,
+        'timeout',
+      )
+    }
+    if (err instanceof TypeError) {
+      throw new ApiError(
+        `Backend unreachable (${endpoint}): ${err.message}`,
+        'network_unreachable',
+      )
+    }
+    throw new ApiError(
+      err instanceof Error ? err.message : 'Unknown error',
+      'unknown',
+    )
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function withMode(endpoint: string, mode: DataMode): string {
   return `${endpoint}?mode=${mode}`
+}
+
+function toFeatureRegistryResponse(response: ApiFeatureRegistryResponse): FeatureRegistryResponse {
+  return {
+    features: response.features.map((feature) => ({
+      ...feature,
+      feature_id: feature.feature_id as FeatureId,
+      dependencies: feature.dependencies ?? [],
+      side_effects: feature.side_effects ?? [],
+    })),
+  }
 }
 
 // ─── Portfolio API ────────────────────────────────────────────────────────────
@@ -160,16 +208,38 @@ export const portfolioApi = {
   uploadPortfolio: async (file: File): Promise<UploadResponse> => {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await fetch(`${BASE_URL}/api/v1/portfolio/upload`, {
-      method: 'POST',
-      body: formData,
-    })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.detail ?? 'Upload failed')
-    }
-    return response.json()
+    return formFetch<UploadResponse>('/api/v1/portfolio/upload', formData)
   },
+}
+
+// ─── Upload Workflow API ─────────────────────────────────────────────────────
+
+export const uploadApi = {
+  parse: <T = ApiParseResponse>(file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return formFetch<T>('/api/v1/upload/parse', form)
+  },
+
+  confirmV2: <T = ApiV2ConfirmResponse>(file: File, columnMapping: Record<string, string | null>) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('column_mapping', JSON.stringify(columnMapping))
+    return formFetch<T>('/api/v1/upload/v2/confirm', form)
+  },
+
+  statusV2: (portfolioId: number) =>
+    apiFetch<ApiV2StatusResponse>(`/api/v1/upload/v2/status/${portfolioId}`),
+
+  status: (portfolioId: number) =>
+    apiFetch<ApiV2StatusResponse>(`/api/v1/upload/status?portfolio_id=${portfolioId}`),
+}
+
+// ─── Market API ──────────────────────────────────────────────────────────────
+
+export const marketApi = {
+  getOverview: () =>
+    apiFetch<MarketOverviewResponse>('/api/v1/market/overview'),
 }
 
 // ─── Analytics API ────────────────────────────────────────────────────────────
@@ -429,19 +499,11 @@ export const portfolioMgmtApi = {
     portfolioId: number,
     file: File,
     columnMapping: Record<string, string | null>,
-  ): Promise<RefreshResponse> => {
+  ): Promise<ApiRefreshResponse> => {
     const form = new FormData()
     form.append('file', file)
     form.append('column_mapping', JSON.stringify(columnMapping))
-    const res = await fetch(`${BASE_URL}/api/v1/portfolios/${portfolioId}/refresh`, {
-      method: 'POST',
-      body: form,
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail ?? `Refresh failed: ${res.status}`)
-    }
-    return res.json()
+    return formFetch<ApiRefreshResponse>(`/api/v1/portfolios/${portfolioId}/refresh`, form)
   },
 }
 
@@ -670,6 +732,6 @@ export const systemApi = {
     api_keys: Record<string, boolean>
   }>('/health'),
 
-  getFeatures: () =>
-    apiFetch<FeatureRegistryResponse>('/api/v1/system/features'),
+  getFeatures: async () =>
+    toFeatureRegistryResponse(await apiFetch<ApiFeatureRegistryResponse>('/api/v1/system/features')),
 }

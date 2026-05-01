@@ -12,13 +12,12 @@ Both accept:
 """
 
 import logging
-from fastapi import APIRouter, Query
-from typing import Literal
+from fastapi import APIRouter, Depends, Query
 
 from app.core.dependencies import DataProvider
 from app.optimization.optimizer_service import OptimizerService
 from app.schemas.optimization import OptimizationFullResponse
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency, require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,7 @@ router = APIRouter(prefix="/optimization", tags=["Portfolio Optimization"])
     "/full",
     response_model=OptimizationFullResponse,
     summary="Full portfolio optimization — efficient frontier + optimal portfolios",
+    dependencies=[Depends(feature_dependency("risk_quant"))],
 )
 async def get_optimization_full(
     provider: DataProvider,
@@ -73,6 +73,7 @@ async def get_optimization_full(
 @router.get(
     "/status",
     summary="Optimization metadata — quick status check without full compute",
+    dependencies=[Depends(feature_dependency("risk_quant"))],
 )
 async def get_optimization_status(
     provider: DataProvider,

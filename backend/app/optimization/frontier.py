@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # ── Optional scipy ─────────────────────────────────────────────────────────────
 try:
-    from scipy.optimize import minimize, Bounds, LinearConstraint
+    from scipy.optimize import minimize, Bounds
     SCIPY_AVAILABLE = True
     logger.info("scipy available — SLSQP optimizer enabled")
 except ImportError:

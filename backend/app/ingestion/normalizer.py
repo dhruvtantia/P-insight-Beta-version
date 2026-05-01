@@ -2,7 +2,7 @@
 Portfolio Normalizer
 ---------------------
 Given a file (CSV or Excel) and a column mapping (canonical_field → original_col),
-produces a list of HoldingBase objects ready for the FileDataProvider cache.
+produces a list of HoldingBase objects ready for database persistence.
 
 Handles real-world messiness:
   - Numeric strings with commas, ₹/Rs./$ prefix, trailing units

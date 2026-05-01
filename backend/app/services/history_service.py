@@ -47,6 +47,8 @@ from sqlalchemy.orm import Session
 from app.services.cache_service import HistoryBuildStatusStore
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from app.schemas.portfolio import HoldingBase
 
 logger = logging.getLogger(__name__)

@@ -6,6 +6,8 @@ boundary. It gives the frontend and optional backend modules one stable place
 to discover whether a feature is attached, degraded, or intentionally disabled.
 """
 
+from collections.abc import Callable
+
 from fastapi import HTTPException
 
 from app.core.config import settings
@@ -195,8 +197,20 @@ def get_feature(feature_id: str) -> FeatureHealth | None:
     return None
 
 
+def _feature_boundary_detail(feature: FeatureHealth) -> dict:
+    return {
+        "feature_id": feature.feature_id,
+        "status": feature.status,
+        "reason": feature.reason,
+        "route_prefix": feature.route_prefix,
+        "dependencies": [dep.model_dump() for dep in feature.dependencies],
+        "failure_behavior": feature.failure_behavior,
+        "disable_behavior": feature.disable_behavior,
+    }
+
+
 def require_feature(feature_id: str) -> FeatureHealth:
-    """Raise a typed 503 if a feature is disconnected."""
+    """Raise a typed 503 if a feature is disconnected or unavailable."""
     feature = get_feature(feature_id)
     if feature is None:
         raise HTTPException(
@@ -205,16 +219,24 @@ def require_feature(feature_id: str) -> FeatureHealth:
                 "feature_id": feature_id,
                 "status": "unavailable",
                 "reason": "Feature is not registered.",
+                "route_prefix": None,
+                "dependencies": [],
+                "failure_behavior": "Treat as unavailable and keep other features isolated.",
+                "disable_behavior": "Hide entry points for this feature.",
             },
         )
-    if feature.status == "disabled":
+    if feature.status in {"disabled", "unavailable"}:
         raise HTTPException(
             status_code=503,
-            detail={
-                "feature_id": feature.feature_id,
-                "status": feature.status,
-                "reason": feature.reason,
-                "disable_behavior": feature.disable_behavior,
-            },
+            detail=_feature_boundary_detail(feature),
         )
     return feature
+
+
+def feature_dependency(feature_id: str) -> Callable[[], FeatureHealth]:
+    """Build a FastAPI dependency that checks a feature before route dependencies."""
+
+    def _require_feature() -> FeatureHealth:
+        return require_feature(feature_id)
+
+    return _require_feature

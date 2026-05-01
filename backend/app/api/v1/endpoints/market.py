@@ -34,9 +34,9 @@ import time
 from datetime import datetime, timezone, timedelta, date as date_type, time as dt_time
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -381,7 +381,11 @@ def _fetch_overview() -> dict:
 
 # ─── Route ────────────────────────────────────────────────────────────────────
 
-@router.get("/overview", summary="Live market overview — indices, gainers, losers, headlines")
+@router.get(
+    "/overview",
+    summary="Live market overview — indices, gainers, losers, headlines",
+    dependencies=[Depends(feature_dependency("market_data"))],
+)
 async def get_market_overview() -> dict:
     """
     Returns a market overview for the landing page.
@@ -399,7 +403,6 @@ async def get_market_overview() -> dict:
 
     Cached for 2 minutes. When yfinance is not installed, available=false.
     """
-    require_feature("market_data")
     cached = _from_cache("overview")
     if cached:
         return cached

@@ -27,7 +27,6 @@ from app.connectors.base import (
     BrokerConnector, ConnectorInfo, ConnectionResult, SyncResult,
     ConnectorNotConfiguredError,
 )
-from app.schemas.portfolio import HoldingBase
 
 
 class ZerodhaConnector(BrokerConnector):

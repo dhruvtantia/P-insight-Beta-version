@@ -6,7 +6,6 @@ Routes call services. Services call repositories and providers.
 Business rules live here, not in routes or repositories.
 """
 
-import math
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from typing import Any, Optional, Sequence
@@ -16,9 +15,7 @@ from app.repositories.portfolio_repository import PortfolioRepository
 from app.data_providers.base import BaseDataProvider
 from app.models.portfolio import Holding as HoldingORM, Portfolio as PortfolioORM
 from app.schemas.portfolio import (
-    PortfolioCreate,
     HoldingCreate,
-    PortfolioResponse,
     PortfolioSummary,
     SectorAllocation,
     RiskSnapshot,

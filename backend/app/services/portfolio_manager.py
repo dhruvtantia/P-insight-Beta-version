@@ -24,7 +24,6 @@ from app.schemas.portfolio_mgmt import (
     PortfolioListResponse,
     ActivateResponse,
     DeleteResponse,
-    RefreshResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ class PortfolioManagerService:
     def get_active(self) -> Optional[Portfolio]:
         return (
             self.db.query(Portfolio)
-            .filter(Portfolio.is_active == True)
+            .filter(Portfolio.is_active.is_(True))
             .first()
         )
 

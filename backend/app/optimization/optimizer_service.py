@@ -25,26 +25,15 @@ import time as _time
 from typing import Optional
 
 import numpy as np
-import pandas as pd
 
 from app.data_providers.base import BaseDataProvider
 from app.analytics.returns import build_price_matrix
 from app.optimization.types import (
-    OptimizationInputs,
-    OptimizationOutputs,
     OptimizationConstraints,
     PortfolioPoint,
 )
 from app.optimization.expected_returns import get_expected_returns
 from app.optimization.covariance import get_covariance, is_positive_definite, nearest_positive_definite
-from app.optimization.objectives import (
-    portfolio_return,
-    portfolio_volatility,
-    sharpe_ratio,
-    normalise_weights,
-    weight_from_dict,
-    equal_weights,
-)
 from app.optimization.frontier import (
     minimize_variance,
     maximize_sharpe,
@@ -191,19 +180,6 @@ class OptimizerService:
             sigma = nearest_positive_definite(sigma)
 
         n_obs = len(price_df) - 1  # after pct_change
-
-        # 7. Optimization inputs (stored for debug / downstream use)
-        inputs = OptimizationInputs(
-            tickers=valid_tickers,
-            expected_returns=mu,
-            covariance_matrix=sigma,
-            risk_free_rate=RISK_FREE_RATE,
-            current_weights=current_weights,
-            constraints=constraints,
-            expected_returns_method=er_label,
-            covariance_method=cov_label,
-            n_observations=n_obs,
-        )
 
         # 8. Current portfolio point
         current_pt = current_portfolio_point(current_weights, mu, sigma, RISK_FREE_RATE)

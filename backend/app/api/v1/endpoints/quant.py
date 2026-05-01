@@ -15,13 +15,13 @@ Routes:
 Period options: 1y | 6mo | 3mo
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Literal
 
 from app.core.dependencies import DataProvider
 from app.analytics.quant_service import QuantAnalyticsService
 from app.schemas.quant import QuantFullResponse
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency, require_feature
 
 router = APIRouter(prefix="/quant", tags=["Quantitative Analytics"])
 
@@ -34,6 +34,7 @@ PeriodType = Literal["1y", "6mo", "3mo"]
     "/full",
     summary="Full quantitative analytics bundle",
     response_model=QuantFullResponse,
+    dependencies=[Depends(feature_dependency("risk_quant"))],
 )
 async def get_quant_full(
     provider: DataProvider,
@@ -63,7 +64,11 @@ async def get_quant_full(
 
 # ─── GET /quant/status ────────────────────────────────────────────────────────
 
-@router.get("/status", summary="Quantitative analytics status (meta only)")
+@router.get(
+    "/status",
+    summary="Quantitative analytics status (meta only)",
+    dependencies=[Depends(feature_dependency("risk_quant"))],
+)
 async def get_quant_status(
     provider: DataProvider,
     period: PeriodType = Query("1y"),
@@ -145,7 +150,6 @@ def _to_response(raw: dict) -> QuantFullResponse:
     # Build kwargs: use field default when the key is absent from meta_raw.
     # This handles new fields (excluded_tickers, portfolio_usable, cache_age_seconds)
     # missing from any entries that were cached before this phase was deployed.
-    from pydantic.fields import FieldInfo
     meta_kwargs: dict = {}
     for k, field_info in QuantMeta.model_fields.items():
         if k == "date_range":

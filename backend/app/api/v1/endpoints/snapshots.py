@@ -11,11 +11,12 @@ Routes:
   DELETE /snapshots/{id}                      delete a snapshot
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 
 from app.core.dependencies import DbSession
 from app.services.snapshot_service import SnapshotService
+from app.services.feature_registry import feature_dependency
 from app.schemas.snapshot import (
     SnapshotCreateRequest,
     SnapshotSummary,
@@ -23,7 +24,10 @@ from app.schemas.snapshot import (
     PortfolioDeltaResponse,
 )
 
-router = APIRouter(tags=["Snapshots"])
+router = APIRouter(
+    tags=["Snapshots"],
+    dependencies=[Depends(feature_dependency("history"))],
+)
 
 
 # ─── Per-portfolio snapshot routes ────────────────────────────────────────────

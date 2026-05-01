@@ -7,7 +7,7 @@ All database operations for Snapshot and SnapshotHolding.
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.models.snapshot import Snapshot, SnapshotHolding
+from app.models.snapshot import Snapshot
 
 
 class SnapshotRepository:

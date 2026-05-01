@@ -36,7 +36,7 @@ import logging
 import asyncio
 import numpy as np
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.data_providers.base import BaseDataProvider
@@ -76,8 +76,6 @@ def _cache_set(key: str, data: dict) -> None:
 # Key: "{mode}"  |  Value: (raw_hists, ticker_status, failure_reasons)
 # Always populated with the widest available fetch (1y). Shorter periods are
 # derived by slicing this data — no extra network round-trips required.
-from datetime import datetime as _dt, timedelta as _td
-
 
 def _raw_cache_ttl(mode: str) -> float:
     return MOCK_QUANT_TTL if mode == "mock" else LIVE_QUANT_TTL
@@ -113,9 +111,9 @@ def _slice_histories_to_period(
         if not rows:
             continue
         try:
-            end_dt    = _dt.strptime(rows[-1]["date"], "%Y-%m-%d")
-            cutoff_dt = end_dt - _td(days=lookback)
-            kept      = [r for r in rows if _dt.strptime(r["date"], "%Y-%m-%d") >= cutoff_dt]
+            end_dt    = datetime.strptime(rows[-1]["date"], "%Y-%m-%d")
+            cutoff_dt = end_dt - timedelta(days=lookback)
+            kept      = [r for r in rows if datetime.strptime(r["date"], "%Y-%m-%d") >= cutoff_dt]
             if kept:
                 sliced[ticker] = kept
         except Exception:

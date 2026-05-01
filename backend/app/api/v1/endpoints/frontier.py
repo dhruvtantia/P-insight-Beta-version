@@ -10,10 +10,15 @@ This route is retained for backward compatibility and redirects
 callers to the correct endpoint.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.core.dependencies import DataProvider
+from app.services.feature_registry import feature_dependency
 
-router = APIRouter(prefix="/frontier", tags=["Efficient Frontier"])
+router = APIRouter(
+    prefix="/frontier",
+    tags=["Efficient Frontier"],
+    dependencies=[Depends(feature_dependency("risk_quant"))],
+)
 
 
 @router.get("/", summary="[Deprecated] Efficient frontier — use /optimization/full instead")

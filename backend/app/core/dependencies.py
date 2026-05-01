@@ -10,9 +10,8 @@ from sqlalchemy.orm import Session
 from typing import Annotated, Literal
 
 from app.db.database import get_db
-from app.core.config import settings
 from app.data_providers.base import BaseDataProvider
-from app.data_providers.file_provider import FileDataProvider
+from app.data_providers.uploaded_provider import UploadedPortfolioProvider
 from app.data_providers.live_provider import LiveAPIProvider
 from app.data_providers.broker_provider import BrokerSyncProvider
 
@@ -54,7 +53,7 @@ def get_data_provider(
         )
 
     providers: dict[str, BaseDataProvider] = {
-        "uploaded": FileDataProvider(),
+        "uploaded": UploadedPortfolioProvider(db=db),
         "live":     LiveAPIProvider(db=db),   # db-backed live holdings
         "broker":   BrokerSyncProvider(),
     }

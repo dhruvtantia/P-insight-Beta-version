@@ -89,7 +89,7 @@ def ledoit_wolf_covariance(prices: pd.DataFrame) -> tuple[np.ndarray, str]:
         oas = OAS().fit(daily_ret.values)
         sigma = _add_ridge(oas.covariance_ * TRADING_DAYS)
         shrinkage = getattr(oas, 'shrinkage_', None)
-        method = f"ledoit_wolf_oas"
+        method = "ledoit_wolf_oas"
         if shrinkage is not None:
             logger.debug(f"OAS shrinkage coefficient: {shrinkage:.4f}")
         return sigma.astype(float), method

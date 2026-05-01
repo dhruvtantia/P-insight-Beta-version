@@ -6,11 +6,16 @@ Phase 1: Returns a structured scaffold response.
 Phase 2: Wire to Anthropic Claude or OpenAI with portfolio context injection.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.core.config import settings
 from app.schemas.portfolio import ChatMessage, ChatResponse
+from app.services.feature_registry import feature_dependency
 
-router = APIRouter(prefix="/ai-chat", tags=["AI Chat"])
+router = APIRouter(
+    prefix="/ai-chat",
+    tags=["AI Chat"],
+    dependencies=[Depends(feature_dependency("advisor"))],
+)
 
 
 @router.post("/", response_model=ChatResponse, summary="Send a chat message to AI portfolio advisor")

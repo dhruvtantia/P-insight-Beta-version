@@ -3,8 +3,8 @@ Upload V2 Schemas
 -----------------
 Pydantic response models for the /upload/v2/* endpoints.
 
-Additive — the existing ParseResponse and ConfirmResponse (in upload.py) are
-completely unchanged. These schemas are only used by the V2 fast-path routes.
+Additive — the existing ParseResponse and ConfirmResponse live in
+app.schemas.upload. These schemas are only used by the V2 fast-path routes.
 """
 
 from __future__ import annotations
@@ -84,8 +84,9 @@ class V2ConfirmResponse(BaseModel):
 
     Downstream contract:
       All accepted holdings are in the DB with enrichment_status="pending"
-      and the FileDataProvider in-memory cache is live.  Dashboard, Holdings,
-      Fundamentals, and Risk pages can be used immediately.
+      and uploaded portfolio reads are DB-backed. Dashboard, Holdings,
+      Fundamentals, and Risk pages can be used immediately without relying on
+      process-local upload memory.
     """
 
     # ── Identity ──────────────────────────────────────────────────────────────

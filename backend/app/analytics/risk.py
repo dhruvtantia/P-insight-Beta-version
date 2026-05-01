@@ -53,7 +53,6 @@ def compute_risk_metrics(
     volatility = float(returns.std() * np.sqrt(trading_days))
 
     # ─── Sharpe Ratio ─────────────────────────────────────────────────────────
-    annualised_return = float(returns.mean() * trading_days)
     daily_rf = risk_free_rate / trading_days
     excess_returns = returns - daily_rf
     sharpe = (

@@ -29,7 +29,6 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.config       import settings
 from app.schemas.advisor   import (
     AIAdvisorResponse,
     AdvisorQueryRequest,
@@ -43,7 +42,7 @@ from app.schemas.advisor   import (
 )
 from app.services.context_builder import PortfolioContextBuilder, PortfolioContext
 from app.services.portfolio_service import PortfolioReadService
-from app.services.ai.provider     import get_provider, get_provider_status, FallbackProvider, ProviderError, ConversationHistory
+from app.services.ai.provider     import get_provider, ProviderError, ConversationHistory
 
 logger = logging.getLogger(__name__)
 

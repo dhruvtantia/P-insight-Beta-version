@@ -8,9 +8,7 @@ so existing SQLite databases are upgraded automatically.
 For Phase 2+, replace the ALTER TABLE block with Alembic migrations.
 """
 
-import json
 import logging
-from datetime import datetime, timezone
 
 from sqlalchemy import text
 from app.db.database import engine, Base
@@ -99,43 +97,13 @@ def _seed_mock_portfolio() -> None:
             logger.info("Seeded default mock portfolio (id=%s)", mock_p.id)
         else:
             # Ensure at least one portfolio is active
-            active = db.query(Portfolio).filter(Portfolio.is_active == True).first()
+            active = db.query(Portfolio).filter(Portfolio.is_active.is_(True)).first()
             if active is None:
                 latest = db.query(Portfolio).order_by(Portfolio.updated_at.desc()).first()
                 if latest:
                     latest.is_active = True
                     db.commit()
                     logger.info("Activated portfolio id=%s as default", latest.id)
-    finally:
-        db.close()
-
-
-def _restore_uploaded_portfolio() -> None:
-    """
-    On startup, if the most recently active uploaded portfolio exists in the DB,
-    reload its holdings into FileDataProvider so the 'uploaded' data mode works
-    without requiring a re-upload.
-    """
-    from app.db.database import SessionLocal
-    from app.models.portfolio import Portfolio, Holding
-    from app.data_providers.file_provider import _restore_from_db_holdings
-
-    db = SessionLocal()
-    try:
-        # Find the most recent uploaded portfolio that is active
-        uploaded = (
-            db.query(Portfolio)
-            .filter(Portfolio.source == "uploaded")
-            .order_by(Portfolio.updated_at.desc())
-            .first()
-        )
-        if uploaded and uploaded.holdings:
-            holdings = db.query(Holding).filter(Holding.portfolio_id == uploaded.id).all()
-            _restore_from_db_holdings(holdings)
-            logger.info(
-                "Restored uploaded portfolio '%s' (%d holdings) into FileDataProvider",
-                uploaded.name, len(holdings),
-            )
     finally:
         db.close()
 
@@ -154,11 +122,5 @@ def init_db() -> None:
     #    on fresh installs, which interfered with the data-mode routing logic
     #    (GET /portfolio returned 0 holdings while the portfolio selector showed
     #    a "Demo Portfolio" entry).  The function body is kept for reference.
-
-    # 4. Restore the most-recent uploaded portfolio into memory
-    try:
-        _restore_uploaded_portfolio()
-    except Exception as exc:
-        logger.warning("Could not restore uploaded portfolio on startup: %s", exc)
 
     print("✅ Database initialised")

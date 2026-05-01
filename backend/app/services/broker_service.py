@@ -24,7 +24,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.connectors.base import ConnectorNotConfiguredError, ConnectorAuthError
+from app.connectors.base import ConnectorNotConfiguredError
 from app.connectors.registry import CONNECTOR_REGISTRY, list_connectors, get_connector
 from app.models.broker_connection import BrokerConnection
 from app.models.portfolio import Portfolio
@@ -127,7 +127,6 @@ class BrokerService:
         self.db.flush()
 
         # Attempt real connection
-        scaffolded = False
         try:
             result = connector.connect(req.config)
             if result.success:
@@ -159,7 +158,6 @@ class BrokerService:
 
         except ConnectorNotConfiguredError as exc:
             # Scaffold — set pending state, return informative response
-            scaffolded = True
             row.connection_state = "pending"
             row.sync_error       = str(exc)
             self.db.commit()
@@ -204,7 +202,6 @@ class BrokerService:
         row.updated_at       = now
         self.db.commit()
 
-        scaffolded = False
         try:
             sync_result = connector.sync_holdings(config)
 
@@ -235,7 +232,6 @@ class BrokerService:
             )
 
         except ConnectorNotConfiguredError as exc:
-            scaffolded = True
             row.connection_state = "pending"
             row.sync_error       = str(exc)
             row.updated_at       = now

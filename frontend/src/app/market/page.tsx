@@ -27,61 +27,16 @@ import {
   Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { marketApi, newsApi } from '@/services/api'
+import type {
+  IndexQuote as IndexEntry,
+  MarketOverviewResponse as MarketOverview,
+  MarketStatus,
+  MarketTickerEntry as TickerEntry,
+  NewsArticle,
+} from '@/types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const REFRESH_INTERVAL_MS = 120_000   // 2 minutes
-const REQUEST_TIMEOUT_MS  =  15_000   // 15 seconds
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface IndexEntry {
-  symbol:       string
-  name:         string
-  value?:       number
-  change?:      number
-  change_pct?:  number
-  unavailable?: boolean
-  reason?:      string
-  // New fields from hardened backend
-  status?:      'live' | 'last_close' | 'unavailable'
-  data_date?:   string   // YYYY-MM-DD — date of the last bar yfinance returned
-  last_updated?: string  // ISO-8601 UTC timestamp of the fetch
-  source?:      string
-}
-
-interface TickerEntry {
-  ticker:     string
-  symbol:     string
-  price:      number
-  change_pct: number
-}
-
-interface MarketStatus {
-  open:         boolean
-  note:         string
-  next_open?:   string
-  checked_at_ist: string
-}
-
-interface MarketOverview {
-  available:       boolean
-  market_status?:  MarketStatus
-  main_indices:    IndexEntry[]
-  sector_indices:  IndexEntry[]
-  top_gainers:     TickerEntry[]
-  top_losers:      TickerEntry[]
-  fetched_at?:     string
-  source:          string
-}
-
-interface NewsArticle {
-  title:       string
-  url:         string
-  source:      string
-  published_at: string
-  summary?:    string
-  ticker?:     string
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,30 +59,6 @@ function relTime(iso: string): string {
     if (hours < 24) return `${hours}h ago`
     return `${Math.floor(hours / 24)}d ago`
   } catch { return '' }
-}
-
-async function fetchWithTimeout<T>(url: string): Promise<T> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  try {
-    const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) {
-      // Classify the error for better logging
-      const errType = res.status >= 500 ? 'server_error' : res.status === 404 ? 'not_found' : 'client_error'
-      throw Object.assign(new Error(`HTTP ${res.status}`), { errType })
-    }
-    return res.json()
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw Object.assign(new Error('Request timed out'), { errType: 'timeout' })
-    }
-    if (err instanceof TypeError) {
-      throw Object.assign(new Error('Backend unreachable'), { errType: 'network_unreachable' })
-    }
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 /**
@@ -419,9 +350,7 @@ export default function MarketPage() {
       setRefreshError(null)
     }
     try {
-      const data = await fetchWithTimeout<MarketOverview>(
-        `${BASE_URL}/api/v1/market/overview`
-      )
+      const data = await marketApi.getOverview()
 
       // For background (non-manual) refreshes, merge new data with the
       // existing overview so that indices that temporarily return "unavailable"
@@ -455,11 +384,7 @@ export default function MarketPage() {
     setNewsStatus('loading')
     const tickers = 'RELIANCE.NS,TCS.NS,HDFCBANK.NS,INFY.NS,SBIN.NS,BHARTIARTL.NS'
     try {
-      const data = await fetchWithTimeout<{
-        articles:            NewsArticle[]
-        news_key_configured: boolean
-        news_unavailable:    boolean
-      }>(`${BASE_URL}/api/v1/news/?mode=uploaded&tickers=${tickers}`)
+      const data = await newsApi.getNews('uploaded', { tickers: tickers.split(',') })
 
       if (!data.news_key_configured || data.news_unavailable || !data.articles?.length) {
         setNewsStatus('unavailable')

@@ -5,7 +5,6 @@ Coordinates side effects that happen after the base portfolio has been persisted
 
 The upload endpoint owns request parsing, row validation, and DB persistence.
 This workflow owns downstream availability and background work:
-  - update the uploaded-holdings in-memory cache,
   - save the canonical uploaded CSV,
   - schedule enrichment, price refresh, quant pre-warm, and history build.
 """
@@ -21,7 +20,7 @@ from fastapi import BackgroundTasks
 
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.schemas.portfolio import HoldingBase
-from app.services.upload_v2_service import update_memory_cache, run_background_enrichment
+from app.services.upload_v2_service import run_background_enrichment
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,6 @@ class PostUploadWorkflow:
 
     def run(self, event: UploadCompleted) -> None:
         """Run all post-upload side effects. Non-critical failures are logged."""
-        update_memory_cache(list(event.holdings))
         self._save_canonical_csv(event)
         self._schedule_background_enrichment(event)
 

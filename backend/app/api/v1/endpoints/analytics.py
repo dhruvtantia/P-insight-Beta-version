@@ -17,7 +17,7 @@ hardcodes threshold values — it reads them from the API response.
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.core.dependencies import DbSession, DataProvider
 from app.services.portfolio_service import PortfolioService
 from app.services.fundamentals_view_service import (
@@ -25,10 +25,9 @@ from app.services.fundamentals_view_service import (
     build_thresholds,
 )
 from app.analytics.commentary import generate_commentary
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency, require_feature
 from app.schemas.portfolio import (
     RiskMetrics,
-    SectorAllocation,
     FinancialRatioResponse,
     WeightedFundamentals,
     FundamentalsMeta,
@@ -41,7 +40,12 @@ logger = logging.getLogger(__name__)
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.get("/risk", response_model=RiskMetrics, summary="Get risk metrics")
+@router.get(
+    "/risk",
+    response_model=RiskMetrics,
+    summary="Get risk metrics",
+    dependencies=[Depends(feature_dependency("risk_quant"))],
+)
 async def get_risk_metrics(db: DbSession, provider: DataProvider):
     """
     Return portfolio risk metrics: beta, Sharpe ratio, volatility, drawdown.
@@ -79,6 +83,7 @@ _RATIO_PASSTHROUGH_KEYS = frozenset({
     "/ratios",
     response_model=FinancialRatiosResponse,
     summary="Get financial ratios with portfolio-weighted metrics and trust metadata",
+    dependencies=[Depends(feature_dependency("fundamentals"))],
 )
 async def get_financial_ratios(db: DbSession, provider: DataProvider):
     """
@@ -206,7 +211,11 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
     )
 
 
-@router.get("/commentary", summary="Get AI-style portfolio commentary")
+@router.get(
+    "/commentary",
+    summary="Get AI-style portfolio commentary",
+    dependencies=[Depends(feature_dependency("portfolio_core"))],
+)
 async def get_commentary(db: DbSession, provider: DataProvider):
     """
     Return rule-based portfolio insights and commentary.

@@ -1,8 +1,11 @@
 """
 File Upload Data Provider
 ---------------------------
-Serves portfolio data from an uploaded Excel or CSV file.
-After upload, the parsed holdings are cached in-memory for the session.
+Legacy parser and market-data proxy for uploaded Excel/CSV files.
+
+Uploaded portfolio display now reads from the database through
+UploadedPortfolioProvider. This provider's in-memory holdings list remains only
+for legacy parser compatibility and should not be treated as product state.
 
 Fundamentals & Peers:
   - Proxied to yfinance (via live_provider helpers) so that uploaded portfolios
@@ -26,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 UPLOADS_PATH = Path(__file__).parent.parent.parent / "uploads"
 
-# In-memory cache for the session — replace with DB-backed storage in Phase 2
+# Legacy in-memory cache. UploadedPortfolioProvider is the canonical read path.
 _uploaded_holdings: list[HoldingBase] = []
 
 
@@ -46,8 +49,10 @@ class FileDataProvider(BaseDataProvider):
     @classmethod
     def load_from_file(cls, filepath: str) -> list[HoldingBase]:
         """
-        Parse a CSV or Excel file and populate the in-memory cache.
-        Call this from the upload endpoint after saving the file.
+        Parse a CSV or Excel file and populate the legacy in-memory list.
+
+        New upload paths should persist parsed holdings to the database and read
+        them back through UploadedPortfolioProvider.
 
         Required columns: ticker, name, quantity, average_cost
         Optional columns: current_price, sector, asset_class, currency
@@ -235,8 +240,10 @@ class FileDataProvider(BaseDataProvider):
 
 def _restore_from_db_holdings(db_holdings: list) -> None:
     """
-    Populate the in-memory cache from ORM Holding objects loaded from the DB.
-    Called by init_db on startup so the 'uploaded' data mode persists across restarts.
+    Populate the legacy in-memory list from ORM Holding objects.
+
+    Kept only for compatibility with older tests/tools. Application startup no
+    longer uses this path because uploaded mode is DB-backed.
     """
     global _uploaded_holdings
     _uploaded_holdings = []

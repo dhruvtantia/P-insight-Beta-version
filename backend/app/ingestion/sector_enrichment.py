@@ -349,7 +349,6 @@ _STATIC_SECTOR_MAP: dict[str, str] = {
     "THERMAX": "Industrials",     "THERMAX.NS": "Industrials",
     "BHARATFORG": "Industrials",  "BHARATFORG.NS": "Industrials",
     "TIINDIA": "Industrials",     "TIINDIA.NS": "Industrials",
-    "SCHAEFFLER": "Industrials",  "SCHAEFFLER.NS": "Industrials",
     "KEC": "Industrials",         "KEC.NS": "Industrials",
     "POLYCAB": "Industrials",     "POLYCAB.NS": "Industrials",
     "APAR": "Industrials",        "APAR.NS": "Industrials",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { systemApi, ApiError } from '@/services/api'
+import { resolveFeatureRequestStatus } from '@/hooks/featureRequestStatus'
 import type { FeatureHealth, FeatureId, FeatureRegistryResponse } from '@/types'
 
 let _featureCache: FeatureRegistryResponse | null = null
@@ -54,6 +55,13 @@ export function useFeatureRegistry() {
     return feature?.status === 'disabled'
   }, [byId])
 
+  const status = resolveFeatureRequestStatus({
+    loading,
+    error,
+    stale,
+    hasData: data !== null,
+  })
+
   return {
     data,
     features: data?.features ?? [],
@@ -61,6 +69,7 @@ export function useFeatureRegistry() {
     loading,
     error,
     stale,
+    status,
     refetch,
     isDisabled,
   }

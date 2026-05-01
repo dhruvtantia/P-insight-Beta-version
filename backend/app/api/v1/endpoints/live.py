@@ -21,8 +21,7 @@ DEPRECATED route (no longer called by any UI path as of 2026-04-12):
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
 from app.data_providers.live_provider import (
@@ -33,6 +32,7 @@ from app.data_providers.live_provider import (
     _fund_from_cache,
     _store_fund,
 )
+from app.services.feature_registry import feature_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,11 @@ router = APIRouter(prefix="/live", tags=["Live Data"])
 
 # ─── GET /live/quotes ─────────────────────────────────────────────────────────
 
-@router.get("/quotes", summary="Batch live price quotes")
+@router.get(
+    "/quotes",
+    summary="Batch live price quotes",
+    dependencies=[Depends(feature_dependency("market_data"))],
+)
 async def get_live_quotes(
     tickers: str = Query(
         ...,
@@ -104,7 +108,11 @@ async def get_live_quotes(
 
 # ─── GET /live/fundamentals ───────────────────────────────────────────────────
 
-@router.get("/fundamentals", summary="Live fundamentals for a single ticker")
+@router.get(
+    "/fundamentals",
+    summary="Live fundamentals for a single ticker",
+    dependencies=[Depends(feature_dependency("fundamentals"))],
+)
 async def get_live_fundamentals(
     ticker: str = Query(
         ...,
@@ -274,6 +282,7 @@ def _fetch_indices_sync() -> dict:
     "/indices",
     summary="[DEPRECATED] Live NIFTY 50 and SENSEX prices with change",
     deprecated=True,
+    dependencies=[Depends(feature_dependency("market_data"))],
 )
 async def get_live_indices() -> dict:
     """
@@ -333,7 +342,11 @@ async def get_live_indices() -> dict:
 
 # ─── GET /live/status ─────────────────────────────────────────────────────────
 
-@router.get("/status", summary="Live data provider status and cache health")
+@router.get(
+    "/status",
+    summary="Live data provider status and cache health",
+    dependencies=[Depends(feature_dependency("market_data"))],
+)
 async def get_live_status() -> dict:
     """
     Returns:

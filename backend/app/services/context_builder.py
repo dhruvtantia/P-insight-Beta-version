@@ -22,13 +22,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy.orm import Session
 
 from app.schemas.portfolio import RiskSnapshot, SectorAllocation
 from app.services.portfolio_service import PortfolioReadService
 from app.services.snapshot_service import SnapshotReadService
+
+if TYPE_CHECKING:
+    from app.models.portfolio import Holding
 
 logger = logging.getLogger(__name__)
 

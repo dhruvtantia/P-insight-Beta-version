@@ -528,7 +528,7 @@ async def get_canonical_history_daily(
 
     The frontend should poll this endpoint (e.g. every 5s) while state='building'.
     """
-    from app.services.history_service import get_history_build_status, get_portfolio_history, get_portfolio_history_status
+    from app.services.history_service import get_history_build_status, get_portfolio_history
     from app.models.portfolio import Portfolio
 
     portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
@@ -596,10 +596,9 @@ async def get_holdings_since_purchase(
     This powers the "Since Purchase" panel on the Changes page and answers
     the question: "How am I doing vs what I paid?"
     """
-    from app.models.portfolio import Portfolio, Holding
-    from app.models.portfolio import Portfolio as _Portfolio
+    from app.models.portfolio import Holding, Portfolio
 
-    portfolio = db.query(_Portfolio).filter(_Portfolio.id == portfolio_id).first()
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if portfolio is None:
         raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
 

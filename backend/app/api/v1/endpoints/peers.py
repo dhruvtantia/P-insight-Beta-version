@@ -49,12 +49,17 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.core.dependencies import DataProvider
+from app.services.feature_registry import feature_dependency
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/peers", tags=["Peer Comparison"])
+router = APIRouter(
+    prefix="/peers",
+    tags=["Peer Comparison"],
+    dependencies=[Depends(feature_dependency("fundamentals"))],
+)
 
 # ── Field sets ────────────────────────────────────────────────────────────────
 

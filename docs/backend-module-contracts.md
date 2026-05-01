@@ -13,6 +13,43 @@ This guide documents the backend module boundaries that are currently implemente
 - Treat process-local caches as implementation details behind wrapper services.
 - Do not add new direct consumers of raw module-level dictionaries or duplicate portfolio aggregation math.
 
+## Feature Registry And Disable Boundaries
+
+Owner files:
+
+- `backend/app/services/feature_registry.py`
+- `backend/app/schemas/system.py`
+- `backend/app/api/v1/endpoints/system.py`
+
+Primary boundary:
+
+- `GET /api/v1/system/features`
+- `feature_dependency(feature_id)`
+- `require_feature(feature_id)`
+
+Inputs:
+
+- Modular feature flags from `backend/app/core/config.py`
+- Optional dependency health such as yfinance, news API, and LLM provider availability
+
+Outputs:
+
+- Feature registry entries with enabled, disabled, degraded, or unavailable status
+- Typed `503` feature-boundary responses for disabled/unavailable feature routes
+- Per-feature route prefix, dependency list, failure behavior, and disable behavior
+
+Safe edit rule:
+
+Feature-owned routes should use `Depends(feature_dependency("<feature_id>"))` at the
+router or route decorator layer so disabled features are blocked before DB/provider
+dependencies run. Degraded features may still respond, but disabled/unavailable
+features must return the typed feature-boundary payload rather than leaking a route
+specific error.
+
+Tests:
+
+- `backend/tests/test_feature_registry_contract.py`
+
 ## Portfolio Read Boundary
 
 Owner files:
@@ -55,6 +92,9 @@ Tests:
 Owner files:
 
 - `backend/app/api/v1/endpoints/upload.py`
+- `backend/app/services/upload_parse_service.py`
+- `backend/app/services/upload_confirm_service.py`
+- `backend/app/services/upload_file_utils.py`
 - `backend/app/services/upload_v2_service.py`
 - `backend/app/services/post_upload_workflow.py`
 
@@ -72,7 +112,7 @@ Inputs:
 
 Outputs and side effects:
 
-- Uploaded holdings memory cache update
+- Uploaded portfolio and holding rows persisted to the database
 - Canonical uploaded CSV write
 - Background enrichment scheduling
 - Quant/history work remains triggered through the existing enrichment path
@@ -203,12 +243,24 @@ Tests:
 
 ```bash
 cd backend
+poetry run ruff check app tests
 poetry run pytest
-poetry run python -m compileall app
+python3 -m compileall app
+poetry run python scripts/export_openapi.py
 
 cd ../frontend
-pnpm type-check
+pnpm run generate:api-types
+pnpm exec tsc --noEmit
 ```
+
+Repo-wide Ruff is a required backend gate. New phases must leave
+`poetry run ruff check app tests` passing unless an intentional suppression is
+documented at the suppression site.
+
+OpenAPI export and frontend API type generation are required contract gates.
+Backend Pydantic/FastAPI schemas are the source of truth for API response
+contracts; handwritten frontend types should be reserved for UI-only state or
+for endpoints that still need response models added.
 
 ## Safe Module Change Checklist
 
@@ -216,5 +268,6 @@ pnpm type-check
 2. Update the service boundary first.
 3. Keep endpoint response shape stable or update frontend types in the same change.
 4. Add or update a contract test for the changed shape/state/side effect.
-5. Run backend tests, backend compile, and frontend type-check.
-6. Manually smoke test the related page.
+5. Regenerate OpenAPI and frontend API types when backend contracts change.
+6. Run repo-wide Ruff, backend tests, backend compile, generated API type-check, and frontend type-check.
+7. Manually smoke test the related page.

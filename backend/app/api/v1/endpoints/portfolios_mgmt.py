@@ -16,15 +16,13 @@ Routes:
 """
 
 import json
-import logging
-import tempfile
-from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.dependencies import DbSession
 from app.services.portfolio_manager import PortfolioManagerService
+from app.services.feature_registry import feature_dependency
+from app.services.upload_file_utils import UploadServiceError, load_dataframe_from_upload
 from app.schemas.portfolio_mgmt import (
     PortfolioMeta,
     PortfolioListResponse,
@@ -35,12 +33,11 @@ from app.schemas.portfolio_mgmt import (
     RefreshResponse,
 )
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/portfolios", tags=["Portfolios"])
-
-ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
-MAX_FILE_SIZE_MB = 10
+router = APIRouter(
+    prefix="/portfolios",
+    tags=["Portfolios"],
+    dependencies=[Depends(feature_dependency("portfolio_core"))],
+)
 
 
 # ─── List + get ───────────────────────────────────────────────────────────────
@@ -99,6 +96,7 @@ async def activate_portfolio(portfolio_id: int, db: DbSession) -> ActivateRespon
     "/{portfolio_id}/refresh",
     response_model=RefreshResponse,
     summary="Re-import holdings into an existing portfolio",
+    dependencies=[Depends(feature_dependency("upload_import"))],
 )
 async def refresh_portfolio(
     portfolio_id: int,
@@ -116,44 +114,21 @@ async def refresh_portfolio(
     existing portfolio rather than creating a new one — designed to support
     future broker-sync refresh flows.
     """
-    # Validate file type
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported file type '{suffix}'. Allowed: {sorted(ALLOWED_EXTENSIONS)}",
-        )
-
     # Parse mapping
     try:
         col_map: dict = json.loads(column_mapping)
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid column_mapping JSON: {exc}")
 
-    # Write upload to temp file
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"File too large (max {MAX_FILE_SIZE_MB} MB)")
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
-        tmp.write(content)
-        tmp.flush()
-        tmp_path = Path(tmp.name)
-    finally:
-        tmp.close()
-
-    try:
-        from app.ingestion.normalizer import read_file_as_dataframe, normalize_to_holdings
-        df = read_file_as_dataframe(tmp_path)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Could not read file: {exc}")
-    finally:
-        tmp_path.unlink(missing_ok=True)
+        df = load_dataframe_from_upload(file.filename, await file.read())
+    except UploadServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
     if df.empty:
         raise HTTPException(status_code=422, detail="The file has no data rows.")
 
+    from app.ingestion.normalizer import normalize_to_holdings
     holdings, skipped = normalize_to_holdings(df, col_map)
     if not holdings:
         raise HTTPException(status_code=422, detail="No valid rows could be parsed.")
@@ -165,14 +140,6 @@ async def refresh_portfolio(
         p, pre_snap_id, post_snap_id = svc.refresh_portfolio(portfolio_id, holdings, filename)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
-    # Update in-memory FileDataProvider cache if this is the active portfolio
-    if p.is_active:
-        try:
-            import app.data_providers.file_provider as _fp_module
-            _fp_module._uploaded_holdings = list(holdings)
-        except Exception as exc:
-            logger.warning("Could not update FileDataProvider cache: %s", exc)
 
     return RefreshResponse(
         success=True,

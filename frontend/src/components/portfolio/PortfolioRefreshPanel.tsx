@@ -25,11 +25,9 @@ import {
 import { UploadDropzone }                     from '@/components/upload/UploadDropzone'
 import { ColumnMapper, type ColumnMappingState } from '@/components/upload/ColumnMapper'
 import { PortfolioPreviewTable }              from '@/components/upload/PortfolioPreviewTable'
-import { portfolioMgmtApi }                  from '@/services/api'
+import { portfolioMgmtApi, uploadApi }       from '@/services/api'
 import { cn }                                from '@/lib/utils'
 import type { PortfolioMeta } from '@/types'
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -114,14 +112,7 @@ export function PortfolioRefreshPanel({
     setErrorMsg(null)
     setLoading(true)
     try {
-      const form = new FormData()
-      form.append('file', f)
-      const res = await fetch(`${BASE_URL}/api/v1/upload/parse`, { method: 'POST', body: form })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Parse error ${res.status}`)
-      }
-      const data: ParseResult = await res.json()
+      const data = await uploadApi.parse<ParseResult>(f)
       setParseResult(data)
       setMapping(data.detected_mapping)
       setStep(data.high_confidence ? 'preview' : 'mapping')

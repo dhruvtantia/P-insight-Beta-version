@@ -23,14 +23,18 @@ Live mode behaviour:
 Phase 2: Wire a NewsAPI / Bloomberg / yfinance.news key to LiveAPIProvider.get_news().
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 
 from app.core.config import settings
 from app.core.dependencies import DataProvider
-from app.services.feature_registry import require_feature
+from app.services.feature_registry import feature_dependency
 
-router = APIRouter(prefix="/news", tags=["News & Events"])
+router = APIRouter(
+    prefix="/news",
+    tags=["News & Events"],
+    dependencies=[Depends(feature_dependency("news"))],
+)
 
 # Supported event types — validated client-side; backend passes through any value
 EVENT_TYPES = [
@@ -69,7 +73,6 @@ async def get_news(
     Phase 1: Served from mock_data/portfolio.json (static).
     Phase 2: Fetched from live news API by ticker.
     """
-    require_feature("news")
     # Resolve ticker list
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
@@ -123,7 +126,6 @@ async def get_events(
     Events are sorted soonest-first.
     Phase 1: Static mock events. Phase 2: Live corporate calendar API.
     """
-    require_feature("news")
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     else:

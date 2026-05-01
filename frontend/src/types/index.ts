@@ -917,6 +917,31 @@ export interface IndicesResponse {
   source?:            string
 }
 
+export interface MarketTickerEntry {
+  ticker:     string
+  symbol:     string
+  price:      number
+  change_pct: number
+}
+
+export interface MarketStatus {
+  open:           boolean
+  note:           string
+  next_open?:     string
+  checked_at_ist: string
+}
+
+export interface MarketOverviewResponse {
+  available:       boolean
+  market_status?:  MarketStatus
+  main_indices:    IndexQuote[]
+  sector_indices:  IndexQuote[]
+  top_gainers:     MarketTickerEntry[]
+  top_losers:      MarketTickerEntry[]
+  fetched_at?:     string
+  source:          string
+}
+
 // ─── API Response Wrappers ────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
