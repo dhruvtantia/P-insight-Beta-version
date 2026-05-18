@@ -3,13 +3,14 @@ name = "p-insight-backend"
 version = "0.1.0"
 description = "P-Insight Portfolio Analytics Backend"
 authors = ["Dhruv Tantia <dhruvtantia6@gmail.com>"]
-readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.115.0"
 uvicorn = {extras = ["standard"], version = "^0.32.0"}
 sqlalchemy = "^2.0.0"
+alembic = "^1.13.0"
 pydantic = "^2.0.0"
 pydantic-settings = "^2.6.0"
 python-dotenv = "^1.0.0"

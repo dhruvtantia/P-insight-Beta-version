@@ -1,0 +1,1550 @@
+# P-insight Modular Rebuild — Codex Master Prompt
+
+You are acting as a senior full-stack software architect and implementation engineer. Your job is to rebuild P-insight into a stable, modular web application first, with future mobile app support. The app is a portfolio analytics dashboard with AI-powered portfolio summaries and Q&A.
+
+The primary goal is to get a stable working product launched quickly so I can onboard real users and focus on marketing. Prioritize stability, modularity, clean contracts, debuggability, and a professional UI over excessive features.
+
+---
+
+## 1. Product Summary
+
+P-insight helps users upload or connect their investment portfolio and instantly understand:
+
+- Portfolio value
+- Holdings
+- Asset allocation
+- Sector allocation
+- Portfolio weights
+- Gain/loss
+- Risk metrics
+- Rule-based insights
+- AI-generated portfolio explanations
+- AI Q&A about their portfolio
+
+The initial launch is a web application. A mobile app will come later and should reuse the same backend, database, API contracts, auth, analytics engine, and AI service.
+
+---
+
+## 2. Build Philosophy
+
+Build this as a modular monolith first.
+
+Do not use microservices yet.
+
+The system should be organized into clean modules that can be debugged, edited, disconnected, and reconnected without breaking the whole app.
+
+Core rule:
+
+Portfolio data is the central source of truth. Every feature reads from or writes to portfolio data only through strict backend contracts.
+
+Do not allow frontend components to directly calculate core analytics or call external financial data APIs.
+
+Correct flow:
+
+Frontend → Backend API → Service Layer → Repository Layer → Database / External Provider
+
+---
+
+## 3. Recommended Tech Stack
+
+### Frontend
+
+Use:
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- TanStack Query
+- React Hook Form
+- Zod
+- Recharts or another clean charting library
+
+Frontend rules:
+
+- Pages assemble components.
+- Components display data.
+- API services fetch data.
+- Hooks manage query/state behavior.
+- No core analytics logic in frontend.
+- No external financial API keys in frontend.
+- Every page must have loading, empty, and error states.
+
+### Backend
+
+Use:
+
+- FastAPI
+- Python
+- Pydantic
+- SQLAlchemy
+- Alembic
+- PostgreSQL
+
+Backend rules:
+
+- `router.py` contains API endpoints only.
+- `service.py` contains business logic.
+- `repository.py` contains database access.
+- `schemas.py` contains request/response models.
+- `errors.py` contains module-specific errors.
+- No direct database access outside repositories.
+- Every API must have strict request and response schemas.
+
+### Database
+
+Use PostgreSQL.
+
+Preferred provider later:
+
+- Supabase Postgres
+
+For local development:
+
+- Dockerized PostgreSQL or local PostgreSQL
+- Alembic migrations
+
+### Auth
+
+Use placeholder abstraction first.
+
+Preferred production path:
+
+- Supabase Auth or Clerk
+
+For now, create an auth module with a clear structure and TODO comments if full auth is not yet wired.
+
+### Payments
+
+Use Stripe later.
+
+For now, create placeholders for:
+
+- Free plan
+- Pro plan
+- Usage limits
+- Subscription table
+- Billing page placeholder
+
+### AI
+
+Use backend-only AI calls.
+
+Create an AI advisor module that builds structured portfolio context from portfolio data and analytics outputs before calling the LLM.
+
+Do not let AI directly query raw database tables randomly.
+
+### Market Data
+
+Create provider abstraction:
+
+- Mock provider for development
+- Placeholder for Polygon / Massive
+- Placeholder for Financial Modeling Prep
+- Placeholder for broker data provider
+
+No external market data calls from frontend.
+
+---
+
+## 4. Target Repository Structure
+
+Create or refactor toward this structure:
+
+```text
+p-insight/
+  frontend/
+    src/
+      app/
+      pages/
+      components/
+      services/
+      hooks/
+      types/
+      lib/
+  backend/
+    app/
+      main.py
+      core/
+      db/
+      modules/
+      tests/
+  docs/
+    prd.md
+    api-contract.md
+    architecture.md
+    environment.md
+```
+
+Backend structure:
+
+```text
+backend/app/
+  main.py
+
+  core/
+    config.py
+    security.py
+    errors.py
+    logging.py
+    feature_flags.py
+
+  db/
+    session.py
+    models.py
+    base.py
+    migrations/
+
+  modules/
+    auth/
+      router.py
+      service.py
+      schemas.py
+      errors.py
+
+    users/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+      errors.py
+
+    portfolios/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+      errors.py
+
+    holdings/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+      errors.py
+
+    uploads/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+      errors.py
+
+    market_data/
+      service.py
+      schemas.py
+      providers/
+        base.py
+        mock_provider.py
+        polygon_provider.py
+        fmp_provider.py
+
+    analytics/
+      router.py
+      service.py
+      schemas.py
+      calculators/
+        allocation.py
+        performance.py
+        risk.py
+        concentration.py
+        rules.py
+
+    ai_advisor/
+      router.py
+      service.py
+      schemas.py
+      prompts.py
+      context_builder.py
+
+    broker_connections/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+      providers/
+        base.py
+        plaid_provider.py
+        zerodha_provider.py
+        ibkr_provider.py
+
+    watchlist/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+
+    billing/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+
+    admin/
+      router.py
+      service.py
+      repository.py
+      schemas.py
+
+  tests/
+```
+
+Frontend structure:
+
+```text
+frontend/src/
+  app/
+    App.tsx
+    routes.tsx
+    providers.tsx
+
+  pages/
+    LandingPage.tsx
+    LoginPage.tsx
+    SignupPage.tsx
+    OnboardingPage.tsx
+    DashboardPage.tsx
+    HoldingsPage.tsx
+    UploadPage.tsx
+    AnalyticsPage.tsx
+    AIAdvisorPage.tsx
+    WatchlistPage.tsx
+    BrokerConnectionsPage.tsx
+    BillingPage.tsx
+    SettingsPage.tsx
+    AdminPage.tsx
+
+  components/
+    layout/
+    portfolio/
+    holdings/
+    upload/
+    analytics/
+    charts/
+    ai/
+    billing/
+    ui/
+
+  services/
+    apiClient.ts
+    portfolioApi.ts
+    holdingsApi.ts
+    uploadApi.ts
+    analyticsApi.ts
+    aiApi.ts
+    marketDataApi.ts
+    billingApi.ts
+
+  hooks/
+    usePortfolio.ts
+    useHoldings.ts
+    useAnalytics.ts
+    useAIAdvisor.ts
+    useUpload.ts
+
+  types/
+    portfolio.ts
+    holdings.ts
+    analytics.ts
+    ai.ts
+    billing.ts
+
+  lib/
+    formatters.ts
+    constants.ts
+    validators.ts
+```
+
+---
+
+## 5. Central Data Model
+
+Create database models and migrations for the following entities:
+
+- User
+- Portfolio
+- Holding
+- Transaction
+- Asset
+- AssetPrice
+- PortfolioSnapshot
+- AnalyticsResult
+- AIConversation
+- AIMessage
+- BrokerConnection
+- BrokerAccount
+- UploadJob
+- UploadRow
+- Subscription
+- FeatureUsage
+- WatchlistItem
+
+Minimum required tables for MVP:
+
+```text
+users
+portfolios
+holdings
+assets
+asset_prices
+portfolio_snapshots
+analytics_results
+ai_conversations
+ai_messages
+upload_jobs
+upload_rows
+subscriptions
+feature_usage
+watchlist_items
+```
+
+Important design rule:
+
+Uploaded portfolio data and future broker-connected portfolio data must normalize into the same internal holdings/transactions format.
+
+---
+
+## 6. MVP Scope
+
+Build the MVP with these features:
+
+### Must Have
+
+- Landing page
+- Auth pages / auth placeholder
+- Portfolio creation
+- CSV/XLSX portfolio upload
+- Column mapping
+- Upload validation
+- Holdings table
+- Manual holding add/edit/delete
+- Market price abstraction
+- Mock market data provider
+- Portfolio dashboard
+- Basic analytics
+- Rule-based insights framework
+- AI advisor summary endpoint
+- AI Q&A endpoint
+- Billing placeholder
+- Settings page
+- Broker connection placeholder
+- Admin/error monitoring placeholder
+
+### Do Not Build Yet
+
+- Live broker sync
+- Real trading
+- Peer comparison
+- Tax analytics
+- Complex optimization
+- Social/community features
+- Mobile app
+- Real-time WebSocket streaming unless the foundation is already stable
+
+However, create clean placeholders and interfaces for later broker connections and real-time price updates.
+
+---
+
+## 7. API Contracts
+
+Create `docs/api-contract.md`.
+
+Define each endpoint with:
+
+- Method
+- URL
+- Auth requirement
+- Request schema
+- Response schema
+- Error schema
+- Example payload
+
+Required API groups:
+
+### Health
+
+```text
+GET /api/health
+```
+
+### Portfolios
+
+```text
+POST /api/portfolios
+GET /api/portfolios
+GET /api/portfolios/{portfolio_id}
+PATCH /api/portfolios/{portfolio_id}
+DELETE /api/portfolios/{portfolio_id}
+```
+
+### Holdings
+
+```text
+GET /api/portfolios/{portfolio_id}/holdings
+POST /api/portfolios/{portfolio_id}/holdings
+PATCH /api/portfolios/{portfolio_id}/holdings/{holding_id}
+DELETE /api/portfolios/{portfolio_id}/holdings/{holding_id}
+```
+
+### Uploads
+
+```text
+POST /api/portfolios/{portfolio_id}/uploads
+GET /api/uploads/{upload_job_id}
+POST /api/uploads/{upload_job_id}/column-mapping
+POST /api/uploads/{upload_job_id}/validate
+POST /api/uploads/{upload_job_id}/confirm
+GET /api/uploads/{upload_job_id}/errors
+```
+
+### Market Data
+
+```text
+GET /api/market-data/prices?symbols=AAPL,MSFT
+GET /api/market-data/prices/{symbol}
+GET /api/market-data/history/{symbol}
+```
+
+### Analytics
+
+```text
+GET /api/portfolios/{portfolio_id}/analytics/summary
+GET /api/portfolios/{portfolio_id}/analytics/allocation
+GET /api/portfolios/{portfolio_id}/analytics/risk
+GET /api/portfolios/{portfolio_id}/analytics/performance
+GET /api/portfolios/{portfolio_id}/analytics/rules
+POST /api/portfolios/{portfolio_id}/analytics/recalculate
+```
+
+### AI Advisor
+
+```text
+POST /api/portfolios/{portfolio_id}/ai/summary
+POST /api/portfolios/{portfolio_id}/ai/question
+GET /api/portfolios/{portfolio_id}/ai/conversations
+GET /api/ai/conversations/{conversation_id}
+```
+
+### Watchlist
+
+```text
+GET /api/watchlist
+POST /api/watchlist
+DELETE /api/watchlist/{watchlist_item_id}
+```
+
+### Broker Connections Placeholder
+
+```text
+GET /api/broker-connections
+POST /api/broker-connections/connect-placeholder
+DELETE /api/broker-connections/{connection_id}
+```
+
+### Billing Placeholder
+
+```text
+GET /api/billing/plan
+POST /api/billing/create-checkout-session
+POST /api/billing/webhook
+```
+
+---
+
+## 8. Feature Contract Template
+
+For every feature, create or update a contract using this template:
+
+```text
+Feature:
+Owner module:
+Inputs:
+Outputs:
+Database tables touched:
+External APIs used:
+Error cases:
+Frontend states:
+Permissions:
+Test cases:
+```
+
+Example:
+
+```text
+Feature: Portfolio Upload
+
+Owner module:
+uploads
+
+Inputs:
+CSV/XLSX file, portfolio_id, column_mapping
+
+Outputs:
+upload_job_id, imported_rows, rejected_rows, warnings
+
+Tables touched:
+upload_jobs, upload_rows, holdings
+
+External APIs:
+None during import. Market data refresh only after successful validation.
+
+Error cases:
+Missing symbol
+Invalid quantity
+Unsupported file type
+Duplicate holdings
+Invalid portfolio_id
+Malformed file
+
+Frontend states:
+Idle
+Uploading
+Mapping
+Validating
+Import successful
+Import failed
+
+Permissions:
+Only owner of portfolio can upload.
+
+Test cases:
+Valid CSV imports
+Invalid rows rejected
+Empty file rejected
+Duplicate symbols handled
+Wrong column mapping fails safely
+```
+
+---
+
+## 9. Portfolio Upload Requirements
+
+The upload flow must be a wizard:
+
+```text
+Step 1: Upload file
+Step 2: Preview data
+Step 3: Map columns
+Step 4: Validate rows
+Step 5: Confirm import
+Step 6: Go to dashboard
+```
+
+Supported file types:
+
+- CSV
+- XLSX
+
+Supported mapped fields:
+
+- symbol
+- company_name
+- quantity
+- average_cost
+- market_value
+- currency
+- sector
+- asset_class
+- exchange
+
+Rules:
+
+- Do not write directly to holdings before validation.
+- Store upload attempt in `upload_jobs`.
+- Store parsed rows in `upload_rows`.
+- Only write to `holdings` after user confirms import.
+- Return readable validation errors.
+- Allow partial import only if clearly shown to user.
+
+---
+
+## 10. Holdings Page Requirements
+
+Create a professional holdings table with:
+
+- Search
+- Sort
+- Filter by sector
+- Filter by asset class
+- Add holding
+- Edit holding
+- Delete holding
+- Refresh prices
+- Export CSV placeholder
+
+Columns:
+
+```text
+Symbol
+Name
+Quantity
+Average Cost
+Current Price
+Market Value
+Weight
+Day Change
+Total P/L
+Sector
+Asset Class
+Currency
+Last Updated
+Actions
+```
+
+---
+
+## 11. Dashboard Page Requirements
+
+Create dashboard layout with:
+
+- Sidebar navigation
+- Portfolio selector
+- Top summary cards
+- Portfolio value chart
+- Asset allocation chart
+- Sector allocation chart
+- Top holdings chart/table
+- Risk insights card
+- AI summary card
+- Last updated timestamp
+
+Summary cards:
+
+- Total Value
+- Daily Change
+- Total Gain/Loss
+- Volatility
+- Sharpe Ratio
+- Largest Holding
+- Cash %
+- Last Updated
+
+---
+
+## 12. Analytics Engine Requirements
+
+Build these analytics first:
+
+- Total portfolio value
+- Portfolio weights
+- Asset allocation
+- Sector allocation
+- Unrealized gain/loss
+- Daily change
+- Volatility
+- Sharpe ratio
+- Max drawdown placeholder if historical data is available
+- Concentration risk
+- Currency exposure
+
+Create rule-based insight framework.
+
+Example rule output:
+
+```json
+{
+  "rule_id": "HIGH_CONCENTRATION",
+  "severity": "high",
+  "title": "High concentration risk",
+  "message": "AAPL represents 32% of your portfolio.",
+  "affected_symbols": ["AAPL"]
+}
+```
+
+Analytics should be deterministic and testable.
+
+AI should consume analytics outputs rather than replacing analytics.
+
+---
+
+## 13. AI Advisor Requirements
+
+Create AI advisor module with:
+
+- Structured context builder
+- Portfolio summary endpoint
+- Portfolio question endpoint
+- Conversation history
+- Usage limit placeholder
+- Prompt templates
+
+AI context should include:
+
+```json
+{
+  "portfolio_summary": {},
+  "holdings": [],
+  "risk_metrics": {},
+  "allocation": {},
+  "rule_based_insights": [],
+  "price_freshness": {},
+  "user_question": ""
+}
+```
+
+AI should not make guaranteed investment claims.
+
+AI should not say:
+
+- Buy this
+- Sell this
+- This will outperform
+- Guaranteed return
+
+AI should use cautious language:
+
+- This suggests
+- One risk to review is
+- You may want to compare
+- Based on the provided data
+
+---
+
+## 14. Market Data Requirements
+
+Create a `MarketDataProvider` interface:
+
+```python
+class MarketDataProvider:
+    def get_latest_price(self, symbol: str): ...
+    def get_batch_prices(self, symbols: list[str]): ...
+    def get_price_history(self, symbol: str, start: str, end: str): ...
+    def get_company_profile(self, symbol: str): ...
+    def get_fx_rate(self, from_currency: str, to_currency: str): ...
+```
+
+Implement:
+
+- MockProvider for development
+- Placeholder provider for Polygon/Massive
+- Placeholder provider for Financial Modeling Prep
+
+MVP price update approach:
+
+- Backend batch price refresh
+- Cache latest prices in database
+- Frontend polls controlled backend endpoint
+- No frontend external API calls
+
+Future approach:
+
+- Backend WebSocket/SSE stream
+- Redis cache/pub-sub
+- Frontend receives controlled live updates
+
+---
+
+## 15. Broker Integration Readiness
+
+Do not build real broker integration yet.
+
+Create interface and placeholder structure.
+
+Broker provider interface:
+
+```python
+class BrokerProvider:
+    def connect_account(self): ...
+    def refresh_token(self): ...
+    def get_accounts(self): ...
+    def get_holdings(self): ...
+    def get_transactions(self): ...
+    def get_balances(self): ...
+    def disconnect(self): ...
+```
+
+Create placeholders for:
+
+- Plaid
+- Zerodha Kite Connect
+- Interactive Brokers
+- Alpaca
+
+Important:
+
+Broker data must be normalized into P-insight’s internal holdings and transactions format. Do not let broker-specific schemas leak into the core holdings model.
+
+---
+
+## 16. Freemium Monetization Structure
+
+Create billing placeholders for:
+
+### Free Plan
+
+- 1 portfolio
+- Manual upload
+- Limited holdings
+- Basic analytics
+- Limited AI questions
+- Delayed price refresh
+
+### Pro Plan
+
+- Multiple portfolios
+- Larger holdings limit
+- Advanced analytics
+- More AI questions
+- Export reports
+- Faster price refresh
+- Watchlist
+- Benchmark comparison
+
+### Premium Later
+
+- Broker sync
+- Automated daily updates
+- Advanced diagnostics
+- Scenario analysis
+- Weekly AI reports
+- Mobile alerts
+
+Create `feature_usage` table to support usage limits.
+
+---
+
+## 17. Frontend Page List
+
+Create the following pages:
+
+1. Landing Page
+2. Login Page
+3. Signup Page
+4. Onboarding Page
+5. Dashboard Page
+6. Holdings Page
+7. Upload Page
+8. Analytics Page
+9. AI Advisor Page
+10. Watchlist Page
+11. Broker Connections Page
+12. Billing Page
+13. Settings Page
+14. Admin Page Placeholder
+
+### Landing Page Sections
+
+- Hero
+- Product demo screenshot placeholder
+- Upload/connect portfolio explanation
+- Feature cards
+- AI advisor preview
+- Analytics preview
+- Pricing
+- FAQ
+- CTA
+- Footer
+
+Hero copy:
+
+```text
+Understand your portfolio in minutes.
+Upload holdings or connect your broker to get analytics, risk insights, and AI-powered explanations.
+```
+
+Placeholders needed:
+
+- Logo
+- Product screenshots
+- Demo dashboard image
+- Broker logos later
+- Testimonials later
+- Security/compliance copy later
+
+---
+
+## 18. UI/UX Requirements
+
+Use a modern professional finance-dashboard style.
+
+Design principles:
+
+- Clean sidebar
+- Strong dashboard hierarchy
+- Large summary cards
+- Clean charts
+- Table density where useful
+- Dark/light mode-ready structure
+- Soft shadows
+- Rounded cards
+- Minimal clutter
+- Sticky table headers
+- Good empty states
+- Clear error states
+- Skeleton loading states
+
+Inspired by:
+
+- Linear for cleanliness
+- Stripe for pricing/landing page clarity
+- Wealthsimple/Robinhood for onboarding simplicity
+- Bloomberg-level density only where needed in tables
+
+Avoid:
+
+- Too many charts on one page
+- Random icons
+- Overloaded dashboard
+- AI chat dominating the product
+- Unclear jargon
+
+---
+
+## 19. Environment Variables
+
+Create documentation in `docs/environment.md`.
+
+Frontend:
+
+```text
+VITE_API_BASE_URL=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_APP_ENV=
+VITE_POSTHOG_KEY=
+VITE_SENTRY_DSN=
+```
+
+Backend:
+
+```text
+DATABASE_URL=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+JWT_SECRET=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+MARKET_DATA_PROVIDER=
+MARKET_DATA_API_KEY=
+POLYGON_API_KEY=
+FMP_API_KEY=
+PLAID_CLIENT_ID=
+PLAID_SECRET=
+PLAID_ENV=
+ZERODHA_API_KEY=
+ZERODHA_API_SECRET=
+IBKR_CLIENT_ID=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+REDIS_URL=
+RESEND_API_KEY=
+SENTRY_DSN=
+```
+
+Rules:
+
+- Secrets must stay backend-only.
+- Never commit `.env`.
+- Provide `.env.example` files.
+- Use placeholder values in examples.
+
+---
+
+## 20. Testing Requirements
+
+Backend tests:
+
+- Health endpoint works
+- Portfolio creation works
+- Holdings CRUD works
+- Upload validation works
+- Invalid file fails safely
+- Invalid ticker does not crash app
+- Analytics returns deterministic outputs
+- AI context builder produces structured context
+- Unauthorized access is blocked or stubbed clearly if auth is not implemented
+
+Frontend tests/checks:
+
+- App loads
+- Navigation works
+- Empty dashboard state works
+- Upload wizard states work
+- Holdings table renders
+- API errors show readable messages
+- Loading states display correctly
+
+Minimum before launch:
+
+```text
+Portfolio creation works
+Holdings upload works
+Analytics returns correct values
+AI summary works
+Invalid ticker does not crash app
+Missing price does not crash app
+Empty portfolio shows clean UI
+Backend errors show readable frontend message
+Deployed frontend can reach deployed backend
+Database persists user data
+```
+
+---
+
+## 21. Implementation Order
+
+Do the rebuild in this exact order.
+
+### Phase 0: Audit and Setup
+
+1. Inspect current repository.
+2. Identify reusable code.
+3. Do not blindly preserve messy code.
+4. Create rebuild branch.
+5. Create docs folder.
+6. Create PRD, architecture doc, API contract doc, environment doc.
+
+### Phase 1: Backend Foundation
+
+Build:
+
+- FastAPI app
+- Health endpoint
+- Config system
+- Error handling
+- Logging
+- Database connection
+- SQLAlchemy models
+- Alembic migrations
+- `.env.example`
+
+### Phase 2: Portfolio and Holdings
+
+Build:
+
+- Portfolio CRUD
+- Holdings CRUD
+- Manual add/edit/delete holdings
+- Ownership checks placeholder
+
+### Phase 3: Upload System
+
+Build:
+
+- CSV parser
+- XLSX parser
+- Upload job table
+- Upload row table
+- Column mapping
+- Validation
+- Confirm import
+- Error report
+
+### Phase 4: Market Data Abstraction
+
+Build:
+
+- MarketDataProvider base class
+- MockProvider
+- Batch price endpoint
+- Price cache table
+- Price freshness metadata
+- Placeholder external providers
+
+### Phase 5: Analytics Engine
+
+Build:
+
+- Portfolio value
+- Weights
+- Allocation
+- Gain/loss
+- Volatility
+- Sharpe ratio
+- Concentration rules
+- Analytics endpoints
+- Analytics tests
+
+### Phase 6: AI Advisor
+
+Build:
+
+- Structured context builder
+- AI summary endpoint
+- AI question endpoint
+- Conversation history
+- Prompt templates
+- Usage limit placeholder
+
+### Phase 7: Frontend App
+
+Build:
+
+- App shell
+- Layout
+- Sidebar
+- Landing page
+- Auth pages
+- Onboarding
+- Dashboard
+- Upload wizard
+- Holdings page
+- Analytics page
+- AI Advisor page
+- Watchlist page
+- Billing placeholder
+- Broker connections placeholder
+- Settings page
+
+### Phase 8: Monetization Placeholder
+
+Build:
+
+- Plan definitions
+- Usage limits structure
+- Billing page
+- Stripe placeholder endpoints
+- Subscription table
+
+### Phase 9: Deployment Readiness
+
+Build:
+
+- Production config
+- CORS setup
+- Environment docs
+- Deployment checklist
+- Vercel config
+- Render/Railway backend config
+- Supabase database setup instructions
+- Sentry placeholder
+- PostHog/GA placeholder
+
+### Phase 10: Private Beta
+
+Prepare:
+
+- Demo portfolio
+- Seed data
+- Admin page placeholder
+- Feedback form placeholder
+- Error monitoring
+- Beta onboarding copy
+
+---
+
+## 22. Development Workflow Rules
+
+Work in small deterministic tasks.
+
+For each task:
+
+1. State what you will change.
+2. Modify only the necessary files.
+3. Add or update tests where relevant.
+4. Run lint/tests/build checks if available.
+5. Summarize changed files.
+6. Provide exact Git commands.
+
+After each task, include:
+
+```bash
+git status
+git add .
+git commit -m "clear commit message"
+git push origin rebuild/modular-mvp
+```
+
+Do not create one giant commit.
+
+Use branch:
+
+```bash
+git checkout -b rebuild/modular-mvp
+```
+
+---
+
+## 23. Non-Negotiable Engineering Rules
+
+Follow these rules strictly:
+
+- No frontend API keys for market, broker, or AI providers.
+- No analytics logic duplicated in frontend.
+- No direct database calls outside repositories.
+- No feature without request/response schema.
+- No upload directly into holdings before validation.
+- No AI response without structured portfolio context.
+- No broker-specific data inside core holdings model.
+- No page without loading, empty, and error states.
+- No deployment without logging/error tracking placeholder.
+- No paid feature without usage tracking placeholder.
+- No external provider hardcoding.
+- No hidden assumptions. Document assumptions in `docs/architecture.md`.
+
+---
+
+## 24. Current Task for Codex
+
+Start by auditing the current repo and creating the rebuild foundation.
+
+Do not code the full app in one response.
+
+First deliver:
+
+1. Repository audit summary
+2. Recommended files to keep
+3. Recommended files to replace
+4. Proposed final folder structure
+5. Initial docs:
+   - `docs/prd.md`
+   - `docs/architecture.md`
+   - `docs/api-contract.md`
+   - `docs/environment.md`
+6. Backend foundation skeleton
+7. Frontend foundation skeleton if missing
+8. Exact commands to run locally
+9. Exact Git commit/push commands
+
+Then wait for the next task.
+
+---
+
+## 25. First Codex Task Prompt
+
+Use this as the first actual prompt after giving Codex the master prompt above:
+
+```text
+Using the P-insight Modular Rebuild Master Prompt, audit the current repository and prepare the rebuild foundation. Do not implement all features yet.
+
+Tasks:
+1. Inspect the existing frontend and backend structure.
+2. Identify reusable files/modules and files that should be replaced.
+3. Create or update docs/prd.md, docs/architecture.md, docs/api-contract.md, and docs/environment.md.
+4. Create the target backend and frontend folder skeletons if they do not already exist.
+5. Add .env.example files for frontend and backend.
+6. Add a backend health endpoint if missing.
+7. Add a basic frontend app shell if missing.
+8. Do not add broker integrations, AI integrations, Stripe, or real market data yet. Only placeholders/interfaces/docs.
+9. Run available tests/build checks or explain why they cannot be run.
+10. Summarize changed files and provide exact git add/commit/push commands.
+
+Important:
+- Keep changes small and reviewable.
+- Do not delete useful code without explaining why.
+- Preserve working code only if it fits the modular architecture.
+- Use branch rebuild/modular-mvp.
+```
+
+---
+
+## 26. Second Codex Task Prompt
+
+Use this after the foundation commit:
+
+```text
+Implement Phase 1: Backend Foundation for P-insight.
+
+Requirements:
+1. Set up FastAPI app structure under backend/app.
+2. Add config loading from environment variables.
+3. Add centralized error handling.
+4. Add logging setup.
+5. Add database session setup with SQLAlchemy.
+6. Add initial SQLAlchemy models for users, portfolios, holdings, assets, asset_prices, upload_jobs, upload_rows, analytics_results, ai_conversations, ai_messages, subscriptions, feature_usage, and watchlist_items.
+7. Add Alembic migration setup.
+8. Add GET /api/health.
+9. Add docs for running backend locally.
+10. Add backend tests for health endpoint and database initialization where practical.
+11. Do not implement full business logic yet.
+12. Run tests/checks and report results.
+13. Provide exact git add/commit/push commands.
+
+Keep this phase focused only on backend foundation.
+```
+
+---
+
+## 27. Third Codex Task Prompt
+
+Use this after backend foundation is committed:
+
+```text
+Implement Phase 2: Portfolio and Holdings modules.
+
+Requirements:
+1. Implement portfolio CRUD endpoints.
+2. Implement holdings CRUD endpoints nested under portfolio.
+3. Add Pydantic schemas for all requests and responses.
+4. Add service and repository layers.
+5. Add basic ownership/auth placeholder checks.
+6. Add deterministic calculations for market value and portfolio weight where current price is available.
+7. Add tests for portfolio creation, listing, update, delete, and holdings CRUD.
+8. Update docs/api-contract.md.
+9. Run tests/checks and report results.
+10. Provide exact git add/commit/push commands.
+
+Do not implement upload, AI, broker, or billing yet.
+```
+
+---
+
+## 28. Fourth Codex Task Prompt
+
+Use this after portfolio/holdings are committed:
+
+```text
+Implement Phase 3: Portfolio Upload system.
+
+Requirements:
+1. Implement CSV and XLSX upload parsing.
+2. Create upload_jobs and upload_rows workflow.
+3. Add upload wizard backend endpoints:
+   - POST /api/portfolios/{portfolio_id}/uploads
+   - GET /api/uploads/{upload_job_id}
+   - POST /api/uploads/{upload_job_id}/column-mapping
+   - POST /api/uploads/{upload_job_id}/validate
+   - POST /api/uploads/{upload_job_id}/confirm
+   - GET /api/uploads/{upload_job_id}/errors
+4. Do not write to holdings until validation and confirm import.
+5. Return readable validation errors.
+6. Support mapped fields: symbol, company_name, quantity, average_cost, market_value, currency, sector, asset_class, exchange.
+7. Add tests for valid CSV, invalid CSV, valid XLSX, missing symbol, invalid quantity, and confirm import.
+8. Update docs/api-contract.md.
+9. Run tests/checks and report results.
+10. Provide exact git add/commit/push commands.
+```
+
+---
+
+## 29. Fifth Codex Task Prompt
+
+Use this after uploads are committed:
+
+```text
+Implement Phase 4 and Phase 5: Market Data abstraction and Analytics engine.
+
+Requirements:
+1. Create MarketDataProvider base interface.
+2. Implement MockProvider.
+3. Add placeholder provider classes for Polygon/Massive and Financial Modeling Prep using env vars, but do not require real API keys.
+4. Implement batch price endpoint.
+5. Store/cache latest prices in asset_prices.
+6. Implement analytics calculations:
+   - total portfolio value
+   - weights
+   - allocation by asset class
+   - allocation by sector
+   - unrealized gain/loss
+   - daily change placeholder
+   - volatility placeholder if history is not available
+   - Sharpe ratio placeholder if history is not available
+   - concentration risk
+   - currency exposure
+7. Implement rule-based insights framework.
+8. Add analytics endpoints.
+9. Add tests for deterministic analytics.
+10. Update docs/api-contract.md.
+11. Run tests/checks and report results.
+12. Provide exact git add/commit/push commands.
+```
+
+---
+
+## 30. Sixth Codex Task Prompt
+
+Use this after analytics are committed:
+
+```text
+Implement Phase 6: AI Advisor module.
+
+Requirements:
+1. Create ai_advisor module.
+2. Build structured portfolio context builder.
+3. Add AI summary endpoint.
+4. Add AI question endpoint.
+5. Add conversation and message persistence.
+6. Add prompt templates.
+7. Add usage limit placeholder.
+8. Add safe language guardrails in prompts.
+9. If no OPENAI_API_KEY or ANTHROPIC_API_KEY is present, return a deterministic mock AI response for development.
+10. Add tests for context builder and mock AI response.
+11. Update docs/api-contract.md.
+12. Run tests/checks and report results.
+13. Provide exact git add/commit/push commands.
+```
+
+---
+
+## 31. Seventh Codex Task Prompt
+
+Use this after AI backend is committed:
+
+```text
+Implement Phase 7: Frontend application.
+
+Requirements:
+1. Set up React + TypeScript + Vite structure if not already done.
+2. Add Tailwind and shadcn/ui setup or align with existing setup.
+3. Create API client layer.
+4. Create app shell with sidebar navigation.
+5. Create pages:
+   - LandingPage
+   - LoginPage
+   - SignupPage
+   - OnboardingPage
+   - DashboardPage
+   - HoldingsPage
+   - UploadPage
+   - AnalyticsPage
+   - AIAdvisorPage
+   - WatchlistPage
+   - BrokerConnectionsPage
+   - BillingPage
+   - SettingsPage
+   - AdminPage
+6. Implement dashboard using backend APIs.
+7. Implement holdings table with loading, empty, and error states.
+8. Implement upload wizard UI.
+9. Implement analytics page.
+10. Implement AI advisor chat UI.
+11. Use placeholder broker, billing, and admin pages if backend is not fully ready.
+12. Ensure no frontend external API keys are used.
+13. Run frontend build/lint checks.
+14. Update docs if needed.
+15. Provide exact git add/commit/push commands.
+```
+
+---
+
+## 32. Eighth Codex Task Prompt
+
+Use this after frontend is committed:
+
+```text
+Prepare P-insight for private beta deployment.
+
+Requirements:
+1. Add production environment documentation.
+2. Add Vercel frontend deployment notes.
+3. Add Render/Railway backend deployment notes.
+4. Add Supabase Postgres setup notes.
+5. Add CORS config for production domains.
+6. Add Sentry placeholder.
+7. Add PostHog or GA placeholder.
+8. Add seed/demo portfolio data.
+9. Add beta feedback form placeholder.
+10. Add deployment checklist.
+11. Run backend tests and frontend build.
+12. Report blockers clearly.
+13. Provide exact git add/commit/push commands.
+```
+
+---
+
+## 33. Final Reminder
+
+Do not optimize for perfection.
+
+Optimize for:
+
+- Stable MVP
+- Clean architecture
+- Real users
+- Fast debugging
+- Modular features
+- Clear contracts
+- Future broker/mobile readiness
+
+The goal is to launch a working product, learn from users, and then expand.

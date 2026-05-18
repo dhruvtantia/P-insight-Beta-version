@@ -5,15 +5,14 @@ Handles portfolio data retrieval and file uploads.
 All routes use the data provider pattern via dependency injection.
 """
 
-import os
-import shutil
-from pathlib import Path
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+import json
+
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, HTTPException
 
 from app.core.dependencies import DbSession, DataProvider
 from app.services.portfolio_service import PortfolioService
 from app.services.feature_registry import feature_dependency
-from app.data_providers.file_provider import FileDataProvider
+from app.data_providers.file_provider import UPLOADS_PATH
 from app.schemas.portfolio import (
     PortfolioSummary,
     HoldingBase,
@@ -21,10 +20,11 @@ from app.schemas.portfolio import (
     PortfolioFullResponse,
     UploadResponse,
 )
+from app.services.upload_file_utils import UploadServiceError
+from app.services.upload_parse_service import parse_upload_file
+from app.services.upload_v2_service import confirm_upload_v2_file, run_background_enrichment
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
-
-UPLOADS_PATH = Path(__file__).parent.parent.parent.parent.parent / "uploads"
 
 
 @router.get(
@@ -87,56 +87,59 @@ async def get_sector_allocation(db: DbSession, provider: DataProvider):
 @router.post(
     "/upload",
     response_model=UploadResponse,
-    summary="Upload portfolio file",
+    summary="Upload portfolio file (deprecated)",
+    deprecated=True,
     dependencies=[
         Depends(feature_dependency("portfolio_core")),
         Depends(feature_dependency("upload_import")),
     ],
 )
-async def upload_portfolio(db: DbSession, file: UploadFile = File(...)):
+async def upload_portfolio(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+) -> UploadResponse:
     """
-    Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
+    Deprecated one-step upload endpoint.
 
-    Required columns: ticker, name, quantity, average_cost
-    Optional columns: current_price, sector, asset_class, currency
-
-    After upload, switch Data Mode to 'uploaded' to use this data.
+    Kept for backward compatibility, but delegates to the canonical V2
+    parse/classify/persist/post-upload workflow using auto-detected columns.
+    New clients should use /upload/parse then /upload/v2/confirm.
     """
-    allowed_types = {
-        "text/csv",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-    }
+    content = await file.read()
+    try:
+        parse_result = await parse_upload_file(file.filename, content)
+    except UploadServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
-    if file.content_type not in allowed_types:
+    if not parse_result.high_confidence:
         raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}. Upload a .csv or .xlsx file.",
+            status_code=422,
+            detail=(
+                "Could not safely auto-detect required upload columns. "
+                "Use /api/v1/upload/parse and /api/v1/upload/v2/confirm with an explicit mapping."
+            ),
         )
 
-    # Save to uploads directory
-    UPLOADS_PATH.mkdir(parents=True, exist_ok=True)
-    save_path = UPLOADS_PATH / f"portfolio_{file.filename}"
-
-    with open(save_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    # Parse and cache in FileDataProvider
     try:
-        holdings = FileDataProvider.load_from_file(str(save_path))
-    except (ValueError, Exception) as e:
-        os.remove(save_path)
-        raise HTTPException(status_code=422, detail=str(e))
+        result = await confirm_upload_v2_file(
+            filename=file.filename,
+            content=content,
+            column_mapping=json.dumps(parse_result.detected_mapping),
+            background_tasks=background_tasks,
+            uploads_path=UPLOADS_PATH,
+            enrichment_task=run_background_enrichment,
+        )
+    except UploadServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
-    try:
-        from app.services.portfolio_manager import PortfolioManagerService
-        PortfolioManagerService(db).save_uploaded_portfolio(holdings, filename=file.filename or "upload")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Could not persist upload: {exc}")
+    parsed_count = result.rows_valid + result.rows_valid_with_warning
 
     return UploadResponse(
         success=True,
-        filename=file.filename,
-        holdings_parsed=len(holdings),
-        message=f"Successfully parsed {len(holdings)} holdings. Switch to 'Uploaded' mode to view.",
+        filename=result.filename,
+        holdings_parsed=parsed_count,
+        message=(
+            f"Successfully imported {parsed_count} holding(s). "
+            "This endpoint is deprecated; use /upload/parse and /upload/v2/confirm."
+        ),
     )

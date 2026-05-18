@@ -154,6 +154,25 @@ class V2StatusResponse(BaseModel):
     holdings:            list[HoldingEnrichmentStatus]
 
 
+class UploadJobStageStatus(BaseModel):
+    """Durable per-stage status for the upload/enrichment background workflow."""
+    stage:        str
+    status:       str
+    message:      Optional[str] = None
+    error:        Optional[str] = None
+    started_at:   Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class UploadJobStatusResponse(BaseModel):
+    """Latest upload/enrichment background job status for a portfolio."""
+    portfolio_id: int
+    job_id:       Optional[int] = None
+    job_status:   Optional[str] = None
+    current_stage: Optional[str] = None
+    stages:       list[UploadJobStageStatus] = []
+
+
 # ─── Canonical holding contract (documentation) ───────────────────────────────
 #
 # The holding that exits the V2 pipeline and is safe for all downstream pages:

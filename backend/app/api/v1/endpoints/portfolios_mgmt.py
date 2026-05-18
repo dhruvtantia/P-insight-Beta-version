@@ -15,14 +15,13 @@ Routes:
   DELETE /portfolios/{id}                 delete a portfolio
 """
 
-import json
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.dependencies import DbSession
 from app.services.portfolio_manager import PortfolioManagerService
 from app.services.feature_registry import feature_dependency
-from app.services.upload_file_utils import UploadServiceError, load_dataframe_from_upload
+from app.services.upload_file_utils import UploadServiceError
+from app.services.upload_v2_service import refresh_upload_v2_file, run_background_enrichment
 from app.schemas.portfolio_mgmt import (
     PortfolioMeta,
     PortfolioListResponse,
@@ -100,6 +99,7 @@ async def activate_portfolio(portfolio_id: int, db: DbSession) -> ActivateRespon
 )
 async def refresh_portfolio(
     portfolio_id: int,
+    background_tasks: BackgroundTasks,
     db: DbSession,
     file: UploadFile = File(...),
     column_mapping: str = Form(..., description="JSON: canonical_field → original_column_name"),
@@ -110,50 +110,22 @@ async def refresh_portfolio(
     This preserves history by creating a pre- and post-refresh snapshot,
     then replaces all holdings with the new file's data.
 
-    Architecture note: this is the same as /upload/confirm but targets an
-    existing portfolio rather than creating a new one — designed to support
-    future broker-sync refresh flows.
+    Architecture note: this uses the same V2 import boundary as
+    /upload/v2/confirm, but targets an existing portfolio rather than creating
+    a new one.
     """
-    # Parse mapping
     try:
-        col_map: dict = json.loads(column_mapping)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid column_mapping JSON: {exc}")
-
-    try:
-        df = load_dataframe_from_upload(file.filename, await file.read())
+        return await refresh_upload_v2_file(
+            portfolio_id=portfolio_id,
+            filename=file.filename,
+            content=await file.read(),
+            column_mapping=column_mapping,
+            background_tasks=background_tasks,
+            db=db,
+            enrichment_task=run_background_enrichment,
+        )
     except UploadServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-
-    if df.empty:
-        raise HTTPException(status_code=422, detail="The file has no data rows.")
-
-    from app.ingestion.normalizer import normalize_to_holdings
-    holdings, skipped = normalize_to_holdings(df, col_map)
-    if not holdings:
-        raise HTTPException(status_code=422, detail="No valid rows could be parsed.")
-
-    filename = file.filename or "upload"
-    svc = PortfolioManagerService(db)
-
-    try:
-        p, pre_snap_id, post_snap_id = svc.refresh_portfolio(portfolio_id, holdings, filename)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    return RefreshResponse(
-        success=True,
-        portfolio_id=p.id,
-        filename=filename,
-        holdings_parsed=len(holdings),
-        rows_skipped=len(skipped),
-        pre_refresh_snapshot_id=pre_snap_id,
-        post_refresh_snapshot_id=post_snap_id,
-        message=(
-            f"Refreshed {len(holdings)} holding(s) from '{filename}'. "
-            + (f"{len(skipped)} row(s) skipped." if skipped else "All rows imported.")
-        ),
-    )
 
 
 # ─── Rename / Delete ──────────────────────────────────────────────────────────

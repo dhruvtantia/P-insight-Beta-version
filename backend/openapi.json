@@ -5497,6 +5497,124 @@
         "title": "TopHoldingWeight",
         "type": "object"
       },
+      "UploadJobStageStatus": {
+        "description": "Durable per-stage status for the upload/enrichment background workflow.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "status"
+        ],
+        "title": "UploadJobStageStatus",
+        "type": "object"
+      },
+      "UploadJobStatusResponse": {
+        "description": "Latest upload/enrichment background job status for a portfolio.",
+        "properties": {
+          "current_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "job_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Status"
+          },
+          "portfolio_id": {
+            "title": "Portfolio Id",
+            "type": "integer"
+          },
+          "stages": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/UploadJobStageStatus"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portfolio_id"
+        ],
+        "title": "UploadJobStatusResponse",
+        "type": "object"
+      },
       "UploadResponse": {
         "properties": {
           "filename": {
@@ -7543,7 +7661,8 @@
     },
     "/api/v1/portfolio/upload": {
       "post": {
-        "description": "Upload an Excel (.xlsx) or CSV (.csv) portfolio file.\n\nRequired columns: ticker, name, quantity, average_cost\nOptional columns: current_price, sector, asset_class, currency\n\nAfter upload, switch Data Mode to 'uploaded' to use this data.",
+        "deprecated": true,
+        "description": "Deprecated one-step upload endpoint.\n\nKept for backward compatibility, but delegates to the canonical V2\nparse/classify/persist/post-upload workflow using auto-detected columns.\nNew clients should use /upload/parse then /upload/v2/confirm.",
         "operationId": "upload_portfolio_api_v1_portfolio_upload_post",
         "requestBody": {
           "content": {
@@ -7577,7 +7696,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Upload portfolio file",
+        "summary": "Upload portfolio file (deprecated)",
         "tags": [
           "Portfolio"
         ]
@@ -8025,7 +8144,7 @@
     },
     "/api/v1/portfolios/{portfolio_id}/refresh": {
       "post": {
-        "description": "Re-import a new CSV/Excel file into an existing uploaded portfolio.\n\nThis preserves history by creating a pre- and post-refresh snapshot,\nthen replaces all holdings with the new file's data.\n\nArchitecture note: this is the same as /upload/confirm but targets an\nexisting portfolio rather than creating a new one \u2014 designed to support\nfuture broker-sync refresh flows.",
+        "description": "Re-import a new CSV/Excel file into an existing uploaded portfolio.\n\nThis preserves history by creating a pre- and post-refresh snapshot,\nthen replaces all holdings with the new file's data.\n\nArchitecture note: this uses the same V2 import boundary as\n/upload/v2/confirm, but targets an existing portfolio rather than creating\na new one.",
         "operationId": "refresh_portfolio_api_v1_portfolios__portfolio_id__refresh_post",
         "parameters": [
           {
@@ -8728,6 +8847,49 @@
           }
         },
         "summary": "[V2] Poll enrichment status for an uploaded portfolio",
+        "tags": [
+          "Upload"
+        ]
+      }
+    },
+    "/api/v1/upload/v2/status/{portfolio_id}/stages": {
+      "get": {
+        "description": "Returns the latest durable background job and per-stage status rows.\n\nThis is additive to the existing per-holding status endpoint. It is meant\nfor debugging and future UI progress displays.",
+        "operationId": "get_upload_stage_status_api_v1_upload_v2_status__portfolio_id__stages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portfolio_id",
+            "required": true,
+            "schema": {
+              "title": "Portfolio Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadJobStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[V2] Poll durable upload/enrichment stage status",
         "tags": [
           "Upload"
         ]

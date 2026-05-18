@@ -18,6 +18,7 @@ from app.models import portfolio         # noqa: F401
 from app.models import snapshot          # noqa: F401
 from app.models import broker_connection # noqa: F401
 from app.models import history           # noqa: F401  ← portfolio_history + benchmark_history
+from app.models import background_job    # noqa: F401
 
 logger = logging.getLogger(__name__)
 

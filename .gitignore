@@ -10,6 +10,7 @@ dist/
 build/
 .eggs/
 .venv/
+.codex_phase11_poetry/
 venv/
 env/
 ENV/

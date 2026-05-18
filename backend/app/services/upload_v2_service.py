@@ -43,6 +43,7 @@ from fastapi import BackgroundTasks
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.ingestion.column_detector import REQUIRED_FIELDS
 from app.schemas.portfolio import HoldingBase
+from app.schemas.portfolio_mgmt import RefreshResponse
 from app.schemas.upload_v2 import (
     RejectedRow,
     WarningRow,
@@ -275,6 +276,8 @@ async def run_background_enrichment(
     portfolio_id: int,
     holdings: list[HoldingBase],
     db_factory,            # callable → Session (e.g. SessionLocal)
+    *,
+    stage_recorder=None,
 ) -> None:
     """
     Background task: enrich holdings, fetch live prices, update DB,
@@ -293,7 +296,24 @@ async def run_background_enrichment(
         portfolio_id, len(holdings),
     )
 
+    def _stage_running(stage: str, message: str) -> None:
+        if stage_recorder is not None:
+            stage_recorder.running(stage, message)
+
+    def _stage_succeeded(stage: str, message: str) -> None:
+        if stage_recorder is not None:
+            stage_recorder.succeeded(stage, message)
+
+    def _stage_failed(stage: str, error: str) -> None:
+        if stage_recorder is not None:
+            stage_recorder.failed(stage, error)
+
+    def _stage_skipped(stage: str, message: str) -> None:
+        if stage_recorder is not None:
+            stage_recorder.skipped(stage, message)
+
     # ── 1. Sector/name/industry enrichment ────────────────────────────────────
+    _stage_running("sector_enrichment", "Resolving sector, company name, and fundamentals.")
     try:
         from app.ingestion.sector_enrichment import enrich_holdings
         enriched_holdings, enrich_records, enriched_count, _ = await asyncio.to_thread(
@@ -303,13 +323,19 @@ async def run_background_enrichment(
             "V2 enrichment: %d/%d holdings updated (portfolio_id=%s)",
             enriched_count, len(holdings), portfolio_id,
         )
+        _stage_succeeded(
+            "sector_enrichment",
+            f"Resolved enrichment for {enriched_count}/{len(holdings)} holding(s).",
+        )
     except Exception as exc:
         logger.error("V2 enrichment failed (non-fatal): %s", exc)
+        _stage_failed("sector_enrichment", str(exc))
         enriched_holdings = holdings
         enrich_records = []
 
     # ── 2. Persist enrichment results to DB ───────────────────────────────────
     if enrich_records:
+        _stage_running("persist_enrichment", "Persisting enrichment results.")
         try:
             db = db_factory()
             try:
@@ -319,14 +345,22 @@ async def run_background_enrichment(
                 )
             finally:
                 db.close()
+            _stage_succeeded(
+                "persist_enrichment",
+                f"Persisted enrichment for {len(enrich_records)} holding(s).",
+            )
         except Exception as exc:
             logger.error(
                 "V2 could not persist enrichment to DB (portfolio_id=%s): %s",
                 portfolio_id, exc,
             )
+            _stage_failed("persist_enrichment", str(exc))
+    else:
+        _stage_skipped("persist_enrichment", "No enrichment records to persist.")
 
     # ── 3. Batch live price fetch ──────────────────────────────────────────────
     prices: dict[str, float] = {}
+    _stage_running("price_fetch", "Fetching latest prices.")
     try:
         from app.data_providers.live_provider import (
             YFINANCE_AVAILABLE as _YF_OK,
@@ -343,16 +377,25 @@ async def run_background_enrichment(
                     "V2 price fetch: %d/%d prices received (portfolio_id=%s)",
                     len(prices), len(ticker_list), portfolio_id,
                 )
+                _stage_succeeded(
+                    "price_fetch",
+                    f"Fetched {len(prices)}/{len(ticker_list)} latest price(s).",
+                )
             except asyncio.TimeoutError:
                 logger.warning(
                     "V2 price fetch timed out after 25s (portfolio_id=%s) — "
                     "proceeding without live prices", portfolio_id,
                 )
+                _stage_failed("price_fetch", "price_fetch_timeout")
+        else:
+            _stage_skipped("price_fetch", "yfinance is not available.")
     except ImportError:
+        _stage_skipped("price_fetch", "yfinance is not installed.")
         pass  # yfinance not installed
 
     # ── 4. Apply prices to enriched holdings and patch DB ─────────────────────
     if prices:
+        _stage_running("persist_prices", "Persisting fetched prices.")
         enriched_holdings = [
             h.model_copy(update={"current_price": prices[h.ticker]})
             if h.ticker in prices else h
@@ -373,11 +416,15 @@ async def run_background_enrichment(
                 db.commit()
             finally:
                 db.close()
+            _stage_succeeded("persist_prices", f"Persisted {len(prices)} price(s).")
         except Exception as exc:
             logger.error(
                 "V2 could not persist prices to DB (portfolio_id=%s): %s",
                 portfolio_id, exc,
             )
+            _stage_failed("persist_prices", str(exc))
+    else:
+        _stage_skipped("persist_prices", "No fetched prices to persist.")
 
     # ── 5. Update peers_status based on enrichment outcome ───────────────────
     # peers_status starts as "pending" on every holding.  We don't do a full
@@ -386,6 +433,7 @@ async def run_background_enrichment(
     # "none" (sector unknown → peer lookup will likely fail) so that the
     # status endpoint doesn't show "pending" forever.
     if enrich_records:
+        _stage_running("peer_status", "Updating peer readiness status.")
         try:
             from app.models.portfolio import Holding as _DBHolding2
             db = db_factory()
@@ -411,6 +459,10 @@ async def run_background_enrichment(
                     "V2 peers_status updated for %d holdings (portfolio_id=%s)",
                     len(db_hs), portfolio_id,
                 )
+                _stage_succeeded(
+                    "peer_status",
+                    f"Updated peer status for {len(db_hs)} holding(s).",
+                )
             finally:
                 db.close()
         except Exception as exc:
@@ -418,11 +470,15 @@ async def run_background_enrichment(
                 "V2 could not update peers_status (portfolio_id=%s): %s",
                 portfolio_id, exc,
             )
+            _stage_failed("peer_status", str(exc))
+    else:
+        _stage_skipped("peer_status", "No enrichment records available for peer status.")
 
     # ── 6. Crash recovery — mark any holdings still "pending" as "failed" ────
     # If enrichment crashed or a ticker was silently skipped, its DB row stays
     # at enrichment_status="pending", which keeps enrichment_complete=False
     # forever.  Flush them to "failed" now so polling can resolve.
+    _stage_running("pending_recovery", "Resolving stuck pending enrichment states.")
     try:
         from app.models.portfolio import Holding as _DBHolding3
         from datetime import timezone as _tz
@@ -449,6 +505,12 @@ async def run_background_enrichment(
                     "(portfolio_id=%s)",
                     len(stuck), portfolio_id,
                 )
+                _stage_succeeded(
+                    "pending_recovery",
+                    f"Marked {len(stuck)} stuck holding(s) as failed.",
+                )
+            else:
+                _stage_succeeded("pending_recovery", "No stuck pending holdings found.")
         finally:
             db.close()
     except Exception as exc:
@@ -456,11 +518,15 @@ async def run_background_enrichment(
             "V2 crash-recovery step failed (portfolio_id=%s): %s",
             portfolio_id, exc,
         )
+        _stage_failed("pending_recovery", str(exc))
 
     # ── 7. Quant cache pre-warm ───────────────────────────────────────────────
+    _stage_running("quant_warmup", "Pre-warming quant analytics cache.")
     await pre_warm_uploaded_quant_cache(db_factory, portfolio_id, "1y")
+    _stage_succeeded("quant_warmup", "Quant cache warmup completed.")
 
     # ── 8. Portfolio history build ────────────────────────────────────────────
+    _stage_running("history_build", "Building portfolio history.")
     try:
         from app.services.history_service import (
             build_and_store_portfolio_history,
@@ -473,11 +539,13 @@ async def run_background_enrichment(
             list(enriched_holdings),
             db_factory,
         )
+        _stage_succeeded("history_build", "Portfolio history build completed.")
     except Exception as exc:
         logger.warning(
             "V2 history build failed (non-fatal, portfolio_id=%s): %s",
             portfolio_id, exc,
         )
+        _stage_failed("history_build", str(exc))
 
     logger.info(
         "V2 background enrichment complete: portfolio_id=%s", portfolio_id
@@ -553,6 +621,96 @@ async def confirm_upload_v2_file(
         len(rejected),
     )
     return result
+
+
+async def refresh_upload_v2_file(
+    *,
+    portfolio_id: int,
+    filename: str | None,
+    content: bytes,
+    column_mapping: str,
+    background_tasks: BackgroundTasks,
+    db,
+    uploads_path: Path = UPLOADS_PATH,
+    enrichment_task=run_background_enrichment,
+) -> RefreshResponse:
+    """
+    Refresh an existing portfolio through the same V2 import boundary.
+
+    This keeps row classification, rejected-row accounting, DB persistence, and
+    post-upload side effects aligned with /upload/v2/confirm while preserving
+    the existing refresh response contract.
+    """
+    col_map = _parse_v2_column_mapping(column_mapping)
+    df = load_dataframe_from_upload(filename, content)
+    if df.empty:
+        raise UploadServiceError(422, "The uploaded file has no data rows.")
+
+    accepted, rejected, warning_rows = classify_rows_v2(df, col_map)
+    if not accepted:
+        raise UploadServiceError(
+            422,
+            (
+                f"No valid rows could be parsed. "
+                f"{len(rejected)} row(s) had errors: "
+                f"{[row.reasons for row in rejected[:3]]}"
+            ),
+        )
+
+    resolved_filename = upload_filename(filename)
+    try:
+        from app.services.portfolio_manager import PortfolioManagerService
+
+        portfolio, pre_snapshot_id, post_snapshot_id = PortfolioManagerService(
+            db
+        ).refresh_portfolio(portfolio_id, accepted, resolved_filename)
+    except ValueError as exc:
+        raise UploadServiceError(400, str(exc)) from exc
+    except Exception as exc:
+        logger.error("V2 refresh DB persist failed: %s", exc)
+        raise UploadServiceError(500, f"Could not refresh portfolio: {exc}") from exc
+
+    from app.db.database import SessionLocal
+    from app.services.post_upload_workflow import PostUploadWorkflow, UploadCompleted
+
+    PostUploadWorkflow(
+        background_tasks=background_tasks,
+        db_factory=SessionLocal,
+        uploads_path=uploads_path,
+        enrichment_task=enrichment_task,
+    ).run(UploadCompleted(
+        portfolio_id=portfolio.id,
+        holdings=list(accepted),
+        filename=resolved_filename,
+    ))
+
+    warning_count = len(warning_rows)
+    skipped_count = len(rejected)
+    message_parts = [f"Refreshed {len(accepted)} holding(s) from '{resolved_filename}'."]
+    if skipped_count:
+        message_parts.append(f"{skipped_count} row(s) could not be imported.")
+    if warning_count:
+        message_parts.append(f"{warning_count} imported row(s) have warnings.")
+    message_parts.append("Enrichment running in background.")
+
+    logger.info(
+        "V2 refresh: portfolio_id=%s, accepted=%d (warnings=%d), rejected=%d",
+        portfolio.id,
+        len(accepted),
+        warning_count,
+        skipped_count,
+    )
+
+    return RefreshResponse(
+        success=True,
+        portfolio_id=portfolio.id,
+        filename=resolved_filename,
+        holdings_parsed=len(accepted),
+        rows_skipped=skipped_count,
+        pre_refresh_snapshot_id=pre_snapshot_id,
+        post_refresh_snapshot_id=post_snapshot_id,
+        message=" ".join(message_parts),
+    )
 
 
 def _parse_v2_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:

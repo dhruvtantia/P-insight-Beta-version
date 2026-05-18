@@ -34,7 +34,12 @@ from fastapi import (
 from app.core.dependencies import DbSession
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.schemas.upload import ConfirmResponse, ParseResponse
-from app.schemas.upload_v2 import V2ConfirmResponse, V2StatusResponse
+from app.schemas.upload_v2 import (
+    UploadJobStageStatus,
+    UploadJobStatusResponse,
+    V2ConfirmResponse,
+    V2StatusResponse,
+)
 from app.services.job_status_service import JobStatusNotFoundError, JobStatusService
 from app.services.upload_confirm_service import confirm_legacy_upload
 from app.services.upload_file_utils import UploadServiceError
@@ -212,3 +217,54 @@ async def get_upload_status_v2(portfolio_id: int, db: DbSession) -> V2StatusResp
             status_code=500,
             detail=f"Could not read enrichment status: {exc}",
         )
+
+
+@router.get(
+    "/v2/status/{portfolio_id}/stages",
+    response_model=UploadJobStatusResponse,
+    summary="[V2] Poll durable upload/enrichment stage status",
+)
+async def get_upload_stage_status(
+    portfolio_id: int,
+    db: DbSession,
+) -> UploadJobStatusResponse:
+    """
+    Returns the latest durable background job and per-stage status rows.
+
+    This is additive to the existing per-holding status endpoint. It is meant
+    for debugging and future UI progress displays.
+    """
+    service = JobStatusService(db)
+    try:
+        service.get_upload_enrichment_status(portfolio_id)
+    except JobStatusNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not read upload job status: {exc}",
+        )
+
+    job = service.get_latest_upload_job(portfolio_id)
+    if job is None:
+        return UploadJobStatusResponse(portfolio_id=portfolio_id, stages=[])
+
+    stages = [
+        UploadJobStageStatus(
+            stage=stage.stage,
+            status=stage.status,
+            message=stage.message,
+            error=stage.error,
+            started_at=stage.started_at.isoformat() if stage.started_at else None,
+            completed_at=stage.completed_at.isoformat() if stage.completed_at else None,
+        )
+        for stage in service.get_latest_upload_job_stages(portfolio_id)
+    ]
+
+    return UploadJobStatusResponse(
+        portfolio_id=portfolio_id,
+        job_id=job.id,
+        job_status=job.status,
+        current_stage=job.stage,
+        stages=stages,
+    )

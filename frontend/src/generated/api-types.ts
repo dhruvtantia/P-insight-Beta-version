@@ -791,13 +791,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Upload portfolio file
-         * @description Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
+         * Upload portfolio file (deprecated)
+         * @deprecated
+         * @description Deprecated one-step upload endpoint.
          *
-         *     Required columns: ticker, name, quantity, average_cost
-         *     Optional columns: current_price, sector, asset_class, currency
-         *
-         *     After upload, switch Data Mode to 'uploaded' to use this data.
+         *     Kept for backward compatibility, but delegates to the canonical V2
+         *     parse/classify/persist/post-upload workflow using auto-detected columns.
+         *     New clients should use /upload/parse then /upload/v2/confirm.
          */
         post: operations["upload_portfolio_api_v1_portfolio_upload_post"];
         delete?: never;
@@ -1050,9 +1050,9 @@ export interface paths {
          *     This preserves history by creating a pre- and post-refresh snapshot,
          *     then replaces all holdings with the new file's data.
          *
-         *     Architecture note: this is the same as /upload/confirm but targets an
-         *     existing portfolio rather than creating a new one — designed to support
-         *     future broker-sync refresh flows.
+         *     Architecture note: this uses the same V2 import boundary as
+         *     /upload/v2/confirm, but targets an existing portfolio rather than creating
+         *     a new one.
          */
         post: operations["refresh_portfolio_api_v1_portfolios__portfolio_id__refresh_post"];
         delete?: never;
@@ -1345,6 +1345,29 @@ export interface paths {
          *     yfinance response times.
          */
         get: operations["get_upload_status_v2_api_v1_upload_v2_status__portfolio_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload/v2/status/{portfolio_id}/stages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * [V2] Poll durable upload/enrichment stage status
+         * @description Returns the latest durable background job and per-stage status rows.
+         *
+         *     This is additive to the existing per-holding status endpoint. It is meant
+         *     for debugging and future UI progress displays.
+         */
+        get: operations["get_upload_stage_status_api_v1_upload_v2_status__portfolio_id__stages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3615,6 +3638,43 @@ export interface components {
             /** Weight */
             weight: number;
         };
+        /**
+         * UploadJobStageStatus
+         * @description Durable per-stage status for the upload/enrichment background workflow.
+         */
+        UploadJobStageStatus: {
+            /** Completed At */
+            completed_at?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Message */
+            message?: string | null;
+            /** Stage */
+            stage: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * UploadJobStatusResponse
+         * @description Latest upload/enrichment background job status for a portfolio.
+         */
+        UploadJobStatusResponse: {
+            /** Current Stage */
+            current_stage?: string | null;
+            /** Job Id */
+            job_id?: number | null;
+            /** Job Status */
+            job_status?: string | null;
+            /** Portfolio Id */
+            portfolio_id: number;
+            /**
+             * Stages
+             * @default []
+             */
+            stages: components["schemas"]["UploadJobStageStatus"][];
+        };
         /** UploadResponse */
         UploadResponse: {
             /** Filename */
@@ -5592,6 +5652,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["V2StatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_stage_status_api_v1_upload_v2_status__portfolio_id__stages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadJobStatusResponse"];
                 };
             };
             /** @description Validation Error */
