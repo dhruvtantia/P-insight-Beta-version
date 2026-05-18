@@ -44,6 +44,53 @@ Current docs observations:
 - Existing docs describe previous architecture and rebuild prompts.
 - The canonical rebuild docs are now `docs/prd.md`, `docs/architecture.md`, `docs/api-contract.md`, and `docs/environment.md`.
 
+## Recommended Files To Keep
+
+Keep and refactor these areas because they already provide useful product or technical foundation:
+
+- `backend/app/main.py`: FastAPI entry point, middleware, lifecycle, and health/readiness patterns.
+- `backend/app/core/config.py`: existing environment-backed settings pattern.
+- `backend/app/db/database.py`: SQLAlchemy engine/session setup; split into `db/session.py` and `db/base.py` compatibility paths during rebuild.
+- `backend/alembic/`: migration foundation; revise schema content rather than discarding the migration setup.
+- `backend/app/api/v1/router.py`: useful route aggregation reference while moving toward `app/modules/*/router.py`.
+- `backend/app/models/portfolio.py`, `snapshot.py`, `history.py`, `broker_connection.py`: useful starting models, though naming and table coverage need MVP alignment.
+- `backend/app/ingestion/`: useful upload parsing/normalization ideas for the new uploads module.
+- `backend/app/data_providers/`: useful provider-abstraction reference for `market_data/providers`.
+- `backend/app/analytics/`: useful deterministic analytics code to move behind module contracts.
+- `backend/app/services/context_builder.py` and `ai_advisor_service.py`: useful starting point for the AI advisor context boundary.
+- `frontend/src/app/dashboard`, `holdings`, `upload`, `advisor`, `ai-chat`, `watchlist`, and `brokers`: useful screens/components to salvage after API contracts stabilize.
+- `frontend/src/components/layout`, `charts`, `upload`, `portfolio`, `risk`, `advisor`, and `watchlist`: useful UI pieces for the MVP shell.
+- `frontend/src/services/api.ts`: keep as a temporary compatibility layer, then split by API group.
+- `frontend/src/generated`: keep generated API types, but regenerate from the rebuilt OpenAPI contract.
+
+## Recommended Files To Replace Or Refactor
+
+Replace or heavily refactor these areas because they conflict with the target architecture or MVP focus:
+
+- Broad endpoint modules under `backend/app/api/v1/endpoints/*`: migrate one feature at a time into `backend/app/modules/{feature}`.
+- Broad service files in `backend/app/services/*`: split into module-local services and repositories.
+- Direct analytics helper usage in `frontend/src/lib/risk.ts`, `insights.ts`, `simulation.ts`, and similar files: keep only UI formatting or client-only what-if helpers; backend owns core analytics.
+- `frontend/src/services/api.ts`: split into `portfolioApi.ts`, `holdingsApi.ts`, `uploadApi.ts`, `analyticsApi.ts`, `aiApi.ts`, `marketDataApi.ts`, and `billingApi.ts`.
+- Existing frontend route set for non-MVP features such as peers, optimization, frontier, screener, and advanced fundamentals: keep code parked, but do not make it part of launch-critical navigation.
+- SQLite-first assumptions: keep SQLite for quick local setup, but validate migrations and persistence against PostgreSQL.
+- Any frontend provider-key pattern: remove if found; all market, broker, AI, and Stripe secret keys are backend-only.
+
+## Foundation Skeleton Status
+
+Phase 0 creates the canonical rebuild docs and a non-invasive target skeleton:
+
+- `backend/app/core/errors.py`
+- `backend/app/core/security.py`
+- `backend/app/core/logging.py`
+- `backend/app/core/feature_flags.py`
+- `backend/app/db/base.py`
+- `backend/app/db/session.py`
+- `backend/app/modules/`
+- `frontend/src/pages/README.md`
+- `frontend/src/services/README.md`
+
+The skeleton is intentionally not wired into the active runtime yet. Phase 1 should start moving health/config/error/database behavior into these target paths, then route modules can migrate incrementally.
+
 ## Key Architecture Decisions
 
 ### ADR-001: Modular Monolith First
@@ -106,6 +153,157 @@ p-insight/
     prd.md
     api-contract.md
     architecture.md
+    environment.md
+```
+
+## Proposed Final Folder Structure
+
+```text
+p-insight/
+  backend/
+    alembic/
+      versions/
+    app/
+      main.py
+      core/
+        config.py
+        errors.py
+        feature_flags.py
+        logging.py
+        security.py
+      db/
+        base.py
+        models.py
+        session.py
+      modules/
+        auth/
+          router.py
+          service.py
+          schemas.py
+          errors.py
+        users/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+          errors.py
+        portfolios/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+          errors.py
+        holdings/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+          errors.py
+        uploads/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+          errors.py
+        market_data/
+          service.py
+          schemas.py
+          providers/
+            base.py
+            mock_provider.py
+            polygon_provider.py
+            fmp_provider.py
+        analytics/
+          router.py
+          service.py
+          schemas.py
+          calculators/
+            allocation.py
+            performance.py
+            risk.py
+            concentration.py
+            rules.py
+        ai_advisor/
+          router.py
+          service.py
+          schemas.py
+          prompts.py
+          context_builder.py
+        broker_connections/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+          providers/
+            base.py
+            plaid_provider.py
+            zerodha_provider.py
+            ibkr_provider.py
+        watchlist/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+        billing/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+        admin/
+          router.py
+          service.py
+          repository.py
+          schemas.py
+      tests/
+    .env.example
+  frontend/
+    src/
+      app/
+        App.tsx
+        providers.tsx
+        routes.tsx
+      pages/
+        LandingPage.tsx
+        LoginPage.tsx
+        SignupPage.tsx
+        OnboardingPage.tsx
+        DashboardPage.tsx
+        HoldingsPage.tsx
+        UploadPage.tsx
+        AnalyticsPage.tsx
+        AIAdvisorPage.tsx
+        WatchlistPage.tsx
+        BrokerConnectionsPage.tsx
+        BillingPage.tsx
+        SettingsPage.tsx
+        AdminPage.tsx
+      components/
+        layout/
+        portfolio/
+        holdings/
+        upload/
+        analytics/
+        charts/
+        ai/
+        billing/
+        ui/
+      services/
+        apiClient.ts
+        portfolioApi.ts
+        holdingsApi.ts
+        uploadApi.ts
+        analyticsApi.ts
+        aiApi.ts
+        marketDataApi.ts
+        billingApi.ts
+      hooks/
+      types/
+      lib/
+    .env.example
+  docs/
+    prd.md
+    architecture.md
+    api-contract.md
     environment.md
 ```
 
@@ -506,4 +704,3 @@ Frontend:
 - The first market data provider in development is mock data.
 - AI features are optional at runtime if provider keys are missing.
 - Billing can be placeholder-only for MVP, but plan and usage tables should exist early.
-

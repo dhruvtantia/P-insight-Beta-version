@@ -1,0 +1,2 @@
+"""Authentication boundary placeholder module."""
+
