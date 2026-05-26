@@ -8,6 +8,18 @@ import { InlineHelperText }     from '@/components/ui/InlineHelperText'
 import { formatCurrency, formatPct, SECTOR_COLORS, DEFAULT_SECTOR_COLOR } from '@/constants'
 import { cn }                   from '@/lib/utils'
 import { Users, GitFork }       from 'lucide-react'
+import type { Holding }         from '@/types'
+
+function priceStateLabel(status: Holding['price_status'], usesFallback?: boolean) {
+  if (usesFallback) return 'Cost basis'
+  if (status === 'live') return 'Live'
+  if (status === 'uploaded_current_price') return 'Uploaded'
+  if (status === 'missing') return 'Missing'
+  if (status === 'provider_failed') return 'Failed'
+  if (status === 'pending') return 'Pending'
+  if (status === 'stale') return 'Stale'
+  return null
+}
 
 export default function HoldingsPage() {
   const { holdings, summary, loading, error } = usePortfolio()
@@ -105,10 +117,27 @@ export default function HoldingsPage() {
                   <td className="px-4 py-3 text-xs text-slate-600 text-right">{h.quantity}</td>
                   <td className="px-4 py-3 text-xs text-slate-600 text-right">{formatCurrency(h.average_cost)}</td>
                   <td className="px-4 py-3 text-xs font-medium text-slate-700 text-right">
-                    {h.current_price ? formatCurrency(h.current_price) : '—'}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>{h.current_price != null ? formatCurrency(h.current_price) : '—'}</span>
+                      {priceStateLabel(h.price_status, h.market_value_uses_fallback) && (
+                        <span
+                          className={cn(
+                            'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold',
+                            h.market_value_uses_fallback || h.price_status === 'missing' || h.price_status === 'provider_failed'
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : h.price_status === 'live'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 bg-slate-50 text-slate-500'
+                          )}
+                          title={h.price_failure_reason ?? undefined}
+                        >
+                          {priceStateLabel(h.price_status, h.market_value_uses_fallback)}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-700 text-right font-medium">
-                    {h.market_value ? formatCurrency(h.market_value) : '—'}
+                    {h.market_value != null ? formatCurrency(h.market_value) : '—'}
                   </td>
                   <td className={cn('px-4 py-3 text-xs font-semibold text-right', (h.pnl ?? 0) >= 0 ? 'text-gain' : 'text-loss')}>
                     {h.pnl != null ? formatCurrency(h.pnl) : '—'}

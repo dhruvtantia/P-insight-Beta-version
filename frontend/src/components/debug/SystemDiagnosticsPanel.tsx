@@ -1307,14 +1307,14 @@ function ScaffoldedModulesSection() {
   const SCAFFOLDED = [
     {
       module:    'GET /api/v1/news/',
-      status:    'No news API wired',
-      detail:    'LiveAPIProvider.get_news() returns []. Phase 2: connect NewsAPI / yfinance.news key.',
+      status:    'NewsAPI-backed when configured',
+      detail:    'Returns real headlines with NEWS_API_KEY; otherwise reports an explicit unavailable status.',
       severity:  'warn' as const,
     },
     {
       module:    'GET /api/v1/news/events',
       status:    'No corporate calendar API',
-      detail:    'LiveAPIProvider.get_events() returns []. Phase 2: connect Bloomberg or EODHD events API.',
+      detail:    'Events currently return an explicit empty state until a real corporate calendar provider is selected.',
       severity:  'warn' as const,
     },
     {

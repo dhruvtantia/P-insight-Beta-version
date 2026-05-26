@@ -67,6 +67,7 @@ export function AllocationSlider({
   const sectorColor = SECTOR_COLORS[sector] ?? DEFAULT_SECTOR_COLOR
   const delta       = weight - original_weight
   const isRemoved   = action === 'remove'
+  const isScenarioOnly = (holding.source ?? (action === 'add' ? 'search' : 'portfolio')) !== 'portfolio'
   const badge       = ACTION_BADGE[action]
 
   return (
@@ -107,6 +108,11 @@ export function AllocationSlider({
             style={{ background: sectorColor }}
           />
           <p className="text-[10px] text-slate-400 truncate">{sector}</p>
+          {isScenarioOnly && (
+            <span className="rounded-full border border-violet-200 bg-violet-50 px-1.5 py-px text-[9px] font-bold text-violet-600 shrink-0">
+              Scenario only
+            </span>
+          )}
         </div>
       </div>
 

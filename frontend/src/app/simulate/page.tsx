@@ -26,7 +26,7 @@
 
 'use client'
 
-import { useEffect, useRef, Suspense }  from 'react'
+import { useEffect, useMemo, useRef, Suspense }  from 'react'
 import { useSearchParams }              from 'next/navigation'
 import Link                             from 'next/link'
 import { GitFork, RefreshCw, AlertCircle,
@@ -50,12 +50,13 @@ interface OptimizerPresetCardProps {
   minVariance: PortfolioPoint | null
   loading:     boolean
   error:       string | null
+  warnings:    string[]
   onApplyMaxSharpe:   () => void
   onApplyMinVariance: () => void
 }
 
 function OptimizerPresetCard({
-  maxSharpe, minVariance, loading, error,
+  maxSharpe, minVariance, loading, error, warnings,
   onApplyMaxSharpe, onApplyMinVariance,
 }: OptimizerPresetCardProps) {
   return (
@@ -76,6 +77,21 @@ function OptimizerPresetCard({
           <p className="text-[11px] text-red-500 pb-1">
             Optimizer unavailable — start backend to enable presets.
           </p>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <div className="flex items-start gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                {warnings.map((warning) => (
+                  <p key={warning} className="text-[10px] text-amber-700 leading-snug">
+                    {warning}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Max Sharpe preset */}
@@ -177,7 +193,6 @@ function SimulatePageInner() {
     isModified,
     watchlistItems,
     portfolioTickers,
-    addStock,
     addNewStock,
     addFromWatchlist,
     removeStock,
@@ -187,6 +202,10 @@ function SimulatePageInner() {
     reset,
     applyFromSuggestion,
     applyOptimizedWeights,
+    readiness,
+    canSimulate,
+    blockingReason,
+    warnings,
     loading,
     error,
   } = useSimulation()
@@ -201,21 +220,48 @@ function SimulatePageInner() {
   const maxSharpeWeights   = optData?.max_sharpe?.weights   ?? null
   const minVarianceWeights = optData?.min_variance?.weights ?? null
 
+  const optimizerWarnings = useMemo(() => {
+    const meta = optData?.meta
+    if (!meta) return []
+
+    const notes: string[] = []
+    if (meta.error) {
+      notes.push(`Optimizer returned an incomplete result: ${meta.error}`)
+    }
+
+    if (meta.invalid_tickers.length > 0) {
+      notes.push(`Presets exclude ${meta.invalid_tickers.length} ticker${meta.invalid_tickers.length === 1 ? '' : 's'} without usable price history.`)
+    }
+
+    const unavailable = Object.entries(meta.ticker_status)
+      .filter(([, status]) => status === 'unavailable')
+      .map(([ticker]) => ticker)
+    if (unavailable.length > 0) {
+      notes.push(`Unavailable history: ${unavailable.slice(0, 3).join(', ')}${unavailable.length > 3 ? ` +${unavailable.length - 3} more` : ''}.`)
+    }
+
+    if (notes.length === 0) return []
+    return [
+      ...notes.slice(0, 3),
+      'Applying a preset updates only the simulator allocation; it does not execute trades.',
+    ]
+  }, [optData?.meta])
+
   // Deep-link: auto-add ticker from URL param once watchlist is loaded
   const addParamApplied = useRef(false)
   useEffect(() => {
-    if (!addParam || addParamApplied.current || watchlistItems.length === 0) return
+    if (!canSimulate || !addParam || addParamApplied.current || watchlistItems.length === 0) return
     const upper   = addParam.toUpperCase()
     const wlItem  = watchlistItems.find((w) => w.ticker.toUpperCase() === upper)
     if (wlItem) {
       addFromWatchlist(wlItem)
       addParamApplied.current = true
     }
-  }, [addParam, watchlistItems, addFromWatchlist])
+  }, [canSimulate, addParam, watchlistItems, addFromWatchlist])
 
   if (loading) return <PageSkeleton />
 
-  if (error) {
+  if (error && !canSimulate) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6">
         <div className="flex items-center gap-3">
@@ -224,6 +270,38 @@ function SimulatePageInner() {
             Could not load portfolio: {error}.{' '}
             <Link href="/dashboard" className="underline">Go to dashboard</Link>
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!canSimulate) {
+    const title =
+      readiness === 'missing_market_values'
+        ? 'Simulation unavailable'
+        : 'No portfolio loaded'
+    const message =
+      blockingReason ??
+      (readiness === 'missing_market_values'
+        ? 'Simulation unavailable because holdings do not have usable market values.'
+        : 'No portfolio loaded. Upload or activate a portfolio before using simulation.')
+
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">{title}</p>
+            <p className="text-sm text-amber-700 mt-1">{message}</p>
+            <div className="mt-3 flex gap-3 text-xs">
+              <Link href="/upload" className="font-medium text-amber-800 underline">
+                Upload portfolio
+              </Link>
+              <Link href="/portfolios" className="font-medium text-amber-800 underline">
+                Manage portfolios
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -304,6 +382,31 @@ function SimulatePageInner() {
         ]}
       />
 
+      {warnings.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-amber-900">
+                Simulation estimates need review
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {warnings.slice(0, 4).map((warning) => (
+                  <li key={warning} className="text-[11px] text-amber-700 leading-relaxed">
+                    {warning}
+                  </li>
+                ))}
+              </ul>
+              {warnings.length > 4 && (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  {warnings.length - 4} more data quality note{warnings.length - 4 === 1 ? '' : 's'} hidden.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Controls bar ─────────────────────────────────────────────────── */}
       <SimulationControls
         totalSimWeight={totalSimWeight}
@@ -362,6 +465,7 @@ function SimulatePageInner() {
             minVariance={optData?.min_variance ?? null}
             loading={optLoading}
             error={optError}
+            warnings={optimizerWarnings}
             onApplyMaxSharpe={() => {
               if (maxSharpeWeights) applyOptimizedWeights(maxSharpeWeights)
             }}

@@ -14,8 +14,8 @@
  *   error          — error message string or null
  *   refetch        — trigger a fresh fetch
  *
- * Phase 2 extension point:
- *   Swap newsApi with a live provider hook; the component API stays unchanged.
+ * The backend distinguishes provider/configuration failures from valid empty
+ * results; consumers should not show article cards unless articles are returned.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -34,8 +34,13 @@ interface UseNewsResult {
   loading:         boolean
   error:           string | null
   refetch:         () => void
-  /** True when backend is in live mode and no news API is configured */
+  /** True when backend says news is unavailable, not merely empty. */
+  newsUnavailable: boolean
+  /** Backwards-compatible alias for older call sites. */
   liveUnavailable: boolean
+  unavailableReason: string | null
+  newsStatus:      'ok' | 'empty' | 'unavailable' | null
+  newsKeyConfigured: boolean
 }
 
 export function useNews(filters?: NewsFilters): UseNewsResult {
@@ -45,11 +50,18 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
   const [events,          setEvents]          = useState<CorporateEvent[]>([])
   const [loading,         setLoading]         = useState(true)
   const [error,           setError]           = useState<string | null>(null)
-  const [liveUnavailable, setLiveUnavailable] = useState(false)
+  const [newsUnavailable, setNewsUnavailable] = useState(false)
+  const [unavailableReason, setUnavailableReason] = useState<string | null>(null)
+  const [newsStatus,      setNewsStatus]      = useState<UseNewsResult['newsStatus']>(null)
+  const [newsKeyConfigured, setNewsKeyConfigured] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setNewsUnavailable(false)
+    setUnavailableReason(null)
+    setNewsStatus(null)
+    setNewsKeyConfigured(false)
     try {
       const [newsRes, eventsRes] = await Promise.all([
         newsApi.getNews(mode, {
@@ -57,16 +69,20 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
           eventType: filters?.eventType,
         }),
         newsApi.getEvents(mode, {
-          tickers: filters?.tickers,
+          tickers:   filters?.tickers,
+          eventType: filters?.eventType,
         }),
       ])
       setArticles(newsRes.articles)
       setEvents(eventsRes.events)
       // Signal the UI when no news is available (any mode — key missing or API failed).
       // news_unavailable covers all modes; live_unavailable is legacy (live mode only).
-      setLiveUnavailable(
+      setNewsUnavailable(
         !!(newsRes.news_unavailable ?? newsRes.live_unavailable)
       )
+      setUnavailableReason(newsRes.news_reason ?? null)
+      setNewsStatus(newsRes.news_status ?? null)
+      setNewsKeyConfigured(!!newsRes.news_key_configured)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load news.')
     } finally {
@@ -78,5 +94,16 @@ export function useNews(filters?: NewsFilters): UseNewsResult {
     fetchData()
   }, [fetchData])
 
-  return { articles, events, loading, error, refetch: fetchData, liveUnavailable }
+  return {
+    articles,
+    events,
+    loading,
+    error,
+    refetch: fetchData,
+    newsUnavailable,
+    liveUnavailable: newsUnavailable,
+    unavailableReason,
+    newsStatus,
+    newsKeyConfigured,
+  }
 }

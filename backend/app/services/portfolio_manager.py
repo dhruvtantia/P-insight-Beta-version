@@ -164,6 +164,16 @@ class PortfolioManagerService:
                 quantity=h.quantity,
                 average_cost=h.average_cost,
                 current_price=h.current_price,
+                price_status=(
+                    getattr(h, "price_status", None)
+                    or ("uploaded_current_price" if h.current_price is not None else "pending")
+                ),
+                price_source=(
+                    getattr(h, "price_source", None)
+                    or ("uploaded_csv" if h.current_price is not None else None)
+                ),
+                price_timestamp=getattr(h, "price_timestamp", None),
+                price_failure_reason=getattr(h, "price_failure_reason", None),
                 sector=h.sector,
                 industry=getattr(h, "industry", None),
                 purchase_date=getattr(h, "purchase_date", None),
@@ -238,6 +248,16 @@ class PortfolioManagerService:
                 quantity=h.quantity,
                 average_cost=h.average_cost,
                 current_price=h.current_price,
+                price_status=(
+                    getattr(h, "price_status", None)
+                    or ("uploaded_current_price" if h.current_price is not None else "pending")
+                ),
+                price_source=(
+                    getattr(h, "price_source", None)
+                    or ("uploaded_csv" if h.current_price is not None else None)
+                ),
+                price_timestamp=getattr(h, "price_timestamp", None),
+                price_failure_reason=getattr(h, "price_failure_reason", None),
                 sector=h.sector,
                 industry=getattr(h, "industry", None),
                 purchase_date=getattr(h, "purchase_date", None),

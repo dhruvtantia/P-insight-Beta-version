@@ -45,6 +45,10 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
     # Extended holding fields + enrichment metadata
     ("holdings", "industry",           "VARCHAR(150)", "NULL"),
     ("holdings", "purchase_date",      "VARCHAR(20)",  "NULL"),
+    ("holdings", "price_status",       "VARCHAR(30)",  "NULL"),
+    ("holdings", "price_source",       "VARCHAR(40)",  "NULL"),
+    ("holdings", "price_timestamp",    "DATETIME",     "NULL"),
+    ("holdings", "price_failure_reason", "TEXT",       "NULL"),
     ("holdings", "normalized_ticker",  "VARCHAR(30)",  "NULL"),
     ("holdings", "sector_status",      "VARCHAR(20)",  "NULL"),
     ("holdings", "name_status",        "VARCHAR(20)",  "NULL"),

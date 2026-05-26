@@ -78,7 +78,7 @@ export function useIndices(): UseIndicesResult {
       setIndices(topbar)
       setError(null)
       setStale(false)
-      setLastFetchAt(new Date())
+      setLastFetchAt(data.fetched_at ? new Date(data.fetched_at) : new Date())
       lastGoodRef.current = topbar
 
     } catch (e) {

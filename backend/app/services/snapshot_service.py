@@ -32,6 +32,7 @@ from app.schemas.snapshot import (
     SectorDelta,
 )
 from app.lib.delta import compute_delta
+from app.services.price_enrichment_service import valuation_price_and_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -177,8 +178,8 @@ class SnapshotService:
         sector_values: dict[str, float] = {}
 
         for h in holdings:
-            price  = h.current_price or h.average_cost
-            val    = h.quantity * price
+            price, _uses_fallback, _status = valuation_price_and_fallback(h)
+            val    = h.quantity * (price or 0)
             cost   = h.quantity * h.average_cost
             total_value += val
             total_cost  += cost
@@ -202,8 +203,8 @@ class SnapshotService:
         top_holdings_data: list[dict] = []
 
         for h in holdings:
-            price = h.current_price or h.average_cost
-            val   = h.quantity * price
+            price, _uses_fallback, _status = valuation_price_and_fallback(h)
+            val   = h.quantity * (price or 0)
             wt    = round(val / total_value * 100, 3) if total_value > 0 else 0.0
 
             snap_holdings.append(SnapshotHolding(

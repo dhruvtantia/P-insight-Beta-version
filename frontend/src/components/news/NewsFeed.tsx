@@ -3,9 +3,8 @@
 /**
  * NewsFeed — renders a filtered list of NewsCards.
  *
- * Client-side ticker filter applied here (the API already filtered by
- * event_type; ticker is re-filtered client-side for instant response
- * without a round-trip when the user switches stock chips).
+ * Client-side filtering is defensive: the API receives selected filters, but
+ * providers may still return broader data.
  *
  * Also renders the upcoming corporate events timeline below the articles.
  */
@@ -23,18 +22,29 @@ interface Props {
   events:           CorporateEvent[]
   tickerFilter:     string | null    // active ticker chip (null = show all)
   eventTypeFilter:  NewsEventType | null
-  /** True when backend is in live mode but no news API is configured */
+  /** True when the backend says news is unavailable, not merely empty */
+  newsUnavailable?: boolean
+  /** Backwards-compatible alias for older callers. */
   liveUnavailable?: boolean
 }
 
-export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter, liveUnavailable = false }: Props) {
+export function NewsFeed({
+  articles,
+  events,
+  tickerFilter,
+  eventTypeFilter,
+  newsUnavailable,
+  liveUnavailable = false,
+}: Props) {
+  const unavailable = newsUnavailable ?? liveUnavailable
+
   // ── Client-side ticker filter ───────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = articles
 
     if (tickerFilter) {
       const upper = tickerFilter.toUpperCase()
-      list = list.filter((a) => a.tickers.some((t) => t.toUpperCase() === upper))
+      list = list.filter((a) => a.tickers.some((t) => tickerMatches(t, upper)))
     }
 
     if (eventTypeFilter) {
@@ -46,14 +56,21 @@ export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter, live
 
   // ── Client-side events filter ───────────────────────────────────────────────
   const filteredEvents = useMemo(() => {
-    if (!tickerFilter) return events
-    return events.filter((e) => e.ticker.toUpperCase() === tickerFilter.toUpperCase())
-  }, [events, tickerFilter])
+    let list = events
+    if (tickerFilter) {
+      const upper = tickerFilter.toUpperCase()
+      list = list.filter((e) => tickerMatches(e.ticker, upper))
+    }
+    if (eventTypeFilter) {
+      list = list.filter((e) => e.event_type === eventTypeFilter)
+    }
+    return list
+  }, [events, tickerFilter, eventTypeFilter])
 
   return (
     <div className="space-y-6">
       {/* ── Articles ─────────────────────────────────────────────────────── */}
-      {liveUnavailable ? (
+      {unavailable ? (
         <LiveUnavailableState />
       ) : filtered.length === 0 ? (
         <EmptyState hasFilter={!!(tickerFilter || eventTypeFilter)} />
@@ -83,6 +100,14 @@ export function NewsFeed({ articles, events, tickerFilter, eventTypeFilter, live
       )}
     </div>
   )
+}
+
+function bareTicker(ticker: string): string {
+  return ticker.toUpperCase().replace(/\.(NS|BSE|BO)$/i, '')
+}
+
+function tickerMatches(value: string, selectedUpper: string): boolean {
+  return value.toUpperCase() === selectedUpper || bareTicker(value) === bareTicker(selectedUpper)
 }
 
 // ─── EventRow ─────────────────────────────────────────────────────────────────

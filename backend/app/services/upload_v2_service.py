@@ -174,6 +174,8 @@ def classify_rows_v2(
                 quantity=qty,
                 average_cost=avg_cost,
                 current_price=cur_price,
+                price_status="uploaded_current_price" if cur_price is not None else None,
+                price_source="uploaded_csv" if cur_price is not None else None,
                 sector=sector,
                 industry=industry,
                 purchase_date=pur_date,
@@ -327,6 +329,7 @@ async def run_background_enrichment(
 
     # ── 3. Batch live price fetch ──────────────────────────────────────────────
     prices: dict[str, float] = {}
+    price_failure_reason: str | None = None
     try:
         from app.data_providers.live_provider import (
             YFINANCE_AVAILABLE as _YF_OK,
@@ -348,36 +351,37 @@ async def run_background_enrichment(
                     "V2 price fetch timed out after 25s (portfolio_id=%s) — "
                     "proceeding without live prices", portfolio_id,
                 )
+                price_failure_reason = "live price fetch timed out after 25s"
+        else:
+            price_failure_reason = "yfinance is not installed"
     except ImportError:
-        pass  # yfinance not installed
+        price_failure_reason = "live price provider is not importable"
 
     # ── 4. Apply prices to enriched holdings and patch DB ─────────────────────
-    if prices:
-        enriched_holdings = [
-            h.model_copy(update={"current_price": prices[h.ticker]})
-            if h.ticker in prices else h
-            for h in enriched_holdings
-        ]
+    enriched_holdings = [
+        h.model_copy(update={"current_price": prices[h.ticker]})
+        if h.ticker in prices else h
+        for h in enriched_holdings
+    ]
+    try:
+        from app.services.price_enrichment_service import persist_price_outcomes
+
+        db = db_factory()
         try:
-            from app.models.portfolio import Holding as _DBHolding
-            db = db_factory()
-            try:
-                db_hs = (
-                    db.query(_DBHolding)
-                    .filter(_DBHolding.portfolio_id == portfolio_id)
-                    .all()
-                )
-                for db_h in db_hs:
-                    if db_h.ticker in prices:
-                        db_h.current_price = prices[db_h.ticker]
-                db.commit()
-            finally:
-                db.close()
-        except Exception as exc:
-            logger.error(
-                "V2 could not persist prices to DB (portfolio_id=%s): %s",
-                portfolio_id, exc,
+            persist_price_outcomes(
+                db=db,
+                portfolio_id=portfolio_id,
+                requested_tickers=[h.ticker for h in enriched_holdings],
+                prices=prices,
+                failure_reason=price_failure_reason,
             )
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.error(
+            "V2 could not persist price outcomes to DB (portfolio_id=%s): %s",
+            portfolio_id, exc,
+        )
 
     # ── 5. Update peers_status based on enrichment outcome ───────────────────
     # peers_status starts as "pending" on every holding.  We don't do a full
@@ -618,6 +622,12 @@ def get_enrichment_status(portfolio_id: int, db) -> V2StatusResponse:
                 le_at = h.last_enriched_at.isoformat()
             except Exception:
                 pass
+        price_ts: Optional[str] = None
+        if h.price_timestamp:
+            try:
+                price_ts = h.price_timestamp.isoformat()
+            except Exception:
+                pass
 
         status_list.append(HoldingEnrichmentStatus(
             ticker=h.ticker,
@@ -627,6 +637,10 @@ def get_enrichment_status(portfolio_id: int, db) -> V2StatusResponse:
             name_status=h.name_status,
             fundamentals_status=h.fundamentals_status or "pending",
             peers_status=h.peers_status or "pending",
+            price_status=h.price_status,
+            price_source=h.price_source,
+            price_timestamp=price_ts,
+            price_failure_reason=h.price_failure_reason,
             failure_reason=h.failure_reason,
             last_enriched_at=le_at,
         ))

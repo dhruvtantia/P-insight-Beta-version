@@ -33,6 +33,14 @@ class HoldingBase(BaseModel):
     # Provenance: which data provider sourced current_price for this holding.
     # "live" = yfinance live quote, "uploaded" = from file, None = default.
     data_source: Optional[str] = Field(None, example="live")
+    price_status: Optional[str] = Field(None,
+        description="Price state: live|stale|missing|fallback_average_cost|uploaded_current_price|provider_failed|pending|unknown")
+    price_source: Optional[str] = Field(None,
+        description="Provider/source for the current price: yfinance|uploaded_csv|db_only|average_cost|unknown")
+    price_timestamp: Optional[datetime] = Field(None,
+        description="UTC timestamp when the price was fetched or recorded")
+    price_failure_reason: Optional[str] = Field(None,
+        description="Reason the live provider could not supply a price")
     # Enrichment status (Phase 3) — populated after upload enrichment pipeline.
     # Transparent to the UI so stale/weak data can be labelled.
     sector_status:       Optional[str] = Field(None,
@@ -89,6 +97,8 @@ class HoldingEnriched(HoldingBase):
     pnl:          Optional[float] = Field(None, description="(current_price − avg_cost) × quantity")
     pnl_pct:      Optional[float] = Field(None, description="P&L as % of cost basis")
     weight:       Optional[float] = Field(None, description="holding's % share of total portfolio value")
+    market_value_uses_fallback: bool = Field(False,
+        description="True when market_value used average_cost because no trusted current_price was available")
 
 
 # ─── Portfolio Schemas ────────────────────────────────────────────────────────
@@ -228,6 +238,7 @@ class PortfolioBundleMeta(BaseModel):
     as_of:              str           # ISO-8601 UTC datetime of response
     enrichment_complete: bool         = False   # False while background enrichment is running
     partial_data:       bool          = False   # True when any holding has no current_price
+    price_coverage:     Optional[dict[str, int]] = None
     # ── Cross-module aligned fields ───────────────────────────────────────────
     # ``incomplete`` matches the contract used by analytics/quant/peers modules.
     incomplete:         bool          = False

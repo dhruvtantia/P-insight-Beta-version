@@ -19,7 +19,15 @@ Response shape (Peers Isolation phase):
       "timed_out_peers":      [str, ...],
       "incomplete":           bool,   // true if any peer timed out or failed
       "sparse_set":           bool,   // true if < 2 peers returned usable data
-      "source":               str,
+      "source":               str,    // fundamentals data source
+      "data_source":          str,    // alias for source
+      "provider_mode":        str,
+      "peer_source":          str,
+      "peer_source_label":    str,
+      "peer_discovery_status": str,
+      "peer_discovery_reason": str,
+      "peer_universe_static": bool,
+      "selected_fundamentals_available": bool,
       "fetched_at":           str,    // ISO-8601 UTC
     },
     "rankings": {
@@ -96,6 +104,7 @@ _PEER_TIMEOUT_SECS = 5.0
 # Minimum number of peers with usable data before we flag the set as sparse.
 # A comparison with 0 or 1 peer is not meaningful — surface this explicitly.
 _SPARSE_THRESHOLD = 2
+_MARKET_CAP_CRORE_MULTIPLIER = 10_000_000
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -109,7 +118,41 @@ def _extract(fundamentals: dict, ticker: str) -> dict:
     }
     for field in FUND_FIELDS:
         out[field] = fundamentals.get(field)
+    # Provider fundamentals currently expose market_cap in INR crores. The peer
+    # UI formats market cap as raw rupees, so normalize the /peers contract here.
+    if out.get("market_cap") is not None:
+        try:
+            out["market_cap"] = round(float(out["market_cap"]) * _MARKET_CAP_CRORE_MULTIPLIER)
+        except (TypeError, ValueError):
+            out["market_cap"] = None
     return out
+
+
+async def _discover_peers(provider: DataProvider, ticker: str) -> dict:
+    """Return peer tickers and discovery provenance for providers that support it."""
+    discover = getattr(provider, "get_peer_discovery", None)
+    if callable(discover):
+        discovery = await discover(ticker)
+    else:
+        discovery = {
+            "tickers": await provider.get_peers(ticker),
+            "peer_source": "unknown",
+            "peer_source_label": "Unknown peer source",
+            "peer_discovery_status": "unknown",
+            "peer_discovery_reason": "Provider does not expose peer discovery metadata.",
+            "peer_universe_static": None,
+        }
+
+    tickers = discovery.get("tickers") or []
+    status = discovery.get("peer_discovery_status") or ("found" if tickers else "not_found")
+    return {
+        "tickers": tickers,
+        "peer_source": discovery.get("peer_source") or "unknown",
+        "peer_source_label": discovery.get("peer_source_label") or "Unknown peer source",
+        "peer_discovery_status": status,
+        "peer_discovery_reason": discovery.get("peer_discovery_reason"),
+        "peer_universe_static": discovery.get("peer_universe_static"),
+    }
 
 
 def _compute_rankings(all_stocks: list[dict]) -> dict:
@@ -174,12 +217,14 @@ async def get_peers(ticker: str, provider: DataProvider):
     fetched_at = datetime.now(timezone.utc).isoformat()
 
     # ── 1. Selected stock fundamentals + peer ticker list (concurrent) ────────
-    selected_fund, peer_tickers = await asyncio.gather(
+    selected_fund, peer_discovery = await asyncio.gather(
         provider.get_fundamentals(upper),
-        provider.get_peers(upper),
+        _discover_peers(provider, upper),
     )
+    peer_tickers = peer_discovery["tickers"]
     selected = _extract(selected_fund, upper)
     peer_count_requested = len(peer_tickers)
+    provider_mode = getattr(provider, "mode_name", "unknown")
 
     # ── 2. Peer fundamentals — concurrent, per-peer timeout ───────────────────
     timed_out_peers:   list[str] = []
@@ -234,6 +279,7 @@ async def get_peers(ticker: str, provider: DataProvider):
     }
     dominant_source = (
         "yfinance"    if "yfinance"    in all_sources else
+        "fmp"         if "fmp"         in all_sources else
         "mock"        if "mock"        in all_sources else
         "unavailable"
     )
@@ -250,6 +296,11 @@ async def get_peers(ticker: str, provider: DataProvider):
         round(peer_count_available / peer_count_requested * 100, 1)
         if peer_count_requested > 0 else None
     )
+    selected_source = selected_fund.get("source", "unknown")
+    selected_fundamentals_available = (
+        selected_source not in ("timeout", "unavailable", "unknown")
+        and not selected_fund.get("error")
+    )
 
     meta = {
         "ticker":               upper,
@@ -260,6 +311,15 @@ async def get_peers(ticker: str, provider: DataProvider):
         "incomplete":           incomplete,
         "sparse_set":           sparse_set,
         "source":               dominant_source,
+        "data_source":          dominant_source,
+        "provider_mode":        provider_mode,
+        "peer_source":          peer_discovery["peer_source"],
+        "peer_source_label":    peer_discovery["peer_source_label"],
+        "peer_discovery_status": peer_discovery["peer_discovery_status"],
+        "peer_discovery_reason": peer_discovery["peer_discovery_reason"],
+        "peer_universe_static": peer_discovery["peer_universe_static"],
+        "selected_fundamentals_available": selected_fundamentals_available,
+        "selected_fundamentals_error": selected_fund.get("error"),
         # as_of — aligned with /analytics/ratios and /quant/full meta.as_of.
         # fetched_at is kept for backward compatibility.
         "as_of":                fetched_at,
@@ -277,6 +337,9 @@ async def get_peers(ticker: str, provider: DataProvider):
         "selected":   selected,
         "peers":      peers,
         "source":     dominant_source,
+        "data_source": dominant_source,
+        "provider_mode": provider_mode,
+        "peer_source": peer_discovery["peer_source"],
         "peer_count": len(peers),
         "meta":       meta,
         "rankings":   rankings,

@@ -172,4 +172,7 @@ async def rename_portfolio(
 @router.delete("/{portfolio_id}", response_model=DeleteResponse, summary="Delete a portfolio")
 async def delete_portfolio(portfolio_id: int, db: DbSession) -> DeleteResponse:
     svc = PortfolioManagerService(db)
-    return svc.delete(portfolio_id)
+    result = svc.delete(portfolio_id)
+    if not result.success:
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
+    return result

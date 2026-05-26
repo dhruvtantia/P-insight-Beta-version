@@ -27,6 +27,7 @@ To enable this provider:
 import time
 import logging
 from typing import Optional
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -189,8 +190,17 @@ def _fetch_live_prices_batch(tickers: list[str]) -> dict[str, float]:
 
     result: dict[str, float] = {}
     try:
+        variant_map: dict[str, list[str]] = {
+            ticker: _resolve_ticker_variants(ticker)
+            for ticker in tickers
+        }
+        download_tickers = list(dict.fromkeys(
+            variant
+            for variants in variant_map.values()
+            for variant in variants
+        ))
         raw = yf.download(
-            tickers,
+            download_tickers,
             period="2d",
             interval="1d",
             progress=False,
@@ -200,23 +210,30 @@ def _fetch_live_prices_batch(tickers: list[str]) -> dict[str, float]:
         if raw.empty:
             return result
 
-        if len(tickers) == 1:
+        variant_prices: dict[str, float] = {}
+        if len(download_tickers) == 1:
             close_series = raw.get("Close")
             if close_series is not None and not close_series.empty:
                 price = float(close_series.iloc[-1])
                 if price and price > 0:
-                    result[tickers[0]] = price
+                    variant_prices[download_tickers[0]] = price
         else:
             close_df = raw.get("Close")
             if close_df is not None:
-                for ticker in tickers:
+                for ticker in download_tickers:
                     col = close_df.get(ticker)
                     if col is not None:
                         last = col.dropna()
                         if not last.empty:
                             price = float(last.iloc[-1])
                             if price > 0:
-                                result[ticker] = price
+                                variant_prices[ticker] = price
+
+        for requested, variants in variant_map.items():
+            for variant in variants:
+                if variant in variant_prices:
+                    result[requested] = variant_prices[variant]
+                    break
 
     except Exception as e:
         logger.warning(f"Batch price fetch failed: {e}")
@@ -486,6 +503,25 @@ _EVENT_QUERY_MAP: dict[str, str] = {
 }
 
 
+class NewsAPIProviderError(RuntimeError):
+    """Raised when the configured news provider cannot return a usable response."""
+
+
+def _canonical_news_tickers(tickers: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for ticker in tickers:
+        canonical = ticker.strip().upper()
+        if canonical and canonical not in seen:
+            seen.add(canonical)
+            result.append(canonical)
+    return result
+
+
+def _bare_news_ticker(ticker: str) -> str:
+    return ticker.split(".")[0].upper()
+
+
 def _fetch_newsapi_articles(
     tickers: list[str],
     event_type: Optional[str] = None,
@@ -497,17 +533,22 @@ def _fetch_newsapi_articles(
     Strategy:
     - Build a query from bare ticker names (TCS.NS → TCS) joined with OR
     - Optionally append an event_type keyword modifier
-    - Returns articles normalised to the same shape as the mock provider
-    - Returns [] on any error (never raises — callers expect a list)
+    - Returns articles normalised to the same shape as the frontend contract
+    - Raises NewsAPIProviderError on provider/network errors so callers can
+      distinguish provider failure from a valid empty result
     """
     api_key = settings.NEWS_API_KEY
     if not api_key:
         return []
 
-    # Normalise tickers: strip .NS / .BO suffixes for better search
-    bare = list({t.split(".")[0] for t in tickers if t})
-    if not bare:
+    canonical = _canonical_news_tickers(tickers)
+    if not canonical:
         return []
+    bare_to_canonical: dict[str, list[str]] = {}
+    for ticker in canonical:
+        bare_to_canonical.setdefault(_bare_news_ticker(ticker), []).append(ticker)
+
+    bare = list(bare_to_canonical.keys())
 
     # NewsAPI query: (TCS OR INFY OR HDFCBANK) earnings
     ticker_query = " OR ".join(f'"{b}"' for b in bare[:10])  # cap at 10 to stay within URL limits
@@ -531,8 +572,9 @@ def _fetch_newsapi_articles(
         data = resp.json()
 
         if data.get("status") != "ok":
-            logger.warning("NewsAPI returned non-ok status: %s", data.get("message"))
-            return []
+            message = data.get("message") or "non-ok response"
+            logger.warning("NewsAPI returned non-ok status: %s", message)
+            raise NewsAPIProviderError(f"NewsAPI returned non-ok status: {message}")
 
         articles: list[dict] = []
         for raw in data.get("articles", []):
@@ -540,7 +582,12 @@ def _fetch_newsapi_articles(
             title   = (raw.get("title") or "").upper()
             desc    = (raw.get("description") or "").upper()
             content = title + " " + desc
-            matched = [b for b in bare if b.upper() in content]
+            matched_bare = [b for b in bare if b.upper() in content]
+            matched = [
+                canonical_ticker
+                for bare_ticker in matched_bare
+                for canonical_ticker in bare_to_canonical.get(bare_ticker, [])
+            ]
 
             articles.append({
                 "id":          raw.get("url", "")[-40:],  # short unique id from URL tail
@@ -549,7 +596,7 @@ def _fetch_newsapi_articles(
                 "source":      (raw.get("source") or {}).get("name") or "NewsAPI",
                 "url":         raw.get("url") or "",
                 "published_at": raw.get("publishedAt") or "",
-                "tickers":     matched if matched else bare[:3],  # fallback: first 3 tickers
+                "tickers":     matched if matched else canonical[:3],
                 "event_type":  event_type or "company_update",
                 "sentiment":   "neutral",  # NewsAPI free tier has no sentiment; label neutral
                 "data_source": "newsapi",
@@ -559,8 +606,10 @@ def _fetch_newsapi_articles(
         return articles
 
     except Exception as exc:
+        if isinstance(exc, NewsAPIProviderError):
+            raise
         logger.warning("NewsAPI fetch failed: %s", exc)
-        return []
+        raise NewsAPIProviderError(str(exc)) from exc
 
 
 # ─── Provider implementation ──────────────────────────────────────────────────
@@ -629,6 +678,7 @@ class LiveAPIProvider(BaseDataProvider):
             logger.warning("yfinance not available — returning DB prices in live mode")
             result: list[HoldingBase] = []
             for h in db_holdings:
+                has_db_price = h.current_price is not None
                 result.append(HoldingBase(
                     ticker=h.ticker,
                     name=h.name,
@@ -638,7 +688,18 @@ class LiveAPIProvider(BaseDataProvider):
                     sector=h.sector,
                     asset_class=h.asset_class or "Equity",
                     currency=h.currency or "INR",
-                    data_source="db_only" if h.current_price else "unavailable",
+                    data_source="db_only" if has_db_price else "unavailable",
+                    price_status=getattr(h, "price_status", None) or (
+                        "unknown" if has_db_price else "provider_failed"
+                    ),
+                    price_source=getattr(h, "price_source", None) or (
+                        "db_only" if has_db_price else "yfinance"
+                    ),
+                    price_timestamp=getattr(h, "price_timestamp", None),
+                    price_failure_reason=(
+                        getattr(h, "price_failure_reason", None)
+                        if has_db_price else "yfinance is not installed"
+                    ),
                 ))
             return result
 
@@ -652,6 +713,7 @@ class LiveAPIProvider(BaseDataProvider):
 
         # 3. Enrich holdings
         final: list[HoldingBase] = []
+        fetched_at = datetime.now(timezone.utc)
         for h in db_holdings:
             cached   = _price_from_cache(h.ticker)
             live_px  = live_prices.get(h.ticker) or cached
@@ -659,12 +721,24 @@ class LiveAPIProvider(BaseDataProvider):
             if live_px:
                 current_price = round(live_px, 2)
                 data_source   = "live"
-            elif h.current_price:
+                price_status  = "live"
+                price_source  = "yfinance"
+                price_timestamp = fetched_at
+                price_failure_reason = None
+            elif h.current_price is not None:
                 current_price = h.current_price
                 data_source   = "db_only"
+                price_status  = getattr(h, "price_status", None) or "unknown"
+                price_source  = getattr(h, "price_source", None) or "db_only"
+                price_timestamp = getattr(h, "price_timestamp", None)
+                price_failure_reason = getattr(h, "price_failure_reason", None)
             else:
-                current_price = h.average_cost  # fallback to cost so math doesn't break
+                current_price = None
                 data_source   = "unavailable"
+                price_status  = "missing"
+                price_source  = "yfinance"
+                price_timestamp = getattr(h, "price_timestamp", None)
+                price_failure_reason = "yfinance returned no price"
 
             final.append(HoldingBase(
                 ticker=h.ticker,
@@ -676,6 +750,10 @@ class LiveAPIProvider(BaseDataProvider):
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
                 data_source=data_source,
+                price_status=price_status,
+                price_source=price_source,
+                price_timestamp=price_timestamp,
+                price_failure_reason=price_failure_reason,
             ))
 
         return final
@@ -801,9 +879,12 @@ class LiveAPIProvider(BaseDataProvider):
     # ─── Peers ────────────────────────────────────────────────────────────────
 
     async def get_peers(self, ticker: str) -> list[str]:
+        discovery = await self.get_peer_discovery(ticker)
+        return discovery["tickers"]
+
+    async def get_peer_discovery(self, ticker: str) -> dict:
         """
-        Returns peer list from the static map, with FMP as a discovery fallback
-        for tickers not covered by _PEER_MAP.
+        Return peer list plus discovery provenance.
 
         Priority:
           1. Static _PEER_MAP (instant, no API calls)
@@ -811,17 +892,47 @@ class LiveAPIProvider(BaseDataProvider):
           3. Empty list
         """
         if ticker in _PEER_MAP:
-            return _PEER_MAP[ticker]
+            return {
+                "tickers": _PEER_MAP[ticker],
+                "peer_source": "static_curated_map",
+                "peer_source_label": "Static curated peer map",
+                "peer_discovery_status": "found",
+                "peer_discovery_reason": "Ticker matched the curated peer map.",
+                "peer_universe_static": True,
+            }
         # Try exchange-suffixed variants against the static map
         for variant in _resolve_ticker_variants(ticker):
             if variant in _PEER_MAP:
-                return _PEER_MAP[variant]
+                return {
+                    "tickers": _PEER_MAP[variant],
+                    "peer_source": "static_curated_map",
+                    "peer_source_label": "Static curated peer map",
+                    "peer_discovery_status": "found",
+                    "peer_discovery_reason": f"Ticker resolved to {variant} in the curated peer map.",
+                    "peer_universe_static": True,
+                }
         # Static map miss — try FMP if key is configured
         fmp_peers = _fetch_fmp_peers(ticker)
         if fmp_peers:
             logger.debug("FMP peer discovery returned %d peers for %s", len(fmp_peers), ticker)
-            return fmp_peers
-        return []
+            return {
+                "tickers": fmp_peers,
+                "peer_source": "provider_fmp",
+                "peer_source_label": "FMP peer discovery",
+                "peer_discovery_status": "found",
+                "peer_discovery_reason": "Curated map had no match; FMP returned peer candidates.",
+                "peer_universe_static": False,
+            }
+        return {
+            "tickers": [],
+            "peer_source": "none",
+            "peer_source_label": "No peer universe found",
+            "peer_discovery_status": "not_found",
+            "peer_discovery_reason": (
+                "No curated peer-map match and FMP peer discovery is unavailable or returned no peers."
+            ),
+            "peer_universe_static": False,
+        }
 
     # ─── Cache inspection (for /debug) ────────────────────────────────────────
 

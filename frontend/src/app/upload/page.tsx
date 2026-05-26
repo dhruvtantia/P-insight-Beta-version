@@ -15,7 +15,7 @@
  * in the Topbar to see their data.
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Upload,
@@ -33,6 +33,7 @@ import { PortfolioPreviewTable } from '@/components/upload/PortfolioPreviewTable
 import { useDataModeStore } from '@/store/dataModeStore'
 import { cn } from '@/lib/utils'
 import { uploadApi } from '@/services/api'
+import type { ApiV2StatusResponse } from '@/generated/api-contracts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,11 @@ interface V2ConfirmResult {
   message:                 string
 }
 
+type V2HoldingEnrichmentStatus = ApiV2StatusResponse['holdings'][number]
+
+const ENRICHMENT_POLL_INTERVAL_MS = 2_500
+const ENRICHMENT_POLL_TIMEOUT_MS  = 90_000
+
 // ─── Enrichment status helpers ────────────────────────────────────────────────
 
 type SectorStatus = EnrichmentDetail['sector_status']
@@ -162,6 +168,257 @@ function fundamentalsBadge(status: EnrichmentDetail['fundamentals_status']): Rea
   }
   // pending = enrichment was skipped (fields came from file) — not a failure
   return <span className="text-[10px] text-slate-400">—</span>
+}
+
+function statusCard(status: ApiV2StatusResponse | null, pollingTimedOut: boolean): {
+  title: string
+  body: string
+  cls: string
+  dot: string
+  pulse: boolean
+} {
+  if (!status && pollingTimedOut) {
+    return {
+      title: 'Enrichment status unavailable',
+      body: 'The portfolio was imported, but status polling did not complete. You can proceed; refresh dashboard or holdings to see the latest persisted data.',
+      cls: 'border-amber-100 bg-amber-50 text-amber-700',
+      dot: 'bg-amber-400',
+      pulse: false,
+    }
+  }
+
+  if (!status) {
+    return {
+      title: 'Checking enrichment status',
+      body: 'The portfolio was imported. P-Insight is checking whether background enrichment has started.',
+      cls: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+      dot: 'bg-indigo-400',
+      pulse: true,
+    }
+  }
+
+  if (pollingTimedOut && status.pending > 0) {
+    return {
+      title: 'Enrichment still running',
+      body: 'Status polling timed out locally, but some holdings are still pending. You can proceed; downstream pages may show incomplete data until enrichment finishes.',
+      cls: 'border-amber-100 bg-amber-50 text-amber-700',
+      dot: 'bg-amber-400',
+      pulse: false,
+    }
+  }
+
+  if (status.overall === 'failed') {
+    return {
+      title: 'Enrichment failed',
+      body: 'The portfolio was imported, but enrichment failed for every holding. Dashboard data may rely on uploaded fields and unavailable markers.',
+      cls: 'border-red-100 bg-red-50 text-red-700',
+      dot: 'bg-red-400',
+      pulse: false,
+    }
+  }
+
+  if (!status.enrichment_complete) {
+    return {
+      title: 'Enrichment running in background',
+      body: `${status.pending} of ${status.total_holdings} holding${status.total_holdings !== 1 ? 's are' : ' is'} still pending. You can proceed, but sector, name, price, and fundamentals may still update.`,
+      cls: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+      dot: 'bg-indigo-400',
+      pulse: true,
+    }
+  }
+
+  if (status.partial > 0 || status.failed > 0) {
+    return {
+      title: 'Enrichment finished with gaps',
+      body: `${status.partial} partial and ${status.failed} failed holding${status.partial + status.failed !== 1 ? 's' : ''}. Static, unavailable, or unknown values are shown as degraded rather than full success.`,
+      cls: 'border-amber-100 bg-amber-50 text-amber-700',
+      dot: 'bg-amber-400',
+      pulse: false,
+    }
+  }
+
+  return {
+    title: 'Enrichment complete',
+    body: 'All holdings have completed enrichment. Dashboard and analytics can use the enriched fields with higher confidence.',
+    cls: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    dot: 'bg-emerald-400',
+    pulse: false,
+  }
+}
+
+function statusCountLabel(label: string, value: number, cls: string): React.ReactElement {
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-center ${cls}`}>
+      <p className="text-lg font-bold tabular-nums">{value}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide">{label}</p>
+    </div>
+  )
+}
+
+function statusSourceLabel(status: string | null | undefined, kind: 'sector' | 'name'): React.ReactElement {
+  const value = status ?? 'pending'
+  const label =
+    value === 'from_file' ? 'File'
+    : value === 'yfinance' ? 'Yahoo Finance'
+    : value === 'fmp' ? 'FMP'
+    : value === 'static_map' ? 'Static map'
+    : value === 'ticker_fallback' ? 'Ticker fallback'
+    : value === 'unknown' ? 'Unknown'
+    : 'Pending'
+
+  const cls =
+    value === 'yfinance' || value === 'fmp' || value === 'from_file'
+      ? 'text-slate-600'
+      : value === 'static_map'
+      ? 'text-amber-600 font-medium'
+      : value === 'unknown' || value === 'ticker_fallback'
+      ? 'text-red-500 font-medium'
+      : 'text-slate-400'
+
+  const suffix = value === 'static_map'
+    ? ' (fallback)'
+    : kind === 'name' && value === 'ticker_fallback'
+    ? ' (fallback)'
+    : ''
+
+  return <span className={`text-[10px] ${cls}`}>{label}{suffix}</span>
+}
+
+function v2FundamentalsBadge(status: string | null | undefined): React.ReactElement {
+  if (status === 'fetched') {
+    return <span className="text-[10px] text-emerald-600">Live</span>
+  }
+  if (status === 'not_applicable') {
+    return <span className="text-[10px] text-slate-500">N/A</span>
+  }
+  if (status === 'unavailable') {
+    return <span className="text-[10px] text-amber-600 font-medium">Unavailable</span>
+  }
+  return <span className="text-[10px] text-slate-400">Pending</span>
+}
+
+function v2PriceBadge(status: string | null | undefined, failureReason: string | null | undefined): React.ReactElement {
+  const value = status ?? 'pending'
+  const label =
+    value === 'live' ? 'Live'
+    : value === 'uploaded_current_price' ? 'Uploaded'
+    : value === 'missing' ? 'Missing'
+    : value === 'provider_failed' ? 'Provider failed'
+    : value === 'stale' ? 'Stale'
+    : value === 'fallback_average_cost' ? 'Cost basis'
+    : value === 'unknown' ? 'Unknown'
+    : 'Pending'
+
+  const cls =
+    value === 'live'
+      ? 'text-emerald-600'
+      : value === 'uploaded_current_price'
+      ? 'text-indigo-600'
+      : value === 'pending'
+      ? 'text-slate-400'
+      : 'text-amber-600 font-medium'
+
+  return (
+    <span className={`text-[10px] ${cls}`} title={failureReason ?? undefined}>
+      {label}
+    </span>
+  )
+}
+
+function V2EnrichmentStatusPanel({
+  status,
+  pollingError,
+  pollingTimedOut,
+}: {
+  status: ApiV2StatusResponse | null
+  pollingError: string | null
+  pollingTimedOut: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const card = statusCard(status, pollingTimedOut)
+  const holdings = status?.holdings ?? []
+
+  return (
+    <div className="w-full space-y-3">
+      <div className={`w-full rounded-lg border px-4 py-3 text-left ${card.cls}`}>
+        <p className="text-xs font-semibold flex items-center gap-2">
+          <span className={cn('inline-block h-2 w-2 rounded-full', card.dot, card.pulse && 'animate-pulse')} />
+          {card.title}
+        </p>
+        <p className="text-xs mt-1">{card.body}</p>
+        {pollingError && (
+          <p className="text-xs mt-2 text-amber-700">
+            Status check failed: {pollingError}. The import succeeded; refresh dashboard or holdings if enrichment finishes later.
+          </p>
+        )}
+      </div>
+
+      {status && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {statusCountLabel('Enriched', status.enriched, 'border-emerald-100 bg-emerald-50 text-emerald-700')}
+          {statusCountLabel('Partial', status.partial, 'border-amber-100 bg-amber-50 text-amber-700')}
+          {statusCountLabel('Pending', status.pending, 'border-slate-200 bg-slate-50 text-slate-600')}
+          {statusCountLabel('Failed', status.failed, 'border-red-100 bg-red-50 text-red-700')}
+        </div>
+      )}
+
+      {holdings.length > 0 && (
+        <div className="w-full rounded-lg border border-slate-200 overflow-hidden text-xs">
+          <button
+            onClick={() => setOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2 font-medium text-slate-700">
+              <span>Enrichment details — {holdings.length} holding{holdings.length !== 1 ? 's' : ''}</span>
+              {status?.enrichment_complete
+                ? <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px]">Finished</span>
+                : <span className="rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[10px]">Polling</span>
+              }
+            </div>
+            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+
+          {open && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 w-28">Ticker</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500">Status</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500">Sector</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500">Name</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500">Price</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500">Fundamentals</th>
+                    <th className="text-left px-3 py-2 font-medium text-slate-500 hidden sm:table-cell">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {holdings.map((h: V2HoldingEnrichmentStatus, index) => (
+                    <tr key={`${h.ticker}-${index}`} className="hover:bg-slate-50/50">
+                      <td className="px-3 py-1.5">
+                        <div className="font-mono font-semibold text-slate-800">{h.ticker}</div>
+                        {h.normalized_ticker && h.normalized_ticker !== h.ticker && (
+                          <div className="text-[10px] text-slate-400">{h.normalized_ticker}</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5">{statusBadge(h.enrichment_status)}</td>
+                      <td className="px-3 py-1.5">{statusSourceLabel(h.sector_status, 'sector')}</td>
+                      <td className="px-3 py-1.5">{statusSourceLabel(h.name_status, 'name')}</td>
+                      <td className="px-3 py-1.5">{v2PriceBadge(h.price_status, h.price_failure_reason)}</td>
+                      <td className="px-3 py-1.5">{v2FundamentalsBadge(h.fundamentals_status)}</td>
+                      <td className="px-3 py-1.5 text-slate-400 max-w-[220px] truncate hidden sm:table-cell">
+                        {h.failure_reason ?? (h.enrichment_status === 'enriched' ? 'Resolved' : '')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -314,6 +571,9 @@ export default function UploadPage() {
   const [mapping,         setMapping]        = useState<ColumnMappingState>({})
   const [confirmResult,   setConfirmResult]  = useState<ConfirmResult | null>(null)
   const [v2Result,        setV2Result]       = useState<V2ConfirmResult | null>(null)
+  const [v2Status,        setV2Status]       = useState<ApiV2StatusResponse | null>(null)
+  const [pollingError,    setPollingError]   = useState<string | null>(null)
+  const [pollingTimedOut, setPollingTimedOut] = useState(false)
   const [errorMsg,        setErrorMsg]       = useState<string | null>(null)
   const [loading,         setLoading]        = useState(false)
 
@@ -360,6 +620,9 @@ export default function UploadPage() {
     try {
       const data = await uploadApi.confirmV2<V2ConfirmResult>(file, mapping)
       setV2Result(data)
+      setV2Status(null)
+      setPollingError(null)
+      setPollingTimedOut(false)
       setMode('uploaded')   // auto-activate uploaded data mode
       setStep('done')
     } catch (e) {
@@ -379,8 +642,58 @@ export default function UploadPage() {
     setMapping({})
     setConfirmResult(null)
     setV2Result(null)
+    setV2Status(null)
+    setPollingError(null)
+    setPollingTimedOut(false)
     setErrorMsg(null)
   }, [])
+
+  // ── Poll enrichment status after V2 import ─────────────────────────────────
+
+  useEffect(() => {
+    if (step !== 'done' || !v2Result?.portfolio_id) return
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const startedAt = Date.now()
+
+    const poll = async () => {
+      try {
+        const status = await uploadApi.statusV2(v2Result.portfolio_id)
+        if (cancelled) return
+
+        setV2Status(status)
+        setPollingError(null)
+
+        const terminal = status.enrichment_complete || status.overall === 'failed'
+        if (terminal) return
+
+        if (Date.now() - startedAt >= ENRICHMENT_POLL_TIMEOUT_MS) {
+          setPollingTimedOut(true)
+          return
+        }
+
+        timer = setTimeout(poll, ENRICHMENT_POLL_INTERVAL_MS)
+      } catch (e) {
+        if (cancelled) return
+
+        setPollingError(e instanceof Error ? e.message : 'Could not read enrichment status')
+        if (Date.now() - startedAt >= ENRICHMENT_POLL_TIMEOUT_MS) {
+          setPollingTimedOut(true)
+          return
+        }
+
+        timer = setTimeout(poll, ENRICHMENT_POLL_INTERVAL_MS)
+      }
+    }
+
+    poll()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [step, v2Result?.portfolio_id])
 
   // ── Required fields check ───────────────────────────────────────────────────
   // name / sector / current_price are optional — enrichment fills them post-import
@@ -641,18 +954,11 @@ export default function UploadPage() {
               )}
             </div>
 
-            {/* Enrichment running notice */}
-            <div className="w-full rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-left">
-              <p className="text-xs font-semibold text-indigo-700 flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
-                Enrichment running in background
-              </p>
-              <p className="text-xs text-indigo-600 mt-1">
-                Sector, company name, and current prices are being fetched from Yahoo Finance.
-                Your portfolio is usable now — the Dashboard will show enriched data within
-                30–60 seconds.
-              </p>
-            </div>
+            <V2EnrichmentStatusPanel
+              status={v2Status}
+              pollingError={pollingError}
+              pollingTimedOut={pollingTimedOut}
+            />
 
             {/* Warnings detail */}
             {v2Result.warning_rows.length > 0 && (
@@ -695,7 +1001,8 @@ export default function UploadPage() {
                 <CheckCircle2 className="h-3.5 w-3.5" /> Data mode switched to Uploaded
               </p>
               <p className="text-xs text-emerald-600 mt-1">
-                Your portfolio is active. Use the links below to explore your data.
+                Your portfolio is active. You can proceed now; if enrichment is still pending or degraded,
+                downstream pages may show uploaded, static, unknown, or unavailable values.
               </p>
             </div>
 

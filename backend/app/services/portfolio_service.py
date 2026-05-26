@@ -23,6 +23,7 @@ from app.schemas.portfolio import (
     FundamentalsSummary,
     PortfolioBundleMeta,
 )
+from app.services.price_enrichment_service import valuation_price_and_fallback
 
 
 class PortfolioReadService:
@@ -87,22 +88,27 @@ class PortfolioReadService:
 
     @staticmethod
     def compute_holding_metrics(holdings: Sequence[Any]) -> list[dict]:
-        total_value = sum(
-            h.quantity * (h.current_price or h.average_cost) for h in holdings
-        )
+        valuation_rows = []
+        total_value = 0.0
+        for h in holdings:
+            valuation_price, uses_fallback, canonical_status = valuation_price_and_fallback(h)
+            market_val = h.quantity * (valuation_price or 0)
+            valuation_rows.append((h, valuation_price, uses_fallback, canonical_status, market_val))
+            total_value += market_val
+
         enriched: list[dict] = []
 
-        for h in holdings:
-            market_val = h.quantity * (h.current_price or h.average_cost)
+        for h, valuation_price, market_value_uses_fallback, canonical_status, market_val in valuation_rows:
+            trusted_current_price = not market_value_uses_fallback and h.current_price is not None
             pnl = (
                 (h.current_price - h.average_cost) * h.quantity
-                if h.current_price is not None
-                else 0.0
+                if trusted_current_price
+                else None
             )
             pnl_pct = (
                 (h.current_price - h.average_cost) / h.average_cost * 100
-                if h.current_price is not None and h.average_cost > 0
-                else 0.0
+                if trusted_current_price and h.average_cost > 0
+                else None
             )
             weight = (market_val / total_value * 100) if total_value > 0 else 0.0
 
@@ -123,15 +129,24 @@ class PortfolioReadService:
                     "purchase_date": getattr(h, "purchase_date", None),
                     "notes": getattr(h, "notes", None),
                     "data_source": getattr(h, "data_source", None),
+                    "price_status": getattr(h, "price_status", None),
+                    "price_source": getattr(h, "price_source", None),
+                    "price_timestamp": getattr(h, "price_timestamp", None),
+                    "price_failure_reason": getattr(h, "price_failure_reason", None),
                     "sector_status": getattr(h, "sector_status", None),
                     "fundamentals_status": getattr(h, "fundamentals_status", None),
                     "enrichment_status": getattr(h, "enrichment_status", None),
                 }
 
+            h_dict["price_status"] = canonical_status
+            if market_value_uses_fallback and not h_dict.get("price_source"):
+                h_dict["price_source"] = "average_cost"
+
             h_dict["market_value"] = round(market_val, 2)
-            h_dict["pnl"]          = round(pnl, 2)
-            h_dict["pnl_pct"]      = round(pnl_pct, 4)
+            h_dict["pnl"]          = round(pnl, 2) if pnl is not None else None
+            h_dict["pnl_pct"]      = round(pnl_pct, 4) if pnl_pct is not None else None
             h_dict["weight"]       = round(weight, 4)
+            h_dict["market_value_uses_fallback"] = market_value_uses_fallback
             enriched.append(h_dict)
 
         return enriched
@@ -410,9 +425,16 @@ class PortfolioService:
         """
         as_of = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Partial data flag — true when any holding is missing a live/uploaded price
+        price_coverage: dict[str, int] = {}
+        for h in enriched:
+            status = h.get("price_status") or "unknown"
+            price_coverage[status] = price_coverage.get(status, 0) + 1
+
+        trusted_price_statuses = {"live", "uploaded_current_price"}
         partial_data = any(
-            h.get("current_price") is None or h.get("data_source") == "unavailable"
+            h.get("current_price") is None
+            or h.get("data_source") == "unavailable"
+            or (h.get("price_status") or "unknown") not in trusted_price_statuses
             for h in enriched
         )
 
@@ -454,6 +476,7 @@ class PortfolioService:
             as_of=as_of,
             enrichment_complete=enrichment_complete,
             partial_data=partial_data,
+            price_coverage=price_coverage,
             incomplete=incomplete,
             lifecycle_state=lifecycle_state,
         )

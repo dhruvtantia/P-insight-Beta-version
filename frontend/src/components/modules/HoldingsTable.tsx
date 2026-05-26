@@ -118,6 +118,35 @@ function SortIcon({ columnKey, sortKey, sortDir }: { columnKey: string; sortKey:
     : <ArrowDown className="h-3 w-3 text-indigo-500 ml-1 shrink-0" />
 }
 
+function priceStateLabel(status: Holding['price_status'], usesFallback?: boolean) {
+  if (usesFallback) return 'Cost basis'
+  switch (status) {
+    case 'live':
+      return 'Live'
+    case 'stale':
+      return 'Stale'
+    case 'uploaded_current_price':
+      return 'Uploaded'
+    case 'missing':
+      return 'Missing'
+    case 'provider_failed':
+      return 'Failed'
+    case 'pending':
+      return 'Pending'
+    default:
+      return null
+  }
+}
+
+function priceStateClass(status: Holding['price_status'], usesFallback?: boolean) {
+  if (usesFallback || status === 'missing' || status === 'provider_failed') {
+    return 'border-amber-200 bg-amber-50 text-amber-700'
+  }
+  if (status === 'live') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (status === 'uploaded_current_price') return 'border-sky-200 bg-sky-50 text-sky-700'
+  return 'border-slate-200 bg-slate-50 text-slate-500'
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function HoldingsTable({
@@ -327,6 +356,17 @@ export function HoldingsTable({
                         <span className="text-xs text-slate-800 tabular-nums font-medium">
                           {h.current_price !== null ? formatCurrency(h.current_price) : <span className="text-slate-300">—</span>}
                         </span>
+                        {priceStateLabel(h.price_status, h.market_value_uses_fallback) && (
+                          <span
+                            className={cn(
+                              'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap',
+                              priceStateClass(h.price_status, h.market_value_uses_fallback)
+                            )}
+                            title={h.price_failure_reason ?? undefined}
+                          >
+                            {priceStateLabel(h.price_status, h.market_value_uses_fallback)}
+                          </span>
+                        )}
                       </div>
                     </td>
 

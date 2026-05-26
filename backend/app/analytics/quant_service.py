@@ -201,15 +201,21 @@ class QuantAnalyticsService:
             )
 
         # 3. Portfolio weights (normalised to valid tickers)
-        total_value = sum(
-            h.quantity * (h.current_price or h.average_cost)
-            for h in holdings
+        trusted_price_statuses = {"live", "uploaded_current_price"}
+        priceable_holdings = [
+            h for h in holdings
             if h.ticker in valid_tickers
+            and h.current_price is not None
+            and (getattr(h, "price_status", None) or "unknown") in trusted_price_statuses
+        ]
+        total_value = sum(
+            h.quantity * h.current_price
+            for h in priceable_holdings
         )
         weights: dict[str, float] = {}
-        for h in holdings:
-            if h.ticker in valid_tickers and total_value > 0:
-                weights[h.ticker] = (h.quantity * (h.current_price or h.average_cost)) / total_value
+        for h in priceable_holdings:
+            if total_value > 0:
+                weights[h.ticker] = (h.quantity * h.current_price) / total_value
         w_sum = sum(weights.values())
         if w_sum > 0:
             weights = {t: w / w_sum for t, w in weights.items()}

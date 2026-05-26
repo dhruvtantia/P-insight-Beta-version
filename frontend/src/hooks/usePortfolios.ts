@@ -40,7 +40,7 @@ export function usePortfolios(): UsePortfoliosReturn {
     removePortfolio,
   } = usePortfolioStore()
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {

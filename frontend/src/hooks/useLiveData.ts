@@ -21,6 +21,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { liveApi } from '@/services/api'
 import { useDataModeStore } from '@/store/dataModeStore'
+import type { Holding } from '@/types'
 
 interface UseLiveDataReturn {
   /** Map of ticker → last close price. Empty if mode is not 'live' or yfinance unavailable. */
@@ -33,6 +34,10 @@ interface UseLiveDataReturn {
   yfinanceAvailable: boolean
   /** Tickers that were requested but not found on Yahoo Finance. */
   missingTickers: string[]
+  /** Per-ticker price state returned by the backend. */
+  statusByTicker: Record<string, Holding['price_status']>
+  /** Per-ticker ISO timestamp for live prices. */
+  priceTimestamps: Record<string, string>
   refetch: () => void
 }
 
@@ -44,6 +49,8 @@ export function useLiveData(tickers: string[]): UseLiveDataReturn {
   const [error, setError]                 = useState<string | null>(null)
   const [yfinanceAvailable, setYfAvail]  = useState(true)
   const [missingTickers, setMissing]      = useState<string[]>([])
+  const [statusByTicker, setStatusByTicker] = useState<Record<string, Holding['price_status']>>({})
+  const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>({})
 
   const shouldFetch = mode === 'live' && isLiveEnabled && tickers.length > 0
 
@@ -51,6 +58,8 @@ export function useLiveData(tickers: string[]): UseLiveDataReturn {
     if (!shouldFetch) {
       setPrices({})
       setMissing([])
+      setStatusByTicker({})
+      setPriceTimestamps({})
       return
     }
 
@@ -61,9 +70,13 @@ export function useLiveData(tickers: string[]): UseLiveDataReturn {
       setPrices(data.prices ?? {})
       setYfAvail(data.yfinance_available ?? true)
       setMissing(data.missing ?? [])
+      setStatusByTicker(data.status_by_ticker ?? {})
+      setPriceTimestamps(data.price_timestamps ?? {})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Live quote fetch failed')
       setPrices({})
+      setStatusByTicker({})
+      setPriceTimestamps({})
     } finally {
       setLoading(false)
     }
@@ -73,5 +86,14 @@ export function useLiveData(tickers: string[]): UseLiveDataReturn {
     fetch()
   }, [fetch])
 
-  return { prices, loading, error, yfinanceAvailable, missingTickers, refetch: fetch }
+  return {
+    prices,
+    loading,
+    error,
+    yfinanceAvailable,
+    missingTickers,
+    statusByTicker,
+    priceTimestamps,
+    refetch: fetch,
+  }
 }

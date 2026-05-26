@@ -80,12 +80,17 @@ export interface Holding {
   // 'mock_fallback' — deprecated, kept for legacy mock-mode support
   // 'uploaded'    — price came from uploaded file
   data_source?: 'live' | 'db_only' | 'unavailable' | 'mock_fallback' | 'uploaded' | null
+  price_status?: 'live' | 'stale' | 'missing' | 'fallback_average_cost' | 'uploaded_current_price' | 'provider_failed' | 'pending' | 'unknown' | null
+  price_source?: 'yfinance' | 'uploaded_csv' | 'db_only' | 'average_cost' | 'unknown' | string | null
+  price_timestamp?: string | null
+  price_failure_reason?: string | null
   // Enrichment provenance — set after upload enrichment pipeline (Phase 3)
   sector_status?:       'from_file' | 'yfinance' | 'fmp' | 'static_map' | 'unknown' | null
   fundamentals_status?: 'fetched' | 'unavailable' | 'pending' | null
   enrichment_status?:   'enriched' | 'partial' | 'failed' | 'pending' | null
   // Derived (computed on frontend)
   market_value?: number
+  market_value_uses_fallback?: boolean
   pnl?: number
   pnl_pct?: number
   weight?: number
@@ -202,7 +207,7 @@ export interface SincePurchaseHolding {
   current_value: number | null
   pnl:           number | null
   pnl_pct:       number | null
-  price_source:  'live_at_upload' | 'cost_basis_only'
+  price_source:  NonNullable<Holding['price_status']>
 }
 
 export interface SincePurchaseSummary {
@@ -473,6 +478,7 @@ export interface PortfolioBundleMeta {
   as_of:               string    // ISO-8601 UTC datetime
   enrichment_complete: boolean
   partial_data:        boolean
+  price_coverage?:     Record<string, number>
   /**
    * Unified incomplete flag — aligned with /analytics/ratios, /quant/full,
    * and /peers/{ticker} meta.incomplete.
@@ -599,7 +605,26 @@ export interface PeerComparisonMeta {
    * A comparison with 0–1 peers is not statistically meaningful — surface this.
    */
   sparse_set:           boolean
+  /** Dominant fundamentals source for the selected stock and returned peers. */
   source:               string
+  /** Alias for source, provided to make data provenance explicit. */
+  data_source?:         string
+  /** Data provider mode used for this request: uploaded, live, broker, etc. */
+  provider_mode?:       string
+  /** Peer universe discovery source, e.g. static_curated_map, provider_fmp, none. */
+  peer_source?:         string
+  /** Human-readable peer universe source label. */
+  peer_source_label?:   string
+  /** Discovery result: found, not_found, error, or unknown. */
+  peer_discovery_status?: string
+  /** Backend-provided explanation for the discovery outcome. */
+  peer_discovery_reason?: string | null
+  /** True when peers came from a curated static map rather than provider discovery. */
+  peer_universe_static?: boolean | null
+  /** False when the selected ticker fundamentals are unavailable. */
+  selected_fundamentals_available?: boolean
+  /** Backend/provider error for the selected ticker, if any. */
+  selected_fundamentals_error?: string | null
   /**
    * ISO-8601 UTC timestamp of when this response was assembled.
    * Aligned with as_of fields in /analytics/ratios and /quant/full meta.
@@ -639,6 +664,9 @@ export interface PeerComparisonData {
   selected:   PeerStock
   peers:      PeerStock[]
   source:     string
+  data_source?: string
+  provider_mode?: string
+  peer_source?: string
   peer_count: number
   /** Trust/coverage metadata — undefined only on legacy cached responses. */
   meta?:      PeerComparisonMeta
@@ -664,7 +692,7 @@ export type NewsEventType =
 
 export type NewsSentiment = 'positive' | 'negative' | 'neutral'
 
-/** Phase 1: served from mock JSON. Phase 2: live news API. */
+/** News article normalized from the backend news provider. */
 export interface NewsArticle {
   title:        string
   summary:      string
@@ -682,8 +710,12 @@ export interface NewsResponse {
   total:           number
   source:          string
   event_types:     string[]
-  /** True when mode is live and no news API is configured — show explicit message */
+  /** True when backend says news is unavailable, not merely empty. */
   live_unavailable: boolean
+  news_unavailable: boolean
+  news_key_configured: boolean
+  news_status:     'ok' | 'empty' | 'unavailable'
+  news_reason:     string | null
   scaffolded:      boolean
 }
 
@@ -692,7 +724,10 @@ export interface EventsResponse {
   events:          CorporateEvent[]
   total:           number
   source:          string
+  events_status?:  'ok' | 'empty' | 'unavailable'
+  events_reason?:  string | null
   live_unavailable: boolean
+  news_unavailable: boolean
   scaffolded:      boolean
 }
 
@@ -861,6 +896,9 @@ export interface LiveQuotesResponse {
   missing: string[]
   yfinance_available: boolean
   source: string
+  timed_out?: boolean
+  status_by_ticker?: Record<string, Holding['price_status']>
+  price_timestamps?: Record<string, string>
   note?: string
 }
 
@@ -929,6 +967,7 @@ export interface MarketStatus {
   note:           string
   next_open?:     string
   checked_at_ist: string
+  reason?:        string
 }
 
 export interface MarketOverviewResponse {
@@ -938,6 +977,7 @@ export interface MarketOverviewResponse {
   sector_indices:  IndexQuote[]
   top_gainers:     MarketTickerEntry[]
   top_losers:      MarketTickerEntry[]
+  movers_status?:  { status: 'ok' | 'unavailable'; reason: string | null; source: string }
   fetched_at?:     string
   source:          string
 }

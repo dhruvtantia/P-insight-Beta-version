@@ -12,6 +12,7 @@
  */
 
 import { SECTOR_COLORS, DEFAULT_SECTOR_COLOR } from '@/constants'
+import { fmtMarketCap }                         from '@/lib/fundamentals'
 import { cn }                                   from '@/lib/utils'
 import type { PeerStock }                       from '@/types'
 
@@ -23,14 +24,6 @@ interface Props {
 function fmt(val: number | null, suffix = ''): string {
   if (val === null || val === undefined) return '—'
   return `${val.toLocaleString('en-IN', { maximumFractionDigits: 1 })}${suffix}`
-}
-
-function fmtMarketCap(val: number | null): string {
-  if (!val) return '—'
-  if (val >= 1_000_000_000_000) return `₹${(val / 1_000_000_000_000).toFixed(1)}T`
-  if (val >= 10_000_000_000)    return `₹${(val / 10_000_000_000).toFixed(0)}K Cr`
-  if (val >= 10_000_000)        return `₹${(val / 10_000_000).toFixed(0)} Cr`
-  return `₹${val.toLocaleString('en-IN')}`
 }
 
 const STATS: Array<{ label: string; key: keyof PeerStock; suffix?: string }> = [

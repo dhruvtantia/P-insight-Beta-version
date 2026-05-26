@@ -42,6 +42,7 @@ export interface UsePortfolioReturn {
   insights:            PortfolioInsight[]
   loading:             boolean
   error:               string | null
+  stale:               boolean
   refetch:             () => void
 }
 

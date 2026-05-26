@@ -4,15 +4,436 @@
  */
 
 export interface paths {
-    "/": {
+    "/api/v1/market/overview": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Root */
-        get: operations["root__get"];
+        /**
+         * Live market overview — indices, gainers, losers
+         * @description Returns a market overview for the landing page.
+         *
+         *     Each index entry carries:
+         *       status:       "live" | "last_close" | "unavailable"
+         *       last_updated: ISO-8601 UTC timestamp of this fetch
+         *       data_date:    date of the bar yfinance returned (YYYY-MM-DD)
+         *       source:       "yfinance" | "none"
+         *       reason:       (unavailable only) human-readable failure reason
+         *
+         *     Market status:
+         *       market_status.open: true if NSE is currently within trading hours
+         *       market_status.next_open: when market next opens (if closed)
+         *       market_status.checked_at_ist: time the market-hours evaluation was made
+         *
+         *     Cached for 2 minutes. When yfinance is not installed, available=false.
+         */
+        get: operations["get_market_overview_api_v1_market_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/full": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get bundled portfolio intelligence
+         * @description Bundled endpoint — returns holdings (with pre-computed metrics), summary,
+         *     and sector allocation in a single response.
+         *
+         *     Holdings include market_value, pnl, pnl_pct, and weight, removing the need
+         *     for client-side recomputation.
+         *
+         *     Replaces three separate calls to /portfolio/, /portfolio/summary, and
+         *     /portfolio/sectors.  Old endpoints remain available for backward compatibility.
+         */
+        get: operations["get_portfolio_full_api_v1_portfolio_full_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get all holdings
+         * @description Return all portfolio holdings from the active data source.
+         */
+        get: operations["get_holdings_api_v1_portfolio__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get portfolio KPI summary
+         * @description Return high-level portfolio metrics: total value, P&L, sector concentration.
+         */
+        get: operations["get_summary_api_v1_portfolio_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get sector allocation
+         * @description Return portfolio allocation broken down by sector.
+         */
+        get: operations["get_sector_allocation_api_v1_portfolio_sectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload portfolio file
+         * @description Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
+         *
+         *     Required columns: ticker, name, quantity, average_cost
+         *     Optional columns: current_price, sector, asset_class, currency
+         *
+         *     After upload, switch Data Mode to 'uploaded' to use this data.
+         */
+        post: operations["upload_portfolio_api_v1_portfolio_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/risk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get risk metrics
+         * @description Return portfolio risk metrics: beta, Sharpe ratio, volatility, drawdown.
+         *     Phase 1: Returns scaffold response with note.
+         *     Phase 2: Compute from historical price data.
+         *     Full quant analytics (with live data) are available at /quant/full.
+         */
+        get: operations["get_risk_metrics_api_v1_analytics_risk_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/ratios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get financial ratios with portfolio-weighted metrics and trust metadata
+         * @description Return fundamentals and valuation ratios for each holding, plus:
+         *       - portfolio-level weighted-average metrics (PE, PB, ROE, etc.)
+         *       - trust / completeness metadata (source, incomplete flag, unavailable tickers)
+         *
+         *     Holdings with unavailable fundamentals are included in the response with
+         *     source='unavailable' and an error field — they are NOT silently dropped.
+         *     This prevents callers from presenting partial data as if it were complete.
+         *
+         *     Per-holding fields:
+         *       Valuation: pe_ratio, forward_pe, pb_ratio, ev_ebitda, peg_ratio
+         *       Income:    dividend_yield
+         *       Quality:   roe, roa, operating_margin, profit_margin
+         *       Growth:    revenue_growth, earnings_growth
+         *       Balance:   debt_to_equity, market_cap
+         *       Trust:     source, error, fetched_at, cache_age_seconds
+         *
+         *     Portfolio-level weighted fields:
+         *       wtd_pe, wtd_pb, wtd_roe, wtd_roa, wtd_ev_ebitda, wtd_peg,
+         *       wtd_div_yield, wtd_operating_margin, wtd_profit_margin,
+         *       wtd_revenue_growth, wtd_earnings_growth, wtd_debt_to_equity
+         *       + coverage counts per metric
+         *
+         *     Null values for individual metrics indicate not applicable for that business
+         *     type (e.g. banks: null ev_ebitda, operating_margin, debt_to_equity).
+         */
+        get: operations["get_financial_ratios_api_v1_analytics_ratios_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/commentary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get AI-style portfolio commentary
+         * @description Return rule-based portfolio insights and commentary.
+         *     Phase 1: Derived from summary and sector data.
+         *     Phase 2: Fed as context to AI Chat module.
+         */
+        get: operations["get_commentary_api_v1_analytics_commentary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/watchlist/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get watchlist */
+        get: operations["get_watchlist_api_v1_watchlist__get"];
+        put?: never;
+        /** Add to watchlist */
+        post: operations["add_to_watchlist_api_v1_watchlist__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/watchlist/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove from watchlist */
+        delete: operations["remove_from_watchlist_api_v1_watchlist__ticker__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update watchlist entry
+         * @description Partially update a watchlist entry. Only fields present in the request body
+         *     are changed — omitted fields are left as-is.
+         *
+         *     Updatable fields: name, tag, sector, target_price, notes.
+         *     Ticker cannot be changed (use delete + re-add instead).
+         */
+        patch: operations["update_watchlist_item_api_v1_watchlist__ticker__patch"];
+        trace?: never;
+    };
+    "/api/v1/peers/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get peer comparison data
+         * @description Return full fundamentals for the selected stock and each of its
+         *     industry peers so the frontend can render a comparison table.
+         *
+         *     Key guarantees
+         *     --------------
+         *     * Per-peer timeout — no single slow peer blocks the whole response.
+         *     * Honest incomplete state — timed-out / failed peers are listed in meta
+         *       rather than silently dropped or pretended to be a full set.
+         *     * Sparse-set flag — the response explicitly signals when < 2 peers
+         *       returned usable data (i.e. the comparison is not meaningful).
+         *     * Server-side rankings — rank positions for all numeric comparison
+         *       metrics are pre-computed so the frontend renders directly.
+         */
+        get: operations["get_peers_api_v1_peers__ticker__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/news/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get portfolio-relevant news
+         * @description Return recent news articles relevant to portfolio holdings.
+         *
+         *     - If tickers is provided, only articles matching at least one of those
+         *       tickers are returned.
+         *     - If tickers is omitted, all holdings are fetched and used as the filter.
+         *     - event_type further narrows the result set.
+         */
+        get: operations["get_news_api_v1_news__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/news/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get upcoming corporate events
+         * @description Return upcoming corporate events (earnings dates, dividends, AGMs).
+         *
+         *     Events are sorted soonest-first when a provider supplies them.
+         *     At present, no live corporate events provider is configured.
+         */
+        get: operations["get_events_api_v1_news_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/frontier/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * [Deprecated] Efficient frontier — use /optimization/full instead
+         * @description This is a deprecated scaffold endpoint.
+         *
+         *     **Use `/api/v1/optimization/full` instead.**
+         *
+         *     The full optimizer computes:
+         *     - Efficient frontier curve (40 points by default)
+         *     - Minimum variance portfolio weights
+         *     - Maximum Sharpe ratio portfolio weights
+         *     - Buy/sell rebalancing recommendations
+         *     - Per-ticker history status (valid/excluded)
+         *
+         *     Supports modes: mock | live
+         */
+        get: operations["get_efficient_frontier_api_v1_frontier__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-chat/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a chat message to AI portfolio advisor
+         * @description Phase 1: Returns scaffold response indicating feature is not yet active.
+         *     Phase 2:
+         *       - Inject portfolio summary + risk metrics as system context
+         *       - Route to Anthropic Claude (claude-3-5-sonnet) or OpenAI GPT-4o
+         *       - Stream response back to frontend
+         *
+         *     To enable in Phase 2:
+         *       1. Set AI_CHAT_ENABLED=true in .env
+         *       2. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to .env
+         *       3. poetry add anthropic  (or openai)
+         *       4. Replace the scaffold return below with actual API call
+         */
+        post: operations["chat_api_v1_ai_chat__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advisor/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check AI advisor provider status
+         * @description Returns which LLM provider is configured and whether AI responses
+         *     are available. Frontend calls this once on mount.
+         */
+        get: operations["get_advisor_status_api_v1_advisor_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -70,7 +491,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/advisor/status": {
+    "/api/v1/live/quotes": {
         parameters: {
             query?: never;
             header?: never;
@@ -78,320 +499,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check AI advisor provider status
-         * @description Returns which LLM provider is configured and whether AI responses
-         *     are available. Frontend calls this once on mount.
+         * Batch live price quotes
+         * @description Returns the most recent closing price for each requested ticker.
+         *
+         *     - Prices are fetched via yfinance (Yahoo Finance) and cached for 60 seconds.
+         *     - Tickers not found on Yahoo Finance will be absent from the result.
+         *     - If yfinance is not installed the endpoint returns an empty prices dict
+         *       with a note explaining why.
+         *
+         *     Use this to enrich watchlist items or show a live price strip without
+         *     reloading the entire portfolio.
          */
-        get: operations["get_advisor_status_api_v1_advisor_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ai-chat/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send a chat message to AI portfolio advisor
-         * @description Phase 1: Returns scaffold response indicating feature is not yet active.
-         *     Phase 2:
-         *       - Inject portfolio summary + risk metrics as system context
-         *       - Route to Anthropic Claude (claude-3-5-sonnet) or OpenAI GPT-4o
-         *       - Stream response back to frontend
-         *
-         *     To enable in Phase 2:
-         *       1. Set AI_CHAT_ENABLED=true in .env
-         *       2. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to .env
-         *       3. poetry add anthropic  (or openai)
-         *       4. Replace the scaffold return below with actual API call
-         */
-        post: operations["chat_api_v1_ai_chat__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/commentary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get AI-style portfolio commentary
-         * @description Return rule-based portfolio insights and commentary.
-         *     Phase 1: Derived from summary and sector data.
-         *     Phase 2: Fed as context to AI Chat module.
-         */
-        get: operations["get_commentary_api_v1_analytics_commentary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/ratios": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get financial ratios with portfolio-weighted metrics and trust metadata
-         * @description Return fundamentals and valuation ratios for each holding, plus:
-         *       - portfolio-level weighted-average metrics (PE, PB, ROE, etc.)
-         *       - trust / completeness metadata (source, incomplete flag, unavailable tickers)
-         *
-         *     Holdings with unavailable fundamentals are included in the response with
-         *     source='unavailable' and an error field — they are NOT silently dropped.
-         *     This prevents callers from presenting partial data as if it were complete.
-         *
-         *     Per-holding fields:
-         *       Valuation: pe_ratio, forward_pe, pb_ratio, ev_ebitda, peg_ratio
-         *       Income:    dividend_yield
-         *       Quality:   roe, roa, operating_margin, profit_margin
-         *       Growth:    revenue_growth, earnings_growth
-         *       Balance:   debt_to_equity, market_cap
-         *       Trust:     source, error, fetched_at, cache_age_seconds
-         *
-         *     Portfolio-level weighted fields:
-         *       wtd_pe, wtd_pb, wtd_roe, wtd_roa, wtd_ev_ebitda, wtd_peg,
-         *       wtd_div_yield, wtd_operating_margin, wtd_profit_margin,
-         *       wtd_revenue_growth, wtd_earnings_growth, wtd_debt_to_equity
-         *       + coverage counts per metric
-         *
-         *     Null values for individual metrics indicate not applicable for that business
-         *     type (e.g. banks: null ev_ebitda, operating_margin, debt_to_equity).
-         */
-        get: operations["get_financial_ratios_api_v1_analytics_ratios_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/analytics/risk": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get risk metrics
-         * @description Return portfolio risk metrics: beta, Sharpe ratio, volatility, drawdown.
-         *     Phase 1: Returns scaffold response with note.
-         *     Phase 2: Compute from historical price data.
-         *     Full quant analytics (with live data) are available at /quant/full.
-         */
-        get: operations["get_risk_metrics_api_v1_analytics_risk_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/brokers/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List all available broker connectors
-         * @description Returns static metadata for all registered broker connectors.
-         *     Includes both configured (ready to use) and scaffolded (not yet implemented) connectors.
-         *     The `is_implemented` field tells the UI which connectors are active vs. coming soon.
-         */
-        get: operations["list_brokers_api_v1_brokers__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/brokers/{portfolio_id}/connect": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Connect a broker account to a portfolio
-         * @description Initiate a broker connection for a portfolio.
-         *
-         *     For scaffolded connectors: persists a pending state and returns
-         *     `scaffolded: true` with an explanatory message — no error raised.
-         *
-         *     For implemented connectors: calls the connector's auth flow and
-         *     updates the portfolio's source metadata.
-         *
-         *     Security note: this endpoint accepts only non-secret config fields.
-         *     API keys and tokens must be passed via environment variables until
-         *     secure credential storage is implemented.
-         */
-        post: operations["connect_broker_api_v1_brokers__portfolio_id__connect_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/brokers/{portfolio_id}/connection": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get broker connection state for a portfolio
-         * @description Returns the current broker connection state for a given portfolio.
-         *     If no connection exists, returns `connection_state: "disconnected"`.
-         */
-        get: operations["get_connection_api_v1_brokers__portfolio_id__connection_get"];
-        put?: never;
-        post?: never;
-        /**
-         * Disconnect a broker from a portfolio
-         * @description Remove the broker connection for a portfolio.
-         */
-        delete: operations["disconnect_broker_api_v1_brokers__portfolio_id__connection_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/brokers/{portfolio_id}/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Sync holdings from a broker into a portfolio
-         * @description Pull current holdings from the connected broker and replace
-         *     the portfolio's holdings (with pre/post snapshots for history).
-         *
-         *     Returns HTTP 501 with `scaffolded: true` for unimplemented connectors.
-         *     Returns HTTP 400 if no connection exists or state is not connected.
-         */
-        post: operations["sync_broker_api_v1_brokers__portfolio_id__sync_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/frontier/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * [Deprecated] Efficient frontier — use /optimization/full instead
-         * @description This is a deprecated scaffold endpoint.
-         *
-         *     **Use `/api/v1/optimization/full` instead.**
-         *
-         *     The full optimizer computes:
-         *     - Efficient frontier curve (40 points by default)
-         *     - Minimum variance portfolio weights
-         *     - Maximum Sharpe ratio portfolio weights
-         *     - Buy/sell rebalancing recommendations
-         *     - Per-ticker history status (valid/excluded)
-         *
-         *     Supports modes: mock | live
-         */
-        get: operations["get_efficient_frontier_api_v1_frontier__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/history/{portfolio_id}/daily": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Canonical daily portfolio value series with discriminated state
-         * @description Returns the daily portfolio value time series along with a discriminated `state` field.
-         *
-         *     Unlike the legacy /portfolios/{id}/history, this endpoint never returns a
-         *     misleading empty series — it tells you exactly why it's empty:
-         *       complete     — points[] contains real data; has_data=True
-         *       building     — task in progress; points=[] but will arrive soon
-         *       failed       — build errored; points=[] permanently unless re-uploaded
-         *       not_started  — no history was ever built; upload again to trigger
-         *
-         *     The frontend should poll this endpoint (e.g. every 5s) while state='building'.
-         */
-        get: operations["get_canonical_history_daily_api_v1_history__portfolio_id__daily_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/history/{portfolio_id}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Canonical history build status (DB-aware after server restart)
-         * @description Canonical status for the history build.  Returns the in-memory build status,
-         *     but when the server has restarted (status='unknown'), it checks the DB to see
-         *     if rows actually exist — and returns 'complete' if they do.
-         *
-         *     This prevents the frontend from treating a server restart as "no data ever built".
-         *
-         *     Status values:
-         *       building     — task actively running
-         *       complete     — rows exist in DB (either just built or from a prior session)
-         *       failed       — build failed; error field explains why
-         *       not_started  — no upload has occurred for this portfolio
-         */
-        get: operations["get_canonical_history_status_api_v1_history__portfolio_id__status_get"];
+        get: operations["get_live_quotes_api_v1_live_quotes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -475,34 +594,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/live/quotes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Batch live price quotes
-         * @description Returns the most recent closing price for each requested ticker.
-         *
-         *     - Prices are fetched via yfinance (Yahoo Finance) and cached for 60 seconds.
-         *     - Tickers not found on Yahoo Finance will be absent from the result.
-         *     - If yfinance is not installed the endpoint returns an empty prices dict
-         *       with a note explaining why.
-         *
-         *     Use this to enrich watchlist items or show a live price strip without
-         *     reloading the entire portfolio.
-         */
-        get: operations["get_live_quotes_api_v1_live_quotes_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/live/status": {
         parameters: {
             query?: never;
@@ -530,7 +621,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/market/overview": {
+    "/api/v1/quant/full": {
         parameters: {
             query?: never;
             header?: never;
@@ -538,23 +629,21 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Live market overview — indices, gainers, losers, headlines
-         * @description Returns a market overview for the landing page.
+         * Full quantitative analytics bundle
+         * @description Returns the complete quantitative analytics package in a single response:
          *
-         *     Each index entry carries:
-         *       status:       "live" | "last_close" | "unavailable"
-         *       last_updated: ISO-8601 UTC timestamp of this fetch
-         *       data_date:    date of the bar yfinance returned (YYYY-MM-DD)
-         *       source:       "yfinance" | "none"
-         *       reason:       (unavailable only) human-readable failure reason
+         *     - **metrics.portfolio** — volatility, beta, Sharpe, Sortino, drawdown, VaR, IR, alpha
+         *     - **metrics.benchmark** — NIFTY 50 standalone metrics for comparison
+         *     - **performance** — portfolio vs benchmark cumulative return time series
+         *     - **drawdown** — portfolio drawdown time series
+         *     - **correlation** — pairwise correlation matrix of all holdings
+         *     - **contributions** — per-holding annualised return, vol, and beta
+         *     - **meta** — which tickers succeeded, date range, benchmark source, risk-free rate
          *
-         *     Market status:
-         *       market_status.open: true if NSE is currently within trading hours
-         *       market_status.next_open: when market next opens (if closed)
-         *
-         *     Cached for 2 minutes. When yfinance is not installed, available=false.
+         *     Results are computed from 1 year of daily historical price data (mock or yfinance).
+         *     Cached for 10 minutes (live) or 24 hours (mock) to avoid repeated price fetches.
          */
-        get: operations["get_market_overview_api_v1_market_overview_get"];
+        get: operations["get_quant_full_api_v1_quant_full_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -563,7 +652,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/news/": {
+    "/api/v1/quant/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -571,41 +660,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get portfolio-relevant news
-         * @description Return recent news articles relevant to portfolio holdings.
-         *
-         *     - If tickers is provided, only articles matching at least one of those
-         *       tickers are returned.
-         *     - If tickers is omitted, all holdings are fetched and used as the filter.
-         *     - event_type further narrows the result set.
-         *
-         *     Phase 1: Served from mock_data/portfolio.json (static).
-         *     Phase 2: Fetched from live news API by ticker.
+         * Quantitative analytics status (meta only)
+         * @description Returns only the meta block from the full analytics computation.
+         *     Useful for the /debug page to inspect data availability without triggering
+         *     the full expensive computation when data is already cached.
          */
-        get: operations["get_news_api_v1_news__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/news/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get upcoming corporate events
-         * @description Return upcoming corporate events (earnings dates, dividends, AGMs).
-         *
-         *     Events are sorted soonest-first.
-         *     Phase 1: Static mock events. Phase 2: Live corporate calendar API.
-         */
-        get: operations["get_events_api_v1_news_events_get"];
+        get: operations["get_quant_status_api_v1_quant_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -663,125 +723,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/peers/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get peer comparison data
-         * @description Return full fundamentals for the selected stock and each of its
-         *     industry peers so the frontend can render a comparison table.
-         *
-         *     Key guarantees
-         *     --------------
-         *     * Per-peer timeout — no single slow peer blocks the whole response.
-         *     * Honest incomplete state — timed-out / failed peers are listed in meta
-         *       rather than silently dropped or pretended to be a full set.
-         *     * Sparse-set flag — the response explicitly signals when < 2 peers
-         *       returned usable data (i.e. the comparison is not meaningful).
-         *     * Server-side rankings — rank positions for all numeric comparison
-         *       metrics are pre-computed so the frontend renders directly.
-         */
-        get: operations["get_peers_api_v1_peers__ticker__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolio/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get all holdings
-         * @description Return all portfolio holdings from the active data source.
-         */
-        get: operations["get_holdings_api_v1_portfolio__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolio/full": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get bundled portfolio intelligence
-         * @description Bundled endpoint — returns holdings (with pre-computed metrics), summary,
-         *     and sector allocation in a single response.
-         *
-         *     Holdings include market_value, pnl, pnl_pct, and weight, removing the need
-         *     for client-side recomputation.
-         *
-         *     Replaces three separate calls to /portfolio/, /portfolio/summary, and
-         *     /portfolio/sectors.  Old endpoints remain available for backward compatibility.
-         */
-        get: operations["get_portfolio_full_api_v1_portfolio_full_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolio/sectors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get sector allocation
-         * @description Return portfolio allocation broken down by sector.
-         */
-        get: operations["get_sector_allocation_api_v1_portfolio_sectors_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolio/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get portfolio KPI summary
-         * @description Return high-level portfolio metrics: total value, P&L, sector concentration.
-         */
-        get: operations["get_summary_api_v1_portfolio_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolio/upload": {
+    "/api/v1/upload/parse": {
         parameters: {
             query?: never;
             header?: never;
@@ -791,15 +733,119 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Upload portfolio file
-         * @description Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
+         * Parse and detect columns
+         * @description Step 1 of the upload wizard.
          *
-         *     Required columns: ticker, name, quantity, average_cost
-         *     Optional columns: current_price, sector, asset_class, currency
-         *
-         *     After upload, switch Data Mode to 'uploaded' to use this data.
+         *     Reads the file, auto-detects column roles, returns a preview.
+         *     No data is saved at this stage.
          */
-        post: operations["upload_portfolio_api_v1_portfolio_upload_post"];
+        post: operations["parse_upload_api_v1_upload_parse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import portfolio from upload
+         * @description Step 2 of the upload wizard.
+         *
+         *     Accepts the file again plus the confirmed column mapping (possibly edited by the user).
+         *     Normalises all rows, validates them, persists them to the database,
+         *     and saves a canonical CSV for compatibility.
+         *
+         *     The column_mapping JSON looks like:
+         *       {"ticker": "Symbol", "name": "Company Name", "quantity": "Qty", ...}
+         */
+        post: operations["confirm_upload_api_v1_upload_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poll enrichment status for an uploaded portfolio (spec-compliant URL)
+         * @description Spec-required query-param variant of the enrichment status endpoint.
+         *
+         *     Returns per-holding enrichment state from the DB.
+         *     Identical response shape to GET /upload/v2/status/{portfolio_id}.
+         *     Poll after POST /upload/v2/confirm to track background enrichment progress.
+         */
+        get: operations["get_upload_status_api_v1_upload_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload/v2/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * [V2] Import portfolio — fast path with background enrichment
+         * @description Upload V2 fast-path confirm.
+         *
+         *     Accepts the same file + column_mapping as the legacy /confirm endpoint.
+         *     Returns in < 2 s (base persist only).  Enrichment runs in the background.
+         *
+         *     Response includes:
+         *       - portfolio_id for status polling
+         *       - row classification (valid / valid_with_warning / invalid)
+         *       - rejected_rows and warning_rows details
+         *       - enrichment_complete: false (poll /v2/status/{portfolio_id} for progress)
+         *       - portfolio_usable: true (dashboard/holdings/fundamentals work immediately)
+         */
+        post: operations["confirm_upload_v2_api_v1_upload_v2_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload/v2/status/{portfolio_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * [V2] Poll enrichment status for an uploaded portfolio
+         * @description Returns current per-holding enrichment state from the DB.
+         *
+         *     Poll this endpoint after /v2/confirm to track background enrichment progress.
+         *     enrichment_complete becomes True once all holdings have left "pending" state.
+         *     Typically completes within 10–60 seconds depending on portfolio size and
+         *     yfinance response times.
+         */
+        get: operations["get_upload_status_v2_api_v1_upload_v2_status__portfolio_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -888,152 +934,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/portfolios/{portfolio_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Daily portfolio value history
-         * @description Returns the daily portfolio value time series for the given portfolio.
-         *
-         *     Data is pre-computed at upload time using 1-year historical prices × current
-         *     holdings quantities.  If no data is available yet (e.g. first startup before
-         *     any upload), returns has_data=False with an empty points list — not a 404.
-         *
-         *     **Important caveat (displayed by the frontend):**
-         *     Values assume *current holdings quantities* were held throughout the year.
-         *     This is a synthetic "mark-to-market" view, not actual historical performance.
-         */
-        get: operations["get_portfolio_history_api_v1_portfolios__portfolio_id__history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolios/{portfolio_id}/history/benchmark": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Benchmark index daily history
-         * @description Returns daily close prices for the specified benchmark index.
-         *     Data is stored when the portfolio history was last built.
-         *
-         *     The frontend normalises benchmark values to the portfolio's starting value
-         *     so they can be overlaid on the same chart.
-         */
-        get: operations["get_benchmark_history_api_v1_portfolios__portfolio_id__history_benchmark_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolios/{portfolio_id}/history/build-status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Lightweight history build status for polling
-         * @description Returns the current history build status without fetching the full time series.
-         *
-         *     Use this for lightweight polling on the Changes page to show a progress banner
-         *     while the background task is running.  Once status is 'done' or 'failed',
-         *     poll the main /history endpoint to get or confirm absence of data.
-         *
-         *     Status values:
-         *       pending  — upload completed but background task hasn't started yet
-         *       building — background task is actively fetching and storing data
-         *       done     — build completed; rows are in the portfolio_history table
-         *       failed   — build encountered an error; error field explains why
-         *       unknown  — no upload has been triggered in this server session
-         *                  (server may have restarted; check /history for existing data)
-         */
-        get: operations["get_history_build_status_endpoint_api_v1_portfolios__portfolio_id__history_build_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolios/{portfolio_id}/holdings/since-purchase": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Per-holding P&L since average purchase price
-         * @description Returns per-holding P&L computed from average_cost × quantity vs
-         *     current_price × quantity.
-         *
-         *     All values come from the DB — no extra network calls at request time.
-         *     current_price is the live price fetched once at upload time; if it was
-         *     not available at upload, we fall back to average_cost (zero P&L shown).
-         *
-         *     Price freshness is reported honestly in summary.price_freshness_note.
-         *
-         *     This powers the "Since Purchase" panel on the Changes page and answers
-         *     the question: "How am I doing vs what I paid?"
-         */
-        get: operations["get_holdings_since_purchase_api_v1_portfolios__portfolio_id__holdings_since_purchase_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/portfolios/{portfolio_id}/holdings/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Per-holding enrichment and data status
-         * @description Returns enrichment status for every holding in the portfolio.
-         *
-         *     Use this after upload to inspect which holdings have partial/failed enrichment,
-         *     unknown sector, unavailable fundamentals, or missing peer data.
-         *
-         *     The status fields are written to the DB during the enrichment step of the
-         *     upload pipeline and survive backend restarts.
-         *
-         *     Status field meanings:
-         *       enrichment_status:   enriched | partial | failed | pending
-         *       sector_status:       from_file | yfinance | fmp | static_map | unknown
-         *       fundamentals_status: fetched | unavailable | pending
-         *       peers_status:        found | none | pending
-         */
-        get: operations["get_holdings_status_api_v1_portfolios__portfolio_id__holdings_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/portfolios/{portfolio_id}/refresh": {
         parameters: {
             query?: never;
@@ -1115,54 +1015,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/quant/full": {
+    "/api/v1/snapshots/{snapshot_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Full quantitative analytics bundle
-         * @description Returns the complete quantitative analytics package in a single response:
-         *
-         *     - **metrics.portfolio** — volatility, beta, Sharpe, Sortino, drawdown, VaR, IR, alpha
-         *     - **metrics.benchmark** — NIFTY 50 standalone metrics for comparison
-         *     - **performance** — portfolio vs benchmark cumulative return time series
-         *     - **drawdown** — portfolio drawdown time series
-         *     - **correlation** — pairwise correlation matrix of all holdings
-         *     - **contributions** — per-holding annualised return, vol, and beta
-         *     - **meta** — which tickers succeeded, date range, benchmark source, risk-free rate
-         *
-         *     Results are computed from 1 year of daily historical price data (mock or yfinance).
-         *     Cached for 10 minutes (live) or 24 hours (mock) to avoid repeated price fetches.
-         */
-        get: operations["get_quant_full_api_v1_quant_full_get"];
+        /** Get full snapshot detail */
+        get: operations["get_snapshot_api_v1_snapshots__snapshot_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/quant/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Quantitative analytics status (meta only)
-         * @description Returns only the meta block from the full analytics computation.
-         *     Useful for the /debug page to inspect data availability without triggering
-         *     the full expensive computation when data is already cached.
-         */
-        get: operations["get_quant_status_api_v1_quant_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
+        /** Delete a snapshot */
+        delete: operations["delete_snapshot_api_v1_snapshots__snapshot_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1189,19 +1054,307 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/snapshots/{snapshot_id}": {
+    "/api/v1/brokers/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get full snapshot detail */
-        get: operations["get_snapshot_api_v1_snapshots__snapshot_id__get"];
+        /**
+         * List all available broker connectors
+         * @description Returns static metadata for all registered broker connectors.
+         *     Includes both configured (ready to use) and scaffolded (not yet implemented) connectors.
+         *     The `is_implemented` field tells the UI which connectors are active vs. coming soon.
+         */
+        get: operations["list_brokers_api_v1_brokers__get"];
         put?: never;
         post?: never;
-        /** Delete a snapshot */
-        delete: operations["delete_snapshot_api_v1_snapshots__snapshot_id__delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brokers/{portfolio_id}/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get broker connection state for a portfolio
+         * @description Returns the current broker connection state for a given portfolio.
+         *     If no connection exists, returns `connection_state: "disconnected"`.
+         */
+        get: operations["get_connection_api_v1_brokers__portfolio_id__connection_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect a broker from a portfolio
+         * @description Remove the broker connection for a portfolio.
+         */
+        delete: operations["disconnect_broker_api_v1_brokers__portfolio_id__connection_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brokers/{portfolio_id}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a broker account to a portfolio
+         * @description Initiate a broker connection for a portfolio.
+         *
+         *     For scaffolded connectors: persists a pending state and returns
+         *     `scaffolded: true` with an explanatory message — no error raised.
+         *
+         *     For implemented connectors: calls the connector's auth flow and
+         *     updates the portfolio's source metadata.
+         *
+         *     Security note: this endpoint accepts only non-secret config fields.
+         *     API keys and tokens must be passed via environment variables until
+         *     secure credential storage is implemented.
+         */
+        post: operations["connect_broker_api_v1_brokers__portfolio_id__connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brokers/{portfolio_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync holdings from a broker into a portfolio
+         * @description Pull current holdings from the connected broker and replace
+         *     the portfolio's holdings (with pre/post snapshots for history).
+         *
+         *     Returns HTTP 501 with `scaffolded: true` for unimplemented connectors.
+         *     Returns HTTP 400 if no connection exists or state is not connected.
+         */
+        post: operations["sync_broker_api_v1_brokers__portfolio_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily portfolio value history
+         * @description Returns the daily portfolio value time series for the given portfolio.
+         *
+         *     Data is pre-computed at upload time using 1-year historical prices × current
+         *     holdings quantities.  If no data is available yet (e.g. first startup before
+         *     any upload), returns has_data=False with an empty points list — not a 404.
+         *
+         *     **Important caveat (displayed by the frontend):**
+         *     Values assume *current holdings quantities* were held throughout the year.
+         *     This is a synthetic "mark-to-market" view, not actual historical performance.
+         */
+        get: operations["get_portfolio_history_api_v1_portfolios__portfolio_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/history/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Benchmark index daily history
+         * @description Returns daily close prices for the specified benchmark index.
+         *     Data is stored when the portfolio history was last built.
+         *
+         *     The frontend normalises benchmark values to the portfolio's starting value
+         *     so they can be overlaid on the same chart.
+         */
+        get: operations["get_benchmark_history_api_v1_portfolios__portfolio_id__history_benchmark_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/holdings/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-holding enrichment and data status
+         * @description Returns enrichment status for every holding in the portfolio.
+         *
+         *     Use this after upload to inspect which holdings have partial/failed enrichment,
+         *     unknown sector, unavailable fundamentals, or missing peer data.
+         *
+         *     The status fields are written to the DB during the enrichment step of the
+         *     upload pipeline and survive backend restarts.
+         *
+         *     Status field meanings:
+         *       enrichment_status:   enriched | partial | failed | pending
+         *       sector_status:       from_file | yfinance | fmp | static_map | unknown
+         *       fundamentals_status: fetched | unavailable | pending
+         *       peers_status:        found | none | pending
+         */
+        get: operations["get_holdings_status_api_v1_portfolios__portfolio_id__holdings_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/history/build-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lightweight history build status for polling
+         * @description Returns the current history build status without fetching the full time series.
+         *
+         *     Use this for lightweight polling on the Changes page to show a progress banner
+         *     while the background task is running.  Once status is 'done' or 'failed',
+         *     poll the main /history endpoint to get or confirm absence of data.
+         *
+         *     Status values:
+         *       pending  — upload completed but background task hasn't started yet
+         *       building — background task is actively fetching and storing data
+         *       done     — build completed; rows are in the portfolio_history table
+         *       failed   — build encountered an error; error field explains why
+         *       unknown  — no upload has been triggered in this server session
+         *                  (server may have restarted; check /history for existing data)
+         */
+        get: operations["get_history_build_status_endpoint_api_v1_portfolios__portfolio_id__history_build_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/{portfolio_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Canonical history build status (DB-aware after server restart)
+         * @description Canonical status for the history build.  Returns the in-memory build status,
+         *     but when the server has restarted (status='unknown'), it checks the DB to see
+         *     if rows actually exist — and returns 'complete' if they do.
+         *
+         *     This prevents the frontend from treating a server restart as "no data ever built".
+         *
+         *     Status values:
+         *       building     — task actively running
+         *       complete     — rows exist in DB (either just built or from a prior session)
+         *       failed       — build failed; error field explains why
+         *       not_started  — no upload has occurred for this portfolio
+         */
+        get: operations["get_canonical_history_status_api_v1_history__portfolio_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/{portfolio_id}/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Canonical daily portfolio value series with discriminated state
+         * @description Returns the daily portfolio value time series along with a discriminated `state` field.
+         *
+         *     Unlike the legacy /portfolios/{id}/history, this endpoint never returns a
+         *     misleading empty series — it tells you exactly why it's empty:
+         *       complete     — points[] contains real data; has_data=True
+         *       building     — task in progress; points=[] but will arrive soon
+         *       failed       — build errored; points=[] permanently unless re-uploaded
+         *       not_started  — no history was ever built; upload again to trigger
+         *
+         *     The frontend should poll this endpoint (e.g. every 5s) while state='building'.
+         */
+        get: operations["get_canonical_history_daily_api_v1_history__portfolio_id__daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}/holdings/since-purchase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-holding P&L since average purchase price
+         * @description Returns per-holding P&L computed from average_cost × quantity vs
+         *     current_price × quantity.
+         *
+         *     All values come from the DB — no extra network calls at request time.
+         *     current_price is the live price fetched once at upload time; if it was
+         *     not available at upload, we fall back to average_cost (zero P&L shown).
+         *
+         *     Price freshness is reported honestly in summary.price_freshness_note.
+         *
+         *     This powers the "Since Purchase" panel on the Changes page and answers
+         *     the question: "How am I doing vs what I paid?"
+         */
+        get: operations["get_holdings_since_purchase_api_v1_portfolios__portfolio_id__holdings_since_purchase_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1222,178 +1375,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Import portfolio from upload
-         * @description Step 2 of the upload wizard.
-         *
-         *     Accepts the file again plus the confirmed column mapping (possibly edited by the user).
-         *     Normalises all rows, validates them, persists them to the database,
-         *     and saves a canonical CSV for compatibility.
-         *
-         *     The column_mapping JSON looks like:
-         *       {"ticker": "Symbol", "name": "Company Name", "quantity": "Qty", ...}
-         */
-        post: operations["confirm_upload_api_v1_upload_confirm_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload/parse": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Parse and detect columns
-         * @description Step 1 of the upload wizard.
-         *
-         *     Reads the file, auto-detects column roles, returns a preview.
-         *     No data is saved at this stage.
-         */
-        post: operations["parse_upload_api_v1_upload_parse_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Poll enrichment status for an uploaded portfolio (spec-compliant URL)
-         * @description Spec-required query-param variant of the enrichment status endpoint.
-         *
-         *     Returns per-holding enrichment state from the DB.
-         *     Identical response shape to GET /upload/v2/status/{portfolio_id}.
-         *     Poll after POST /upload/v2/confirm to track background enrichment progress.
-         */
-        get: operations["get_upload_status_api_v1_upload_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload/v2/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * [V2] Import portfolio — fast path with background enrichment
-         * @description Upload V2 fast-path confirm.
-         *
-         *     Accepts the same file + column_mapping as the legacy /confirm endpoint.
-         *     Returns in < 2 s (base persist only).  Enrichment runs in the background.
-         *
-         *     Response includes:
-         *       - portfolio_id for status polling
-         *       - row classification (valid / valid_with_warning / invalid)
-         *       - rejected_rows and warning_rows details
-         *       - enrichment_complete: false (poll /v2/status/{portfolio_id} for progress)
-         *       - portfolio_usable: true (dashboard/holdings/fundamentals work immediately)
-         */
-        post: operations["confirm_upload_v2_api_v1_upload_v2_confirm_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload/v2/status/{portfolio_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * [V2] Poll enrichment status for an uploaded portfolio
-         * @description Returns current per-holding enrichment state from the DB.
-         *
-         *     Poll this endpoint after /v2/confirm to track background enrichment progress.
-         *     enrichment_complete becomes True once all holdings have left "pending" state.
-         *     Typically completes within 10–60 seconds depending on portfolio size and
-         *     yfinance response times.
-         */
-        get: operations["get_upload_status_v2_api_v1_upload_v2_status__portfolio_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/watchlist/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get watchlist */
-        get: operations["get_watchlist_api_v1_watchlist__get"];
-        put?: never;
-        /** Add to watchlist */
-        post: operations["add_to_watchlist_api_v1_watchlist__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/watchlist/{ticker}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove from watchlist */
-        delete: operations["remove_from_watchlist_api_v1_watchlist__ticker__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update watchlist entry
-         * @description Partially update a watchlist entry. Only fields present in the request body
-         *     are changed — omitted fields are left as-is.
-         *
-         *     Updatable fields: name, tag, sector, target_price, notes.
-         *     Ticker cannot be changed (use delete + re-add instead).
-         */
-        patch: operations["update_watchlist_item_api_v1_watchlist__ticker__patch"];
         trace?: never;
     };
     "/health": {
@@ -1443,6 +1424,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Root */
+        get: operations["root__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1452,52 +1450,52 @@ export interface components {
          * @description Response from POST /advisor/ask
          */
         AIAdvisorResponse: {
+            /** Query */
+            query: string;
+            /** Summary */
+            summary: string;
+            /** Insights */
+            insights: string[];
+            /** Recommendations */
+            recommendations: string[];
+            /** Follow Ups */
+            follow_ups: string[];
             /**
              * Category
              * @default general
              */
             category: string;
-            context_summary?: components["schemas"]["ContextSummary"] | null;
-            /** Error Message */
-            error_message?: string | null;
-            /**
-             * Fallback Used
-             * @default false
-             */
-            fallback_used: boolean;
-            /** Follow Ups */
-            follow_ups: string[];
-            /** Insights */
-            insights: string[];
-            /**
-             * Latency Ms
-             * @default 0
-             */
-            latency_ms: number;
-            /** Model */
-            model?: string | null;
             /**
              * Provider
              * @default fallback
              */
             provider: string;
-            /** Query */
-            query: string;
-            /** Recommendations */
-            recommendations: string[];
-            /** Summary */
-            summary: string;
+            /** Model */
+            model?: string | null;
+            /**
+             * Latency Ms
+             * @default 0
+             */
+            latency_ms: number;
+            /**
+             * Fallback Used
+             * @default false
+             */
+            fallback_used: boolean;
+            /** Error Message */
+            error_message?: string | null;
+            context_summary?: components["schemas"]["ContextSummary"] | null;
         };
         /** ActivateResponse */
         ActivateResponse: {
+            /** Success */
+            success: boolean;
             /** Activated Id */
             activated_id: number;
             /** Activated Name */
             activated_name: string;
             /** Previously Active */
             previously_active?: number | null;
-            /** Success */
-            success: boolean;
         };
         /**
          * AdvisorQueryRequest
@@ -1505,16 +1503,15 @@ export interface components {
          */
         AdvisorQueryRequest: {
             /**
-             * Conversation History
-             * @description Prior turns in this conversation, oldest first. Sent to the LLM so it can maintain context across messages. Limit to last 6 turns to avoid token overflow.
+             * Query
+             * @description User's natural language question
              */
-            conversation_history?: components["schemas"]["ConversationTurn"][];
+            query: string;
             /**
-             * Include Optimization
-             * @description Include optimization-aware narrative in context
-             * @default false
+             * Portfolio Id
+             * @description Portfolio to analyse (uses active if omitted)
              */
-            include_optimization: boolean;
+            portfolio_id?: number | null;
             /**
              * Include Snapshots
              * @description Include snapshot history in context
@@ -1522,90 +1519,91 @@ export interface components {
              */
             include_snapshots: boolean;
             /**
-             * Portfolio Id
-             * @description Portfolio to analyse (uses active if omitted)
+             * Include Optimization
+             * @description Include optimization-aware narrative in context
+             * @default false
              */
-            portfolio_id?: number | null;
+            include_optimization: boolean;
             /**
-             * Query
-             * @description User's natural language question
+             * Conversation History
+             * @description Prior turns in this conversation, oldest first. Sent to the LLM so it can maintain context across messages. Limit to last 6 turns to avoid token overflow.
              */
-            query: string;
+            conversation_history?: components["schemas"]["ConversationTurn"][];
         };
         /**
          * AdvisorStatusResponse
          * @description Response from GET /advisor/status
          */
         AdvisorStatusResponse: {
+            /** Available */
+            available: boolean;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model?: string | null;
+            /** Message */
+            message: string;
             /**
              * Ai Enabled
              * @default false
              */
             ai_enabled: boolean;
-            /** Available */
-            available: boolean;
-            /** Message */
-            message: string;
-            /** Model */
-            model?: string | null;
-            /** Provider */
-            provider: string;
         };
         /**
          * BenchmarkMetrics
          * @description Benchmark comparison block.
          */
         BenchmarkMetrics: {
+            /** Name */
+            name: string;
+            /** Ticker */
+            ticker: string;
             /** Annualized Return */
             annualized_return?: number | null;
             /** Annualized Volatility */
             annualized_volatility?: number | null;
-            /** Max Drawdown */
-            max_drawdown?: number | null;
-            /** Name */
-            name: string;
             /** Sharpe Ratio */
             sharpe_ratio?: number | null;
+            /** Max Drawdown */
+            max_drawdown?: number | null;
             /**
              * Source
              * @default mock
              */
             source: string;
-            /** Ticker */
-            ticker: string;
         };
         /** BenchmarkPoint */
         BenchmarkPoint: {
-            /** Close Price */
-            close_price: number;
             /** Date */
             date: string;
+            /** Close Price */
+            close_price: number;
         };
         /** Body_confirm_upload_api_v1_upload_confirm_post */
         Body_confirm_upload_api_v1_upload_confirm_post: {
             /**
-             * Column Mapping
-             * @description JSON object: canonical_field → original_column_name
-             */
-            column_mapping: string;
-            /**
              * File
              * Format: binary
              */
             file: string;
+            /**
+             * Column Mapping
+             * @description JSON object: canonical_field → original_column_name
+             */
+            column_mapping: string;
         };
         /** Body_confirm_upload_v2_api_v1_upload_v2_confirm_post */
         Body_confirm_upload_v2_api_v1_upload_v2_confirm_post: {
             /**
-             * Column Mapping
-             * @description JSON object: canonical_field → original_column_name
-             */
-            column_mapping: string;
-            /**
              * File
              * Format: binary
              */
             file: string;
+            /**
+             * Column Mapping
+             * @description JSON object: canonical_field → original_column_name
+             */
+            column_mapping: string;
         };
         /** Body_parse_upload_api_v1_upload_parse_post */
         Body_parse_upload_api_v1_upload_parse_post: {
@@ -1618,15 +1616,15 @@ export interface components {
         /** Body_refresh_portfolio_api_v1_portfolios__portfolio_id__refresh_post */
         Body_refresh_portfolio_api_v1_portfolios__portfolio_id__refresh_post: {
             /**
-             * Column Mapping
-             * @description JSON: canonical_field → original_column_name
-             */
-            column_mapping: string;
-            /**
              * File
              * Format: binary
              */
             file: string;
+            /**
+             * Column Mapping
+             * @description JSON: canonical_field → original_column_name
+             */
+            column_mapping: string;
         };
         /** Body_upload_portfolio_api_v1_portfolio_upload_post */
         Body_upload_portfolio_api_v1_portfolio_upload_post: {
@@ -1641,8 +1639,10 @@ export interface components {
          * @description Current state of a broker connection for a specific portfolio.
          */
         BrokerConnectionMeta: {
-            /** Account Id */
-            account_id?: string | null;
+            /** Id */
+            id?: number | null;
+            /** Portfolio Id */
+            portfolio_id: number;
             /** Broker Name */
             broker_name?: string | null;
             /**
@@ -1650,16 +1650,14 @@ export interface components {
              * @default disconnected
              */
             connection_state: string;
-            /** Created At */
-            created_at?: string | null;
-            /** Id */
-            id?: number | null;
+            /** Account Id */
+            account_id?: string | null;
             /** Last Sync At */
             last_sync_at?: string | null;
-            /** Portfolio Id */
-            portfolio_id: number;
             /** Sync Error */
             sync_error?: string | null;
+            /** Created At */
+            created_at?: string | null;
             /** Updated At */
             updated_at?: string | null;
         };
@@ -1668,28 +1666,28 @@ export interface components {
          * @description Static metadata for one available connector — not portfolio-specific.
          */
         BrokerInfo: {
-            /** Asset Classes */
-            asset_classes: string[];
-            /** Auth Method */
-            auth_method: string;
             /** Broker Name */
             broker_name: string;
-            /** Description */
-            description: string;
             /** Display Name */
             display_name: string;
-            /** Docs Url */
-            docs_url?: string | null;
+            /** Description */
+            description: string;
+            /** Auth Method */
+            auth_method: string;
+            /** Region */
+            region: string;
+            /** Asset Classes */
+            asset_classes: string[];
             /** Is Configured */
             is_configured: boolean;
             /** Is Implemented */
             is_implemented: boolean;
-            /** Logo Slug */
-            logo_slug?: string | null;
-            /** Region */
-            region: string;
             /** Required Config Fields */
             required_config_fields: string[];
+            /** Docs Url */
+            docs_url?: string | null;
+            /** Logo Slug */
+            logo_slug?: string | null;
         };
         /** BrokerListResponse */
         BrokerListResponse: {
@@ -1700,49 +1698,49 @@ export interface components {
         };
         /** CanonicalHistoryDaily */
         CanonicalHistoryDaily: {
-            /** As Of */
-            as_of?: string | null;
-            /** Build Status */
-            build_status?: string | null;
-            /** Count */
-            count: number;
-            /** Earliest Date */
-            earliest_date?: string | null;
-            /** Has Data */
-            has_data: boolean;
-            /** Latest Date */
-            latest_date?: string | null;
-            /** Note */
-            note?: string | null;
-            /** Points */
-            points: components["schemas"]["HistoryPoint"][];
             /** Portfolio Id */
             portfolio_id: number;
             /** State */
             state: string;
-        };
-        /** CanonicalHistoryStatus */
-        CanonicalHistoryStatus: {
-            /** As Of */
-            as_of?: string | null;
-            /** Earliest Date */
-            earliest_date?: string | null;
-            /** Error */
-            error?: string | null;
+            /** Points */
+            points: components["schemas"]["HistoryPoint"][];
+            /** Count */
+            count: number;
             /** Has Data */
             has_data: boolean;
-            /** Is Building */
-            is_building: boolean;
+            /** Earliest Date */
+            earliest_date?: string | null;
             /** Latest Date */
             latest_date?: string | null;
             /** Note */
             note?: string | null;
+            /** Build Status */
+            build_status?: string | null;
+            /** As Of */
+            as_of?: string | null;
+        };
+        /** CanonicalHistoryStatus */
+        CanonicalHistoryStatus: {
             /** Portfolio Id */
             portfolio_id: number;
-            /** Rows */
-            rows: number;
             /** Status */
             status: string;
+            /** Rows */
+            rows: number;
+            /** Earliest Date */
+            earliest_date?: string | null;
+            /** Latest Date */
+            latest_date?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Is Building */
+            is_building: boolean;
+            /** Has Data */
+            has_data: boolean;
+            /** As Of */
+            as_of?: string | null;
         };
         /** ChatMessage */
         ChatMessage: {
@@ -1758,11 +1756,6 @@ export interface components {
         };
         /** ChatResponse */
         ChatResponse: {
-            /**
-             * Enabled
-             * @default false
-             */
-            enabled: boolean;
             /** Reply */
             reply: string;
             /**
@@ -1770,44 +1763,49 @@ export interface components {
              * @default scaffold
              */
             source: string;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
         };
         /**
          * ConfirmResponse
          * @description Result of the /confirm step returned after saving the normalised portfolio.
          */
         ConfirmResponse: {
-            /** Enriched Count */
-            enriched_count: number;
-            /** Enrichment Details */
-            enrichment_details: {
-                [key: string]: unknown;
-            }[];
-            /** Enrichment Note */
-            enrichment_note: string | null;
+            /** Success */
+            success: boolean;
             /** Filename */
             filename: string;
-            /** Holdings Parsed */
-            holdings_parsed: number;
-            /** Message */
-            message: string;
             /** Rows Accepted */
             rows_accepted: number;
-            /** Rows Fully Enriched */
-            rows_fully_enriched: number;
-            /** Rows No Fundamentals */
-            rows_no_fundamentals: number;
-            /** Rows Partially Enriched */
-            rows_partially_enriched: number;
             /** Rows Rejected */
             rows_rejected: number;
-            /** Rows Sector Unknown */
-            rows_sector_unknown: number;
             /** Skipped Details */
             skipped_details: {
                 [key: string]: unknown;
             }[];
-            /** Success */
-            success: boolean;
+            /** Rows Fully Enriched */
+            rows_fully_enriched: number;
+            /** Rows Partially Enriched */
+            rows_partially_enriched: number;
+            /** Rows Sector Unknown */
+            rows_sector_unknown: number;
+            /** Rows No Fundamentals */
+            rows_no_fundamentals: number;
+            /** Enriched Count */
+            enriched_count: number;
+            /** Enrichment Note */
+            enrichment_note: string | null;
+            /** Enrichment Details */
+            enrichment_details: {
+                [key: string]: unknown;
+            }[];
+            /** Holdings Parsed */
+            holdings_parsed: number;
+            /** Message */
+            message: string;
         };
         /**
          * ConnectRequest
@@ -1817,15 +1815,15 @@ export interface components {
          */
         ConnectRequest: {
             /**
-             * Account Id
-             * @description Broker account reference (non-secret)
-             */
-            account_id?: string | null;
-            /**
              * Broker Name
              * @description e.g. 'zerodha' | 'ibkr'
              */
             broker_name: string;
+            /**
+             * Account Id
+             * @description Broker account reference (non-secret)
+             */
+            account_id?: string | null;
             /**
              * Config
              * @description Non-secret config fields
@@ -1836,34 +1834,34 @@ export interface components {
         };
         /** ConnectResponse */
         ConnectResponse: {
-            /** Account Id */
-            account_id?: string | null;
+            /** Success */
+            success: boolean;
+            /** Portfolio Id */
+            portfolio_id: number;
             /** Broker Name */
             broker_name: string;
             /** Connection State */
             connection_state: string;
+            /** Account Id */
+            account_id?: string | null;
             /** Message */
             message: string;
-            /** Portfolio Id */
-            portfolio_id: number;
             /**
              * Scaffolded
              * @default false
              */
             scaffolded: boolean;
-            /** Success */
-            success: boolean;
         };
         /** ContextSummary */
         ContextSummary: {
-            /** Has Recent Changes */
-            has_recent_changes: boolean;
             /** Holdings Count */
             holdings_count: number;
-            /** Sectors Count */
-            sectors_count: number;
             /** Snapshots Count */
             snapshots_count: number;
+            /** Sectors Count */
+            sectors_count: number;
+            /** Has Recent Changes */
+            has_recent_changes: boolean;
         };
         /**
          * ConversationTurn
@@ -1871,96 +1869,96 @@ export interface components {
          */
         ConversationTurn: {
             /**
-             * Content
-             * @description Message text
-             */
-            content: string;
-            /**
              * Role
              * @description 'user' or 'assistant'
              */
             role: string;
+            /**
+             * Content
+             * @description Message text
+             */
+            content: string;
         };
         /** CorrelationResult */
         CorrelationResult: {
-            /** Average Pairwise */
-            average_pairwise?: number | null;
-            /** Interpretation */
-            interpretation?: string | null;
+            /** Tickers */
+            tickers: string[];
             /**
              * Matrix
              * @description n×n correlation matrix
              */
             matrix: number[][];
-            max_pair?: components["schemas"]["PairwisePair"] | null;
+            /** Average Pairwise */
+            average_pairwise?: number | null;
             min_pair?: components["schemas"]["PairwisePair"] | null;
-            /** Tickers */
-            tickers: string[];
+            max_pair?: components["schemas"]["PairwisePair"] | null;
+            /** Interpretation */
+            interpretation?: string | null;
         };
         /** DateRange */
         DateRange: {
-            /** End */
-            end: string;
             /** Start */
             start: string;
+            /** End */
+            end: string;
         };
         /** DeleteResponse */
         DeleteResponse: {
+            /** Success */
+            success: boolean;
             /** Deleted Id */
             deleted_id: number;
             /** Message */
             message: string;
-            /** Success */
-            success: boolean;
         };
         /** DisconnectResponse */
         DisconnectResponse: {
+            /** Success */
+            success: boolean;
+            /** Portfolio Id */
+            portfolio_id: number;
             /** Broker Name */
             broker_name?: string | null;
             /** Message */
             message: string;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Success */
-            success: boolean;
         };
         /** FeatureDependencyHealth */
         FeatureDependencyHealth: {
             /** Name */
             name: string;
-            /** Reason */
-            reason?: string | null;
             /**
              * Status
              * @enum {string}
              */
             status: "enabled" | "disabled" | "degraded" | "unavailable";
+            /** Reason */
+            reason?: string | null;
         };
         /** FeatureHealth */
         FeatureHealth: {
-            /** Dependencies */
-            dependencies?: components["schemas"]["FeatureDependencyHealth"][];
-            /** Disable Behavior */
-            disable_behavior: string;
-            /** Failure Behavior */
-            failure_behavior: string;
             /** Feature Id */
             feature_id: string;
-            /** Frontend Owner Hook */
-            frontend_owner_hook?: string | null;
             /** Label */
             label: string;
-            /** Reason */
-            reason?: string | null;
-            /** Route Prefix */
-            route_prefix: string;
-            /** Side Effects */
-            side_effects?: string[];
             /**
              * Status
              * @enum {string}
              */
             status: "enabled" | "disabled" | "degraded" | "unavailable";
+            /** Route Prefix */
+            route_prefix: string;
+            /** Reason */
+            reason?: string | null;
+            /** Dependencies */
+            dependencies?: components["schemas"]["FeatureDependencyHealth"][];
+            /** Side Effects */
+            side_effects?: string[];
+            /** Failure Behavior */
+            failure_behavior: string;
+            /** Frontend Owner Hook */
+            frontend_owner_hook?: string | null;
+            /** Disable Behavior */
+            disable_behavior: string;
         };
         /** FeatureRegistryResponse */
         FeatureRegistryResponse: {
@@ -1977,62 +1975,62 @@ export interface components {
          *     Phase 2: Fetched from yfinance / Financial Modeling Prep API.
          */
         FinancialRatioResponse: {
-            /**
-             * Cache Age Seconds
-             * @description Seconds since cache was populated
-             */
-            cache_age_seconds?: number | null;
-            /** Debt To Equity */
-            debt_to_equity?: number | null;
-            /** Dividend Yield */
-            dividend_yield?: number | null;
-            /** Earnings Growth */
-            earnings_growth?: number | null;
-            /**
-             * Error
-             * @description Reason data is unavailable
-             */
-            error?: string | null;
-            /** Ev Ebitda */
-            ev_ebitda?: number | null;
-            /**
-             * Fetched At
-             * @description Epoch seconds of last fetch
-             */
-            fetched_at?: number | null;
-            /** Forward Pe */
-            forward_pe?: number | null;
-            /** Industry */
-            industry?: string | null;
-            /** Market Cap */
-            market_cap?: number | null;
+            /** Ticker */
+            ticker: string;
             /** Name */
             name: string;
-            /** Operating Margin */
-            operating_margin?: number | null;
-            /** Pb Ratio */
-            pb_ratio?: number | null;
-            /** Pe Ratio */
-            pe_ratio?: number | null;
-            /** Peg Ratio */
-            peg_ratio?: number | null;
-            /** Profit Margin */
-            profit_margin?: number | null;
-            /** Revenue Growth */
-            revenue_growth?: number | null;
-            /** Roa */
-            roa?: number | null;
-            /** Roe */
-            roe?: number | null;
             /** Sector */
             sector?: string | null;
+            /** Industry */
+            industry?: string | null;
             /**
              * Source
              * @default mock
              */
             source: string;
-            /** Ticker */
-            ticker: string;
+            /**
+             * Error
+             * @description Reason data is unavailable
+             */
+            error?: string | null;
+            /**
+             * Fetched At
+             * @description Epoch seconds of last fetch
+             */
+            fetched_at?: number | null;
+            /**
+             * Cache Age Seconds
+             * @description Seconds since cache was populated
+             */
+            cache_age_seconds?: number | null;
+            /** Pe Ratio */
+            pe_ratio?: number | null;
+            /** Forward Pe */
+            forward_pe?: number | null;
+            /** Pb Ratio */
+            pb_ratio?: number | null;
+            /** Ev Ebitda */
+            ev_ebitda?: number | null;
+            /** Peg Ratio */
+            peg_ratio?: number | null;
+            /** Dividend Yield */
+            dividend_yield?: number | null;
+            /** Roe */
+            roe?: number | null;
+            /** Roa */
+            roa?: number | null;
+            /** Operating Margin */
+            operating_margin?: number | null;
+            /** Profit Margin */
+            profit_margin?: number | null;
+            /** Revenue Growth */
+            revenue_growth?: number | null;
+            /** Earnings Growth */
+            earnings_growth?: number | null;
+            /** Debt To Equity */
+            debt_to_equity?: number | null;
+            /** Market Cap */
+            market_cap?: number | null;
         };
         /**
          * FinancialRatiosResponse
@@ -2049,9 +2047,9 @@ export interface components {
         FinancialRatiosResponse: {
             /** Holdings */
             holdings: components["schemas"]["FinancialRatioResponse"][];
+            weighted: components["schemas"]["WeightedFundamentals"];
             meta: components["schemas"]["FundamentalsMeta"];
             thresholds: components["schemas"]["FundamentalsThresholds"];
-            weighted: components["schemas"]["WeightedFundamentals"];
         };
         /**
          * FundamentalsMeta
@@ -2060,46 +2058,46 @@ export interface components {
          *     as if it were fully complete.
          */
         FundamentalsMeta: {
+            /**
+             * Source
+             * @default yfinance
+             */
+            source: string;
             /** As Of */
             as_of?: string | null;
-            /**
-             * Available Holdings
-             * @default 0
-             */
-            available_holdings: number;
-            /** Coverage Pct */
-            coverage_pct?: number | null;
-            /** Excluded Reason */
-            excluded_reason?: {
-                [key: string]: string;
-            };
             /**
              * Incomplete
              * @default false
              */
             incomplete: boolean;
             /**
+             * Total Holdings
+             * @default 0
+             */
+            total_holdings: number;
+            /**
+             * Available Holdings
+             * @default 0
+             */
+            available_holdings: number;
+            /** Unavailable Tickers */
+            unavailable_tickers?: string[];
+            /** Coverage Pct */
+            coverage_pct?: number | null;
+            /**
              * Outliers Excluded Total
              * @default 0
              */
             outliers_excluded_total: number;
             /**
-             * Source
-             * @default yfinance
-             */
-            source: string;
-            /**
-             * Total Holdings
-             * @default 0
-             */
-            total_holdings: number;
-            /** Unavailable Tickers */
-            unavailable_tickers?: string[];
-            /**
              * Unknown Sectors Count
              * @default 0
              */
             unknown_sectors_count: number;
+            /** Excluded Reason */
+            excluded_reason?: {
+                [key: string]: string;
+            };
         };
         /**
          * FundamentalsSummary
@@ -2114,18 +2112,18 @@ export interface components {
              * @default false
              */
             available: boolean;
-            /** Coverage Pct */
-            coverage_pct?: number | null;
-            /**
-             * Holdings With Data
-             * @default 0
-             */
-            holdings_with_data: number;
             /**
              * Total Holdings
              * @default 0
              */
             total_holdings: number;
+            /**
+             * Holdings With Data
+             * @default 0
+             */
+            holdings_with_data: number;
+            /** Coverage Pct */
+            coverage_pct?: number | null;
         };
         /**
          * FundamentalsThresholds
@@ -2137,74 +2135,74 @@ export interface components {
          *     If a threshold changes there, it propagates here automatically on next request.
          */
         FundamentalsThresholds: {
-            /** Div Yield High */
-            div_yield_high: number;
-            /** Div Yield Moderate */
-            div_yield_moderate: number;
-            /** Dte Conservative */
-            dte_conservative: number;
-            /** Dte Leveraged */
-            dte_leveraged: number;
-            /** Dte Moderate */
-            dte_moderate: number;
-            /** Growth Healthy */
-            growth_healthy: number;
-            /** Growth High */
-            growth_high: number;
-            /** Growth Slow */
-            growth_slow: number;
-            /** Insight Div Yield Low */
-            insight_div_yield_low: number;
-            /** Insight Div Yield Solid */
-            insight_div_yield_solid: number;
-            /** Insight Margin Thin */
-            insight_margin_thin: number;
-            /** Insight Pe Cheap */
-            insight_pe_cheap: number;
-            /** Insight Pe Expensive */
-            insight_pe_expensive: number;
-            /** Insight Peg Expensive */
-            insight_peg_expensive: number;
-            /** Insight Roe Strong */
-            insight_roe_strong: number;
-            /** Insight Roe Weak */
-            insight_roe_weak: number;
-            /** Margin Moderate */
-            margin_moderate: number;
-            /** Margin Strong */
-            margin_strong: number;
-            /** Margin Thin */
-            margin_thin: number;
+            /** Pe Cheap */
+            pe_cheap: number;
+            /** Pe Fair Max */
+            pe_fair_max: number;
+            /** Pe Elevated Max */
+            pe_elevated_max: number;
+            /** Peg Undervalued */
+            peg_undervalued: number;
+            /** Peg Fair Max */
+            peg_fair_max: number;
+            /** Peg Premium Max */
+            peg_premium_max: number;
             /** Pb Below Book */
             pb_below_book: number;
             /** Pb Fair Max */
             pb_fair_max: number;
             /** Pb Premium Max */
             pb_premium_max: number;
-            /** Pe Cheap */
-            pe_cheap: number;
-            /** Pe Elevated Max */
-            pe_elevated_max: number;
-            /** Pe Fair Max */
-            pe_fair_max: number;
-            /** Peg Fair Max */
-            peg_fair_max: number;
-            /** Peg Premium Max */
-            peg_premium_max: number;
-            /** Peg Undervalued */
-            peg_undervalued: number;
-            /** Roa Excellent */
-            roa_excellent: number;
-            /** Roa Good */
-            roa_good: number;
-            /** Roa Moderate */
-            roa_moderate: number;
             /** Roe Excellent */
             roe_excellent: number;
             /** Roe Good */
             roe_good: number;
             /** Roe Moderate */
             roe_moderate: number;
+            /** Roa Excellent */
+            roa_excellent: number;
+            /** Roa Good */
+            roa_good: number;
+            /** Roa Moderate */
+            roa_moderate: number;
+            /** Margin Strong */
+            margin_strong: number;
+            /** Margin Moderate */
+            margin_moderate: number;
+            /** Margin Thin */
+            margin_thin: number;
+            /** Growth High */
+            growth_high: number;
+            /** Growth Healthy */
+            growth_healthy: number;
+            /** Growth Slow */
+            growth_slow: number;
+            /** Dte Conservative */
+            dte_conservative: number;
+            /** Dte Moderate */
+            dte_moderate: number;
+            /** Dte Leveraged */
+            dte_leveraged: number;
+            /** Div Yield High */
+            div_yield_high: number;
+            /** Div Yield Moderate */
+            div_yield_moderate: number;
+            /** Insight Pe Expensive */
+            insight_pe_expensive: number;
+            /** Insight Pe Cheap */
+            insight_pe_cheap: number;
+            /** Insight Peg Expensive */
+            insight_peg_expensive: number;
+            /** Insight Roe Strong */
+            insight_roe_strong: number;
+            /** Insight Roe Weak */
+            insight_roe_weak: number;
+            /** Insight Margin Thin */
+            insight_margin_thin: number;
+            /** Insight Div Yield Solid */
+            insight_div_yield_solid: number;
+            /** Insight Div Yield Low */
+            insight_div_yield_low: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2213,24 +2211,24 @@ export interface components {
         };
         /** HistoryBuildStatusResponse */
         HistoryBuildStatusResponse: {
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Status */
+            status: string;
+            /** Rows Written */
+            rows_written: number;
             /** Benchmark Rows */
             benchmark_rows: number;
             /** Error */
             error?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Started At */
+            started_at?: string | null;
             /** Finished At */
             finished_at?: string | null;
             /** Is Building */
             is_building: boolean;
-            /** Note */
-            note?: string | null;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Rows Written */
-            rows_written: number;
-            /** Started At */
-            started_at?: string | null;
-            /** Status */
-            status: string;
         };
         /** HistoryPoint */
         HistoryPoint: {
@@ -2242,16 +2240,47 @@ export interface components {
         /** HoldingBase */
         HoldingBase: {
             /**
-             * Asset Class
-             * @default Equity
-             * @example Equity
+             * Ticker
+             * @description Stock ticker symbol
+             * @example TCS.NS
              */
-            asset_class: string | null;
+            ticker: string;
+            /**
+             * Name
+             * @example Tata Consultancy Services
+             */
+            name: string;
+            /**
+             * Quantity
+             * @example 30
+             */
+            quantity: number;
             /**
              * Average Cost
              * @example 3500
              */
             average_cost: number;
+            /**
+             * Current Price
+             * @example 3820
+             */
+            current_price?: number | null;
+            /**
+             * Sector
+             * @example Information Technology
+             */
+            sector?: string | null;
+            /**
+             * Industry
+             * @example IT Services & Consulting
+             */
+            industry?: string | null;
+            /**
+             * Asset Class
+             * @default Equity
+             * @example Equity
+             */
+            asset_class: string | null;
             /**
              * Currency
              * @default INR
@@ -2259,93 +2288,94 @@ export interface components {
              */
             currency: string | null;
             /**
-             * Current Price
-             * @example 3820
-             */
-            current_price?: number | null;
-            /**
-             * Data Source
-             * @example live
-             */
-            data_source?: string | null;
-            /**
-             * Enrichment Status
-             * @description Overall enrichment quality: enriched|partial|failed|pending
-             */
-            enrichment_status?: string | null;
-            /**
-             * Fundamentals Status
-             * @description Whether fundamentals were fetched at upload: fetched|unavailable|pending
-             */
-            fundamentals_status?: string | null;
-            /**
-             * Industry
-             * @example IT Services & Consulting
-             */
-            industry?: string | null;
-            /**
-             * Name
-             * @example Tata Consultancy Services
-             */
-            name: string;
-            /**
-             * Notes
-             * @description Free-text user annotations from the uploaded file
-             */
-            notes?: string | null;
-            /**
              * Purchase Date
              * @description Date of purchase (YYYY-MM-DD or as found in the file)
              * @example 2023-04-15
              */
             purchase_date?: string | null;
             /**
-             * Quantity
-             * @example 30
+             * Notes
+             * @description Free-text user annotations from the uploaded file
              */
-            quantity: number;
+            notes?: string | null;
             /**
-             * Sector
-             * @example Information Technology
+             * Data Source
+             * @example live
              */
-            sector?: string | null;
+            data_source?: string | null;
+            /**
+             * Price Status
+             * @description Price state: live|stale|missing|fallback_average_cost|uploaded_current_price|provider_failed|pending|unknown
+             */
+            price_status?: string | null;
+            /**
+             * Price Source
+             * @description Provider/source for the current price: yfinance|uploaded_csv|db_only|average_cost|unknown
+             */
+            price_source?: string | null;
+            /**
+             * Price Timestamp
+             * @description UTC timestamp when the price was fetched or recorded
+             */
+            price_timestamp?: string | null;
+            /**
+             * Price Failure Reason
+             * @description Reason the live provider could not supply a price
+             */
+            price_failure_reason?: string | null;
             /**
              * Sector Status
              * @description Source that resolved this sector: from_file|yfinance|fmp|static_map|unknown
              */
             sector_status?: string | null;
             /**
-             * Ticker
-             * @description Stock ticker symbol
-             * @example TCS.NS
+             * Fundamentals Status
+             * @description Whether fundamentals were fetched at upload: fetched|unavailable|pending
              */
-            ticker: string;
+            fundamentals_status?: string | null;
+            /**
+             * Enrichment Status
+             * @description Overall enrichment quality: enriched|partial|failed|pending
+             */
+            enrichment_status?: string | null;
         };
         /** HoldingBrief */
         HoldingBrief: {
+            /** Ticker */
+            ticker: string;
             /** Name */
             name: string;
+            /** Weight Pct */
+            weight_pct: number;
+            /** Value */
+            value: number;
             /** Pnl Pct */
             pnl_pct: number;
             /** Sector */
             sector: string;
-            /** Ticker */
-            ticker: string;
-            /** Value */
-            value: number;
-            /** Weight Pct */
-            weight_pct: number;
         };
         /**
          * HoldingContribution
          * @description Per-holding performance attribution.
          */
         HoldingContribution: {
+            /** Ticker */
+            ticker: string;
+            /**
+             * Weight
+             * @description Portfolio weight (%)
+             */
+            weight: number;
             /**
              * Annualized Return
              * @description Annualised return (%)
              */
             annualized_return?: number | null;
+            /**
+             * Volatility
+             * @description Annualised volatility (%)
+             */
+            volatility?: number | null;
             /**
              * Beta
              * @description Beta vs NIFTY 50
@@ -2353,48 +2383,36 @@ export interface components {
             beta?: number | null;
             /** Error */
             error?: string | null;
-            /** Ticker */
-            ticker: string;
-            /**
-             * Volatility
-             * @description Annualised volatility (%)
-             */
-            volatility?: number | null;
-            /**
-             * Weight
-             * @description Portfolio weight (%)
-             */
-            weight: number;
         };
         /** HoldingDelta */
         HoldingDelta: {
+            /** Ticker */
+            ticker: string;
             /** Name */
             name?: string | null;
-            /** Qty After */
-            qty_after?: number | null;
-            /** Qty Before */
-            qty_before?: number | null;
             /** Sector */
             sector?: string | null;
+            /** Weight Before */
+            weight_before?: number | null;
+            /** Weight After */
+            weight_after?: number | null;
+            /** Weight Delta */
+            weight_delta?: number | null;
+            /** Value Before */
+            value_before?: number | null;
+            /** Value After */
+            value_after?: number | null;
+            /** Value Delta */
+            value_delta?: number | null;
+            /** Qty Before */
+            qty_before?: number | null;
+            /** Qty After */
+            qty_after?: number | null;
             /**
              * Status
              * @default unchanged
              */
             status: string;
-            /** Ticker */
-            ticker: string;
-            /** Value After */
-            value_after?: number | null;
-            /** Value Before */
-            value_before?: number | null;
-            /** Value Delta */
-            value_delta?: number | null;
-            /** Weight After */
-            weight_after?: number | null;
-            /** Weight Before */
-            weight_before?: number | null;
-            /** Weight Delta */
-            weight_delta?: number | null;
         };
         /**
          * HoldingEnriched
@@ -2403,16 +2421,47 @@ export interface components {
          */
         HoldingEnriched: {
             /**
-             * Asset Class
-             * @default Equity
-             * @example Equity
+             * Ticker
+             * @description Stock ticker symbol
+             * @example TCS.NS
              */
-            asset_class: string | null;
+            ticker: string;
+            /**
+             * Name
+             * @example Tata Consultancy Services
+             */
+            name: string;
+            /**
+             * Quantity
+             * @example 30
+             */
+            quantity: number;
             /**
              * Average Cost
              * @example 3500
              */
             average_cost: number;
+            /**
+             * Current Price
+             * @example 3820
+             */
+            current_price?: number | null;
+            /**
+             * Sector
+             * @example Information Technology
+             */
+            sector?: string | null;
+            /**
+             * Industry
+             * @example IT Services & Consulting
+             */
+            industry?: string | null;
+            /**
+             * Asset Class
+             * @default Equity
+             * @example Equity
+             */
+            asset_class: string | null;
             /**
              * Currency
              * @default INR
@@ -2420,45 +2469,61 @@ export interface components {
              */
             currency: string | null;
             /**
-             * Current Price
-             * @example 3820
+             * Purchase Date
+             * @description Date of purchase (YYYY-MM-DD or as found in the file)
+             * @example 2023-04-15
              */
-            current_price?: number | null;
+            purchase_date?: string | null;
+            /**
+             * Notes
+             * @description Free-text user annotations from the uploaded file
+             */
+            notes?: string | null;
             /**
              * Data Source
              * @example live
              */
             data_source?: string | null;
             /**
-             * Enrichment Status
-             * @description Overall enrichment quality: enriched|partial|failed|pending
+             * Price Status
+             * @description Price state: live|stale|missing|fallback_average_cost|uploaded_current_price|provider_failed|pending|unknown
              */
-            enrichment_status?: string | null;
+            price_status?: string | null;
+            /**
+             * Price Source
+             * @description Provider/source for the current price: yfinance|uploaded_csv|db_only|average_cost|unknown
+             */
+            price_source?: string | null;
+            /**
+             * Price Timestamp
+             * @description UTC timestamp when the price was fetched or recorded
+             */
+            price_timestamp?: string | null;
+            /**
+             * Price Failure Reason
+             * @description Reason the live provider could not supply a price
+             */
+            price_failure_reason?: string | null;
+            /**
+             * Sector Status
+             * @description Source that resolved this sector: from_file|yfinance|fmp|static_map|unknown
+             */
+            sector_status?: string | null;
             /**
              * Fundamentals Status
              * @description Whether fundamentals were fetched at upload: fetched|unavailable|pending
              */
             fundamentals_status?: string | null;
             /**
-             * Industry
-             * @example IT Services & Consulting
+             * Enrichment Status
+             * @description Overall enrichment quality: enriched|partial|failed|pending
              */
-            industry?: string | null;
+            enrichment_status?: string | null;
             /**
              * Market Value
              * @description quantity × current_price (or avg_cost fallback)
              */
             market_value?: number | null;
-            /**
-             * Name
-             * @example Tata Consultancy Services
-             */
-            name: string;
-            /**
-             * Notes
-             * @description Free-text user annotations from the uploaded file
-             */
-            notes?: string | null;
             /**
              * Pnl
              * @description (current_price − avg_cost) × quantity
@@ -2470,174 +2535,141 @@ export interface components {
              */
             pnl_pct?: number | null;
             /**
-             * Purchase Date
-             * @description Date of purchase (YYYY-MM-DD or as found in the file)
-             * @example 2023-04-15
-             */
-            purchase_date?: string | null;
-            /**
-             * Quantity
-             * @example 30
-             */
-            quantity: number;
-            /**
-             * Sector
-             * @example Information Technology
-             */
-            sector?: string | null;
-            /**
-             * Sector Status
-             * @description Source that resolved this sector: from_file|yfinance|fmp|static_map|unknown
-             */
-            sector_status?: string | null;
-            /**
-             * Ticker
-             * @description Stock ticker symbol
-             * @example TCS.NS
-             */
-            ticker: string;
-            /**
              * Weight
              * @description holding's % share of total portfolio value
              */
             weight?: number | null;
+            /**
+             * Market Value Uses Fallback
+             * @description True when market_value used average_cost because no trusted current_price was available
+             * @default false
+             */
+            market_value_uses_fallback: boolean;
         };
         /**
          * HoldingEnrichmentStatus
          * @description Per-holding enrichment state for the polling endpoint.
          */
         HoldingEnrichmentStatus: {
+            /** Ticker */
+            ticker: string;
+            /** Normalized Ticker */
+            normalized_ticker?: string | null;
             /** Enrichment Status */
             enrichment_status: string;
-            /** Failure Reason */
-            failure_reason?: string | null;
+            /** Sector Status */
+            sector_status?: string | null;
+            /** Name Status */
+            name_status?: string | null;
             /**
              * Fundamentals Status
              * @default pending
              */
             fundamentals_status: string;
-            /** Last Enriched At */
-            last_enriched_at?: string | null;
-            /** Name Status */
-            name_status?: string | null;
-            /** Normalized Ticker */
-            normalized_ticker?: string | null;
             /**
              * Peers Status
              * @default pending
              */
             peers_status: string;
-            /** Sector Status */
-            sector_status?: string | null;
-            /** Ticker */
-            ticker: string;
+            /** Price Status */
+            price_status?: string | null;
+            /** Price Source */
+            price_source?: string | null;
+            /** Price Timestamp */
+            price_timestamp?: string | null;
+            /** Price Failure Reason */
+            price_failure_reason?: string | null;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /** Last Enriched At */
+            last_enriched_at?: string | null;
         };
         /** HoldingStatus */
         HoldingStatus: {
-            /** Enrichment Status */
-            enrichment_status?: string | null;
-            /** Failure Reason */
-            failure_reason?: string | null;
-            /** Fundamentals Status */
-            fundamentals_status?: string | null;
             /** Id */
             id: number;
-            /** Last Enriched At */
-            last_enriched_at?: string | null;
+            /** Ticker */
+            ticker: string;
             /** Name */
             name: string;
             /** Normalized Ticker */
             normalized_ticker?: string | null;
-            /** Peers Status */
-            peers_status?: string | null;
+            /** Enrichment Status */
+            enrichment_status?: string | null;
             /** Sector Status */
             sector_status?: string | null;
-            /** Ticker */
-            ticker: string;
+            /** Fundamentals Status */
+            fundamentals_status?: string | null;
+            /** Peers Status */
+            peers_status?: string | null;
+            /** Last Enriched At */
+            last_enriched_at?: string | null;
+            /** Failure Reason */
+            failure_reason?: string | null;
         };
         /** HoldingsStatusResponse */
         HoldingsStatusResponse: {
-            /** Holdings */
-            holdings: components["schemas"]["HoldingStatus"][];
             /** Portfolio Id */
             portfolio_id: number;
+            /** Holdings */
+            holdings: components["schemas"]["HoldingStatus"][];
             summary: components["schemas"]["HoldingsStatusSummary"];
         };
         /** HoldingsStatusSummary */
         HoldingsStatusSummary: {
+            /** Total */
+            total: number;
             /** Enriched */
             enriched: number;
+            /** Partial */
+            partial: number;
             /** Failed */
             failed: number;
+            /** Sector Unknown */
+            sector_unknown: number;
             /** No Fundamentals */
             no_fundamentals: number;
             /** No Peers */
             no_peers: number;
-            /** Partial */
-            partial: number;
-            /** Sector Unknown */
-            sector_unknown: number;
-            /** Total */
-            total: number;
         };
         /** MetricsBlock */
         MetricsBlock: {
-            benchmark?: components["schemas"]["BenchmarkMetrics"] | null;
             portfolio?: components["schemas"]["PortfolioRiskMetrics"] | null;
+            benchmark?: components["schemas"]["BenchmarkMetrics"] | null;
         };
         /** OptimizationFullResponse */
         OptimizationFullResponse: {
             current: components["schemas"]["PortfolioPointSchema"] | null;
+            min_variance: components["schemas"]["PortfolioPointSchema"] | null;
+            max_sharpe: components["schemas"]["PortfolioPointSchema"] | null;
             /** Frontier */
             frontier: components["schemas"]["PortfolioPointSchema"][];
-            inputs: components["schemas"]["OptimizationInputsSummary"];
-            max_sharpe: components["schemas"]["PortfolioPointSchema"] | null;
-            meta: components["schemas"]["OptimizationMeta"];
-            min_variance: components["schemas"]["PortfolioPointSchema"] | null;
             /** Rebalance */
             rebalance: components["schemas"]["RebalanceDelta"][];
+            inputs: components["schemas"]["OptimizationInputsSummary"];
+            meta: components["schemas"]["OptimizationMeta"];
         };
         /** OptimizationInputsSummary */
         OptimizationInputsSummary: {
-            /** Covariance Diagonal */
-            covariance_diagonal: {
-                [key: string]: number;
-            };
             /** Expected Returns */
             expected_returns: {
+                [key: string]: number;
+            };
+            /** Covariance Diagonal */
+            covariance_diagonal: {
                 [key: string]: number;
             };
         };
         /** OptimizationMeta */
         OptimizationMeta: {
-            /** Cached */
-            cached: boolean;
-            /** Constraints */
-            constraints: string[];
-            /** Covariance Method */
-            covariance_method: string | null;
-            /** Error */
-            error?: string | null;
-            /** Expected Returns Method */
-            expected_returns_method: string | null;
-            /** Invalid Tickers */
-            invalid_tickers: string[];
-            /** N Frontier Points */
-            n_frontier_points: number;
-            /** N Observations */
-            n_observations: number;
-            /** Optimizer Method */
-            optimizer_method: string | null;
-            /** Period */
-            period: string;
             /** Provider Mode */
             provider_mode: string | null;
-            /** Risk Free Rate */
-            risk_free_rate: number;
-            /** Scipy Available */
-            scipy_available?: boolean | null;
-            /** Sklearn Available */
-            sklearn_available?: boolean | null;
+            /** Period */
+            period: string;
+            /** Valid Tickers */
+            valid_tickers: string[];
+            /** Invalid Tickers */
+            invalid_tickers: string[];
             /**
              * Ticker Status
              * @default {}
@@ -2645,8 +2677,28 @@ export interface components {
             ticker_status: {
                 [key: string]: string;
             };
-            /** Valid Tickers */
-            valid_tickers: string[];
+            /** N Observations */
+            n_observations: number;
+            /** Expected Returns Method */
+            expected_returns_method: string | null;
+            /** Covariance Method */
+            covariance_method: string | null;
+            /** Optimizer Method */
+            optimizer_method: string | null;
+            /** N Frontier Points */
+            n_frontier_points: number;
+            /** Risk Free Rate */
+            risk_free_rate: number;
+            /** Constraints */
+            constraints: string[];
+            /** Scipy Available */
+            scipy_available?: boolean | null;
+            /** Sklearn Available */
+            sklearn_available?: boolean | null;
+            /** Cached */
+            cached: boolean;
+            /** Error */
+            error?: string | null;
         };
         /** PairwisePair */
         PairwisePair: {
@@ -2660,41 +2712,41 @@ export interface components {
          * @description Result of the /parse step returned to the frontend for mapping/preview.
          */
         ParseResponse: {
-            /** Ambiguous Fields */
-            ambiguous_fields: string[];
             /** Column Names */
             column_names: string[];
             /** Detected Mapping */
             detected_mapping: {
                 [key: string]: string | null;
             };
+            /** Ambiguous Fields */
+            ambiguous_fields: string[];
             /** High Confidence */
             high_confidence: boolean;
-            /** Missing Optional */
-            missing_optional: string[];
-            /** Optional Fields */
-            optional_fields: string[];
             /** Preview Rows */
             preview_rows: {
                 [key: string]: unknown;
             }[];
-            /** Required Fields */
-            required_fields: string[];
             /** Row Count */
             row_count: number;
+            /** Missing Optional */
+            missing_optional: string[];
+            /** Required Fields */
+            required_fields: string[];
+            /** Optional Fields */
+            optional_fields: string[];
         };
         /** PerformanceBlock */
         PerformanceBlock: {
-            /**
-             * Benchmark
-             * @default []
-             */
-            benchmark: components["schemas"]["TimeSeriesPoint"][];
             /**
              * Portfolio
              * @default []
              */
             portfolio: components["schemas"]["TimeSeriesPoint"][];
+            /**
+             * Benchmark
+             * @default []
+             */
+            benchmark: components["schemas"]["TimeSeriesPoint"][];
         };
         /**
          * PortfolioBundleMeta
@@ -2716,6 +2768,12 @@ export interface components {
          *                      'ready'     → enrichment complete and all holdings have prices.
          */
         PortfolioBundleMeta: {
+            /** Mode */
+            mode: string;
+            /** Portfolio Id */
+            portfolio_id?: number | null;
+            /** Portfolio Name */
+            portfolio_name?: string | null;
             /** As Of */
             as_of: string;
             /**
@@ -2723,6 +2781,15 @@ export interface components {
              * @default false
              */
             enrichment_complete: boolean;
+            /**
+             * Partial Data
+             * @default false
+             */
+            partial_data: boolean;
+            /** Price Coverage */
+            price_coverage?: {
+                [key: string]: number;
+            } | null;
             /**
              * Incomplete
              * @default false
@@ -2733,17 +2800,6 @@ export interface components {
              * @default ready
              */
             lifecycle_state: string;
-            /** Mode */
-            mode: string;
-            /**
-             * Partial Data
-             * @default false
-             */
-            partial_data: boolean;
-            /** Portfolio Id */
-            portfolio_id?: number | null;
-            /** Portfolio Name */
-            portfolio_name?: string | null;
         };
         /**
          * PortfolioContextPayload
@@ -2752,53 +2808,51 @@ export interface components {
          *     Never exposes raw ORM objects.
          */
         PortfolioContextPayload: {
-            /** Built At */
-            built_at: string;
-            /** Diversification Score */
-            diversification_score: number;
-            /** Hhi */
-            hhi: number;
-            /** Max Holding Ticker */
-            max_holding_ticker: string;
-            /** Max Holding Weight */
-            max_holding_weight: number;
-            /** Num Holdings */
-            num_holdings: number;
-            /** Num Sectors */
-            num_sectors: number;
             /** Portfolio Id */
             portfolio_id: number;
             /** Portfolio Name */
             portfolio_name: string;
-            recent_changes: components["schemas"]["RecentChanges"] | null;
-            /** Risk Profile */
-            risk_profile: string;
-            /** Sector Allocation */
-            sector_allocation: components["schemas"]["SectorBrief"][];
-            /** Snapshot Count */
-            snapshot_count: number;
-            /** Snapshots */
-            snapshots: components["schemas"]["SnapshotBrief"][];
             /** Source */
             source: string;
-            source_metadata?: components["schemas"]["SourceMetaPayload"] | null;
-            /** Top3 Weight */
-            top3_weight: number;
-            /** Top Holdings */
-            top_holdings: components["schemas"]["HoldingBrief"][];
+            /** Total Value */
+            total_value: number;
             /** Total Cost */
             total_cost: number;
             /** Total Pnl */
             total_pnl: number;
             /** Total Pnl Pct */
             total_pnl_pct: number;
-            /** Total Value */
-            total_value: number;
+            /** Num Holdings */
+            num_holdings: number;
+            /** Top Holdings */
+            top_holdings: components["schemas"]["HoldingBrief"][];
+            /** Sector Allocation */
+            sector_allocation: components["schemas"]["SectorBrief"][];
+            /** Risk Profile */
+            risk_profile: string;
+            /** Hhi */
+            hhi: number;
+            /** Diversification Score */
+            diversification_score: number;
+            /** Max Holding Ticker */
+            max_holding_ticker: string;
+            /** Max Holding Weight */
+            max_holding_weight: number;
+            /** Top3 Weight */
+            top3_weight: number;
+            /** Num Sectors */
+            num_sectors: number;
+            /** Snapshot Count */
+            snapshot_count: number;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotBrief"][];
+            recent_changes: components["schemas"]["RecentChanges"] | null;
+            source_metadata?: components["schemas"]["SourceMetaPayload"] | null;
+            /** Built At */
+            built_at: string;
         };
         /** PortfolioCreateRequest */
         PortfolioCreateRequest: {
-            /** Description */
-            description?: string | null;
             /** Name */
             name: string;
             /**
@@ -2807,14 +2861,15 @@ export interface components {
              * @default manual
              */
             source: string;
+            /** Description */
+            description?: string | null;
         };
         /** PortfolioDeltaResponse */
         PortfolioDeltaResponse: {
-            /**
-             * Added Tickers
-             * @default []
-             */
-            added_tickers: string[];
+            /** Snapshot A Id */
+            snapshot_a_id: number;
+            /** Snapshot B Id */
+            snapshot_b_id: number;
             /**
              * Captured At A
              * Format: date-time
@@ -2827,51 +2882,52 @@ export interface components {
             captured_at_b: string;
             /** Days Apart */
             days_apart: number;
-            /**
-             * Decreased Tickers
-             * @default []
-             */
-            decreased_tickers: string[];
-            /**
-             * Has Changes
-             * @default false
-             */
-            has_changes: boolean;
+            /** Total Value Delta */
+            total_value_delta?: number | null;
+            /** Total Value Delta Pct */
+            total_value_delta_pct?: number | null;
+            /** Total Pnl Delta */
+            total_pnl_delta?: number | null;
             /**
              * Holding Deltas
              * @default []
              */
             holding_deltas: components["schemas"]["HoldingDelta"][];
             /**
-             * Increased Tickers
+             * Sector Deltas
              * @default []
              */
-            increased_tickers: string[];
+            sector_deltas: components["schemas"]["SectorDelta"][];
+            /**
+             * Added Tickers
+             * @default []
+             */
+            added_tickers: string[];
             /**
              * Removed Tickers
              * @default []
              */
             removed_tickers: string[];
             /**
-             * Sector Deltas
+             * Increased Tickers
              * @default []
              */
-            sector_deltas: components["schemas"]["SectorDelta"][];
-            /** Snapshot A Id */
-            snapshot_a_id: number;
-            /** Snapshot B Id */
-            snapshot_b_id: number;
-            /** Total Pnl Delta */
-            total_pnl_delta?: number | null;
-            /** Total Value Delta */
-            total_value_delta?: number | null;
-            /** Total Value Delta Pct */
-            total_value_delta_pct?: number | null;
+            increased_tickers: string[];
+            /**
+             * Decreased Tickers
+             * @default []
+             */
+            decreased_tickers: string[];
             /**
              * Unchanged Tickers
              * @default []
              */
             unchanged_tickers: string[];
+            /**
+             * Has Changes
+             * @default false
+             */
+            has_changes: boolean;
         };
         /**
          * PortfolioFullResponse
@@ -2891,75 +2947,84 @@ export interface components {
          *     RiskSnapshot mirrors frontend/src/types/index.ts#RiskSnapshot exactly.
          */
         PortfolioFullResponse: {
-            fundamentals_summary?: components["schemas"]["FundamentalsSummary"];
             /** Holdings */
             holdings: components["schemas"]["HoldingEnriched"][];
-            meta?: components["schemas"]["PortfolioBundleMeta"] | null;
-            risk_snapshot?: components["schemas"]["RiskSnapshot"] | null;
+            summary: components["schemas"]["PortfolioSummary"];
             /** Sectors */
             sectors: components["schemas"]["SectorAllocation"][];
-            summary: components["schemas"]["PortfolioSummary"];
+            risk_snapshot?: components["schemas"]["RiskSnapshot"] | null;
+            fundamentals_summary?: components["schemas"]["FundamentalsSummary"];
+            meta?: components["schemas"]["PortfolioBundleMeta"] | null;
         };
         /** PortfolioHistoryResponse */
         PortfolioHistoryResponse: {
-            /** Build Note */
-            build_note?: string | null;
-            /** Build Status */
-            build_status?: string | null;
-            /** Count */
-            count: number;
-            /** Earliest Date */
-            earliest_date?: string | null;
-            /** Has Data */
-            has_data: boolean;
-            /** Latest Date */
-            latest_date?: string | null;
-            /** Note */
-            note?: string | null;
-            /** Points */
-            points: components["schemas"]["HistoryPoint"][];
             /** Portfolio Id */
             portfolio_id: number;
+            /** Points */
+            points: components["schemas"]["HistoryPoint"][];
+            /** Count */
+            count: number;
+            /** Has Data */
+            has_data: boolean;
+            /** Note */
+            note?: string | null;
+            /** Earliest Date */
+            earliest_date?: string | null;
+            /** Latest Date */
+            latest_date?: string | null;
+            /** Build Status */
+            build_status?: string | null;
+            /** Build Note */
+            build_note?: string | null;
         };
         /** PortfolioListResponse */
         PortfolioListResponse: {
-            /** Active Id */
-            active_id?: number | null;
             /** Portfolios */
             portfolios: components["schemas"]["PortfolioMeta"][];
+            /** Active Id */
+            active_id?: number | null;
         };
         /**
          * PortfolioMeta
          * @description Lightweight portfolio summary — no holdings included.
          */
         PortfolioMeta: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Description */
-            description?: string | null;
             /** Id */
             id: number;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Is Refreshable
-             * @description True for sources where the user can re-import/sync data.
-             */
-            readonly is_refreshable: boolean;
-            /** Last Synced At */
-            last_synced_at?: string | null;
             /** Name */
             name: string;
+            /** Source */
+            source: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Description */
+            description?: string | null;
+            /** Upload Filename */
+            upload_filename?: string | null;
             /**
              * Num Holdings
              * @default 0
              */
             num_holdings: number;
-            /** Source */
-            source: string;
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            /** Source Metadata */
+            source_metadata?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Is Refreshable
+             * @description True for sources where the user can re-import/sync data.
+             */
+            readonly is_refreshable: boolean;
             /**
              * Source Meta Parsed
              * @description Convenience: source_metadata as a parsed dict (empty if null/invalid).
@@ -2967,32 +3032,23 @@ export interface components {
             readonly source_meta_parsed: {
                 [key: string]: unknown;
             };
-            /** Source Metadata */
-            source_metadata?: string | null;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Upload Filename */
-            upload_filename?: string | null;
         };
         /** PortfolioPointSchema */
         PortfolioPointSchema: {
+            /** Label */
+            label: string;
             /**
              * Expected Return
              * @description Annualised expected return (%)
              */
             expected_return: number;
-            /** Label */
-            label: string;
-            /** Sharpe Ratio */
-            sharpe_ratio: number;
             /**
              * Volatility
              * @description Annualised volatility (%)
              */
             volatility: number;
+            /** Sharpe Ratio */
+            sharpe_ratio: number;
             /**
              * Weights
              * @description Ticker → allocation (0–1 scale)
@@ -3012,42 +3068,15 @@ export interface components {
          */
         PortfolioRiskMetrics: {
             /**
-             * Alpha
-             * @description Jensen's alpha (%)
-             */
-            alpha?: number | null;
-            /**
-             * Annualized Return
-             * @description CAGR over the period (%)
-             */
-            annualized_return?: number | null;
-            /**
              * Annualized Volatility
              * @description Annualised volatility (%)
              */
             annualized_volatility?: number | null;
             /**
-             * Beta
-             * @description Beta vs NIFTY 50
+             * Annualized Return
+             * @description CAGR over the period (%)
              */
-            beta?: number | null;
-            /**
-             * Downside Deviation
-             * @description Annualised downside deviation (%)
-             */
-            downside_deviation?: number | null;
-            /** Error */
-            error?: string | null;
-            /**
-             * Information Ratio
-             * @description Information ratio (active return / TE)
-             */
-            information_ratio?: number | null;
-            /**
-             * Max Drawdown
-             * @description Maximum peak-to-trough loss (%)
-             */
-            max_drawdown?: number | null;
+            annualized_return?: number | null;
             /**
              * Sharpe Ratio
              * @description Sharpe ratio (excess return / vol)
@@ -3059,38 +3088,65 @@ export interface components {
              */
             sortino_ratio?: number | null;
             /**
-             * Tracking Error
-             * @description Annualised tracking error vs benchmark (%)
+             * Max Drawdown
+             * @description Maximum peak-to-trough loss (%)
              */
-            tracking_error?: number | null;
+            max_drawdown?: number | null;
+            /**
+             * Downside Deviation
+             * @description Annualised downside deviation (%)
+             */
+            downside_deviation?: number | null;
             /**
              * Var 95
              * @description Daily VaR at 95% confidence (%)
              */
             var_95?: number | null;
+            /**
+             * Beta
+             * @description Beta vs NIFTY 50
+             */
+            beta?: number | null;
+            /**
+             * Tracking Error
+             * @description Annualised tracking error vs benchmark (%)
+             */
+            tracking_error?: number | null;
+            /**
+             * Information Ratio
+             * @description Information ratio (active return / TE)
+             */
+            information_ratio?: number | null;
+            /**
+             * Alpha
+             * @description Jensen's alpha (%)
+             */
+            alpha?: number | null;
+            /** Error */
+            error?: string | null;
         };
         /**
          * PortfolioSummary
          * @description High-level portfolio KPIs for the dashboard header cards.
          */
         PortfolioSummary: {
-            /**
-             * Data Source
-             * @default mock
-             */
-            data_source: string;
-            /** Num Holdings */
-            num_holdings: number;
-            /** Top Sector */
-            top_sector?: string | null;
+            /** Total Value */
+            total_value: number;
             /** Total Cost */
             total_cost: number;
             /** Total Pnl */
             total_pnl: number;
             /** Total Pnl Pct */
             total_pnl_pct: number;
-            /** Total Value */
-            total_value: number;
+            /** Num Holdings */
+            num_holdings: number;
+            /** Top Sector */
+            top_sector?: string | null;
+            /**
+             * Data Source
+             * @default mock
+             */
+            data_source: string;
         };
         /**
          * QuantFullResponse
@@ -3098,98 +3154,45 @@ export interface components {
          *     Fetched once per page load by useQuantAnalytics().
          */
         QuantFullResponse: {
-            /**
-             * Contributions
-             * @default []
-             */
-            contributions: components["schemas"]["HoldingContribution"][];
-            correlation: components["schemas"]["CorrelationResult"];
+            metrics: components["schemas"]["MetricsBlock"];
+            performance: components["schemas"]["PerformanceBlock"];
             /**
              * Drawdown
              * @default []
              */
             drawdown: components["schemas"]["TimeSeriesPoint"][];
+            correlation: components["schemas"]["CorrelationResult"];
+            /**
+             * Contributions
+             * @default []
+             */
+            contributions: components["schemas"]["HoldingContribution"][];
             meta: components["schemas"]["QuantMeta"];
-            metrics: components["schemas"]["MetricsBlock"];
-            performance: components["schemas"]["PerformanceBlock"];
         };
         /** QuantMeta */
         QuantMeta: {
-            /** As Of */
-            as_of?: string | null;
-            /**
-             * Benchmark Available
-             * @default true
-             */
-            benchmark_available: boolean;
-            /**
-             * Benchmark Name
-             * @default NIFTY 50
-             */
-            benchmark_name: string;
-            /** Benchmark Source */
-            benchmark_source?: string | null;
-            /**
-             * Benchmark Ticker
-             * @default ^NSEI
-             */
-            benchmark_ticker: string;
-            /** Cache Age Seconds */
-            cache_age_seconds?: number | null;
-            /**
-             * Cached
-             * @default false
-             */
-            cached: boolean;
-            /** Coverage Pct */
-            coverage_pct?: number | null;
-            /**
-             * Data Points
-             * @default 0
-             */
-            data_points: number;
-            date_range?: components["schemas"]["DateRange"] | null;
-            /** Error */
-            error?: string | null;
-            /**
-             * Excluded Reason
-             * @default {}
-             */
-            excluded_reason: {
-                [key: string]: string;
-            };
-            /**
-             * Excluded Tickers
-             * @default []
-             */
-            excluded_tickers: string[];
-            /**
-             * Incomplete
-             * @default false
-             */
-            incomplete: boolean;
-            /**
-             * Invalid Tickers
-             * @default []
-             */
-            invalid_tickers: string[];
+            /** Provider Mode */
+            provider_mode?: string | null;
             /**
              * Period
              * @default 1y
              */
             period: string;
             /**
-             * Portfolio Usable
-             * @default true
+             * Valid Tickers
+             * @default []
              */
-            portfolio_usable: boolean;
-            /** Provider Mode */
-            provider_mode?: string | null;
+            valid_tickers: string[];
             /**
-             * Risk Free Rate
-             * @default 0.065
+             * Excluded Tickers
+             * @default []
              */
-            risk_free_rate: number;
+            excluded_tickers: string[];
+            /**
+             * Invalid Tickers
+             * @default []
+             */
+            invalid_tickers: string[];
             /**
              * Ticker Status
              * @default {}
@@ -3198,62 +3201,115 @@ export interface components {
                 [key: string]: string;
             };
             /**
-             * Valid Tickers
-             * @default []
+             * Data Points
+             * @default 0
              */
-            valid_tickers: string[];
+            data_points: number;
+            date_range?: components["schemas"]["DateRange"] | null;
+            /**
+             * Benchmark Ticker
+             * @default ^NSEI
+             */
+            benchmark_ticker: string;
+            /**
+             * Benchmark Name
+             * @default NIFTY 50
+             */
+            benchmark_name: string;
+            /** Benchmark Source */
+            benchmark_source?: string | null;
+            /**
+             * Benchmark Available
+             * @default true
+             */
+            benchmark_available: boolean;
+            /**
+             * Risk Free Rate
+             * @default 0.065
+             */
+            risk_free_rate: number;
+            /**
+             * Cached
+             * @default false
+             */
+            cached: boolean;
+            /** Cache Age Seconds */
+            cache_age_seconds?: number | null;
+            /**
+             * Incomplete
+             * @default false
+             */
+            incomplete: boolean;
+            /**
+             * Portfolio Usable
+             * @default true
+             */
+            portfolio_usable: boolean;
+            /** Coverage Pct */
+            coverage_pct?: number | null;
+            /**
+             * Excluded Reason
+             * @default {}
+             */
+            excluded_reason: {
+                [key: string]: string;
+            };
+            /** As Of */
+            as_of?: string | null;
+            /** Error */
+            error?: string | null;
         };
         /** RebalanceDelta */
         RebalanceDelta: {
-            /** Action */
-            action: string;
-            /** Current Weight */
-            current_weight: number;
-            /** Delta Pct */
-            delta_pct: number;
-            /** Target Weight */
-            target_weight: number;
             /** Ticker */
             ticker: string;
+            /** Current Weight */
+            current_weight: number;
+            /** Target Weight */
+            target_weight: number;
+            /** Delta Pct */
+            delta_pct: number;
+            /** Action */
+            action: string;
         };
         /** RecentChanges */
         RecentChanges: {
-            /** Added Tickers */
-            added_tickers: string[];
             /** Days Apart */
             days_apart: number;
-            /** Decreased Count */
-            decreased_count: number;
-            /** Increased Count */
-            increased_count: number;
-            /** Removed Tickers */
-            removed_tickers: string[];
             /** Value Delta */
             value_delta: number;
             /** Value Delta Pct */
             value_delta_pct: number;
+            /** Added Tickers */
+            added_tickers: string[];
+            /** Removed Tickers */
+            removed_tickers: string[];
+            /** Increased Count */
+            increased_count: number;
+            /** Decreased Count */
+            decreased_count: number;
         };
         /**
          * RefreshResponse
          * @description Returned by POST /portfolios/{id}/refresh — re-import into an existing portfolio.
          */
         RefreshResponse: {
+            /** Success */
+            success: boolean;
+            /** Portfolio Id */
+            portfolio_id: number;
             /** Filename */
             filename: string;
             /** Holdings Parsed */
             holdings_parsed: number;
-            /** Message */
-            message: string;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Post Refresh Snapshot Id */
-            post_refresh_snapshot_id?: number | null;
-            /** Pre Refresh Snapshot Id */
-            pre_refresh_snapshot_id?: number | null;
             /** Rows Skipped */
             rows_skipped: number;
-            /** Success */
-            success: boolean;
+            /** Pre Refresh Snapshot Id */
+            pre_refresh_snapshot_id?: number | null;
+            /** Post Refresh Snapshot Id */
+            post_refresh_snapshot_id?: number | null;
+            /** Message */
+            message: string;
         };
         /**
          * RejectedRow
@@ -3261,12 +3317,12 @@ export interface components {
          *     missing or invalid.
          */
         RejectedRow: {
+            /** Row Index */
+            row_index: number;
             /** Raw Ticker */
             raw_ticker?: string | null;
             /** Reasons */
             reasons: string[];
-            /** Row Index */
-            row_index: number;
         };
         /**
          * RiskMetrics
@@ -3276,19 +3332,19 @@ export interface components {
         RiskMetrics: {
             /** Beta */
             beta?: number | null;
+            /** Sharpe Ratio */
+            sharpe_ratio?: number | null;
+            /** Volatility Annualised */
+            volatility_annualised?: number | null;
             /** Max Drawdown */
             max_drawdown?: number | null;
+            /** Var 95 */
+            var_95?: number | null;
             /**
              * Note
              * @default Risk metrics require historical price data. Available in Phase 2.
              */
             note: string;
-            /** Sharpe Ratio */
-            sharpe_ratio?: number | null;
-            /** Var 95 */
-            var_95?: number | null;
-            /** Volatility Annualised */
-            volatility_annualised?: number | null;
         };
         /**
          * RiskSnapshot
@@ -3300,22 +3356,26 @@ export interface components {
          *     so the frontend can consume this without any transformation.
          */
         RiskSnapshot: {
-            /** Diversification Score */
-            diversification_score: number;
-            /** Effective N */
-            effective_n: number;
-            /** Hhi */
-            hhi: number;
             /** Max Holding Weight */
             max_holding_weight: number;
-            /** Max Sector Name */
-            max_sector_name: string;
+            /** Top3 Weight */
+            top3_weight: number;
+            /** Top5 Weight */
+            top5_weight: number;
             /** Max Sector Weight */
             max_sector_weight: number;
+            /** Max Sector Name */
+            max_sector_name: string;
             /** Num Holdings */
             num_holdings: number;
             /** Num Sectors */
             num_sectors: number;
+            /** Hhi */
+            hhi: number;
+            /** Effective N */
+            effective_n: number;
+            /** Diversification Score */
+            diversification_score: number;
             /**
              * Risk Profile
              * @enum {string}
@@ -3323,112 +3383,108 @@ export interface components {
             risk_profile: "highly_concentrated" | "sector_concentrated" | "aggressive" | "conservative" | "moderate";
             /** Risk Profile Reason */
             risk_profile_reason: string;
-            /** Sector Concentration Flag */
-            sector_concentration_flag: boolean;
             /** Single Stock Flag */
             single_stock_flag: boolean;
-            /** Top3 Weight */
-            top3_weight: number;
-            /** Top5 Weight */
-            top5_weight: number;
+            /** Sector Concentration Flag */
+            sector_concentration_flag: boolean;
             /** Top Holdings By Weight */
             top_holdings_by_weight: components["schemas"]["TopHoldingWeight"][];
         };
         /** SectorAllocation */
         SectorAllocation: {
-            /** Num Holdings */
-            num_holdings: number;
             /** Sector */
             sector: string;
             /** Value */
             value: number;
             /** Weight Pct */
             weight_pct: number;
+            /** Num Holdings */
+            num_holdings: number;
         };
         /** SectorBrief */
         SectorBrief: {
-            /** Num Holdings */
-            num_holdings: number;
             /** Sector */
             sector: string;
             /** Weight Pct */
             weight_pct: number;
+            /** Num Holdings */
+            num_holdings: number;
         };
         /** SectorDelta */
         SectorDelta: {
             /** Sector */
             sector: string;
-            /** Weight After */
-            weight_after?: number | null;
             /** Weight Before */
             weight_before?: number | null;
+            /** Weight After */
+            weight_after?: number | null;
             /** Weight Delta */
             weight_delta?: number | null;
         };
         /** SincePurchaseHolding */
         SincePurchaseHolding: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name: string;
+            /** Sector */
+            sector?: string | null;
+            /** Quantity */
+            quantity: number;
             /** Average Cost */
             average_cost: number;
             /** Current Price */
             current_price?: number | null;
-            /** Current Value */
-            current_value?: number | null;
             /** Invested */
             invested: number;
-            /** Name */
-            name: string;
+            /** Current Value */
+            current_value?: number | null;
             /** Pnl */
             pnl?: number | null;
             /** Pnl Pct */
             pnl_pct?: number | null;
             /** Price Source */
             price_source: string;
-            /** Quantity */
-            quantity: number;
-            /** Sector */
-            sector?: string | null;
-            /** Ticker */
-            ticker: string;
         };
         /** SincePurchaseResponse */
         SincePurchaseResponse: {
-            /** Holdings */
-            holdings: components["schemas"]["SincePurchaseHolding"][];
             /** Portfolio Id */
             portfolio_id: number;
+            /** Holdings */
+            holdings: components["schemas"]["SincePurchaseHolding"][];
             summary: components["schemas"]["SincePurchaseSummary"];
         };
         /** SincePurchaseSummary */
         SincePurchaseSummary: {
-            /** Flat */
-            flat: number;
-            /** Losers */
-            losers: number;
-            /** Price Freshness Note */
-            price_freshness_note: string;
-            /** Total Current Value */
-            total_current_value?: number | null;
             /** Total Invested */
             total_invested: number;
+            /** Total Current Value */
+            total_current_value?: number | null;
             /** Total Pnl */
             total_pnl?: number | null;
             /** Total Pnl Pct */
             total_pnl_pct?: number | null;
             /** Winners */
             winners: number;
+            /** Losers */
+            losers: number;
+            /** Flat */
+            flat: number;
+            /** Price Freshness Note */
+            price_freshness_note: string;
         };
         /** SnapshotBrief */
         SnapshotBrief: {
-            /** Captured At */
-            captured_at: string;
             /** Id */
             id: number;
             /** Label */
             label: string | null;
-            /** Num Holdings */
-            num_holdings: number;
+            /** Captured At */
+            captured_at: string;
             /** Total Value */
             total_value: number;
+            /** Num Holdings */
+            num_holdings: number;
         };
         /** SnapshotCreateRequest */
         SnapshotCreateRequest: {
@@ -3443,36 +3499,46 @@ export interface components {
          * @description Full snapshot including per-holding rows and JSON blobs.
          */
         SnapshotDetail: {
+            /** Id */
+            id: number;
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Label */
+            label?: string | null;
             /**
              * Captured At
              * Format: date-time
              */
             captured_at: string;
+            /** Total Value */
+            total_value?: number | null;
+            /** Total Cost */
+            total_cost?: number | null;
+            /** Total Pnl */
+            total_pnl?: number | null;
+            /** Total Pnl Pct */
+            total_pnl_pct?: number | null;
+            /** Num Holdings */
+            num_holdings?: number | null;
+            /** Top Sector */
+            top_sector?: string | null;
             /**
              * Holdings
              * @default []
              */
             holdings: components["schemas"]["SnapshotHoldingRow"][];
-            /** Id */
-            id: number;
-            /** Label */
-            label?: string | null;
-            /** Num Holdings */
-            num_holdings?: number | null;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /**
-             * Risk Metrics
-             * @default {}
-             */
-            risk_metrics: {
-                [key: string]: number;
-            };
             /**
              * Sector Weights
              * @default {}
              */
             sector_weights: {
+                [key: string]: number;
+            };
+            /**
+             * Risk Metrics
+             * @default {}
+             */
+            risk_metrics: {
                 [key: string]: number;
             };
             /**
@@ -3482,85 +3548,79 @@ export interface components {
             top_holdings: {
                 [key: string]: unknown;
             }[];
-            /** Top Sector */
-            top_sector?: string | null;
-            /** Total Cost */
-            total_cost?: number | null;
-            /** Total Pnl */
-            total_pnl?: number | null;
-            /** Total Pnl Pct */
-            total_pnl_pct?: number | null;
-            /** Total Value */
-            total_value?: number | null;
         };
         /** SnapshotHoldingRow */
         SnapshotHoldingRow: {
-            /** Average Cost */
-            average_cost?: number | null;
-            /** Market Value */
-            market_value?: number | null;
+            /** Ticker */
+            ticker: string;
             /** Name */
             name?: string | null;
             /** Quantity */
             quantity?: number | null;
-            /** Sector */
-            sector?: string | null;
-            /** Ticker */
-            ticker: string;
+            /** Average Cost */
+            average_cost?: number | null;
+            /** Market Value */
+            market_value?: number | null;
             /** Weight Pct */
             weight_pct?: number | null;
+            /** Sector */
+            sector?: string | null;
         };
         /**
          * SnapshotSummary
          * @description Lightweight — for listing snapshots without loading all holdings.
          */
         SnapshotSummary: {
+            /** Id */
+            id: number;
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Label */
+            label?: string | null;
             /**
              * Captured At
              * Format: date-time
              */
             captured_at: string;
-            /** Id */
-            id: number;
-            /** Label */
-            label?: string | null;
-            /** Num Holdings */
-            num_holdings?: number | null;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Top Sector */
-            top_sector?: string | null;
+            /** Total Value */
+            total_value?: number | null;
             /** Total Cost */
             total_cost?: number | null;
             /** Total Pnl */
             total_pnl?: number | null;
             /** Total Pnl Pct */
             total_pnl_pct?: number | null;
-            /** Total Value */
-            total_value?: number | null;
+            /** Num Holdings */
+            num_holdings?: number | null;
+            /** Top Sector */
+            top_sector?: string | null;
         };
         /**
          * SourceMetaPayload
          * @description Data-quality summary for the AI context debug view.
          */
         SourceMetaPayload: {
-            /** Data Quality Note */
-            data_quality_note: string;
-            /** Db Only Count */
-            db_only_count: number;
-            /** Live Count */
-            live_count: number;
-            /** Mock Count */
-            mock_count: number;
             /** Provider Mode */
             provider_mode: string;
-            /** Total Holdings */
-            total_holdings: number;
+            /** Live Count */
+            live_count: number;
+            /** Db Only Count */
+            db_only_count: number;
             /** Unavailable Count */
             unavailable_count: number;
+            /** Mock Count */
+            mock_count: number;
+            /** Total Holdings */
+            total_holdings: number;
+            /** Data Quality Note */
+            data_quality_note: string;
         };
         /** SyncResponse */
         SyncResponse: {
+            /** Success */
+            success: boolean;
+            /** Portfolio Id */
+            portfolio_id: number;
             /** Broker Name */
             broker_name: string;
             /**
@@ -3568,28 +3628,24 @@ export interface components {
              * @default 0
              */
             holdings_synced: number;
-            /** Last Sync At */
-            last_sync_at?: string | null;
-            /** Message */
-            message: string;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Post Snap Id */
-            post_snap_id?: number | null;
-            /** Pre Snap Id */
-            pre_snap_id?: number | null;
             /**
              * Rows Skipped
              * @default 0
              */
             rows_skipped: number;
+            /** Pre Snap Id */
+            pre_snap_id?: number | null;
+            /** Post Snap Id */
+            post_snap_id?: number | null;
+            /** Last Sync At */
+            last_sync_at?: string | null;
+            /** Message */
+            message: string;
             /**
              * Scaffolded
              * @default false
              */
             scaffolded: boolean;
-            /** Success */
-            success: boolean;
         };
         /** TimeSeriesPoint */
         TimeSeriesPoint: {
@@ -3606,25 +3662,25 @@ export interface components {
         };
         /** TopHoldingWeight */
         TopHoldingWeight: {
-            /** Name */
-            name: string;
-            /** Sector */
-            sector: string;
             /** Ticker */
             ticker: string;
+            /** Name */
+            name: string;
             /** Weight */
             weight: number;
+            /** Sector */
+            sector: string;
         };
         /** UploadResponse */
         UploadResponse: {
+            /** Success */
+            success: boolean;
             /** Filename */
             filename: string;
             /** Holdings Parsed */
             holdings_parsed: number;
             /** Message */
             message: string;
-            /** Success */
-            success: boolean;
         };
         /**
          * V2ConfirmResponse
@@ -3641,43 +3697,43 @@ export interface components {
          *       process-local upload memory.
          */
         V2ConfirmResponse: {
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Filename */
+            filename: string;
+            /** Imported At */
+            imported_at: string;
+            /** Total Rows */
+            total_rows: number;
+            /** Rows Valid */
+            rows_valid: number;
+            /** Rows Valid With Warning */
+            rows_valid_with_warning: number;
+            /** Rows Invalid */
+            rows_invalid: number;
+            /** Rejected Rows */
+            rejected_rows: components["schemas"]["RejectedRow"][];
+            /** Warning Rows */
+            warning_rows: components["schemas"]["WarningRow"][];
+            /**
+             * Enrichment Started
+             * @default true
+             */
+            enrichment_started: boolean;
             /**
              * Enrichment Complete
              * @default false
              */
             enrichment_complete: boolean;
             /**
-             * Enrichment Started
-             * @default true
-             */
-            enrichment_started: boolean;
-            /** Filename */
-            filename: string;
-            /** Imported At */
-            imported_at: string;
-            /** Message */
-            message: string;
-            /** Next Action */
-            next_action: string;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /**
              * Portfolio Usable
              * @default true
              */
             portfolio_usable: boolean;
-            /** Rejected Rows */
-            rejected_rows: components["schemas"]["RejectedRow"][];
-            /** Rows Invalid */
-            rows_invalid: number;
-            /** Rows Valid */
-            rows_valid: number;
-            /** Rows Valid With Warning */
-            rows_valid_with_warning: number;
-            /** Total Rows */
-            total_rows: number;
-            /** Warning Rows */
-            warning_rows: components["schemas"]["WarningRow"][];
+            /** Next Action */
+            next_action: string;
+            /** Message */
+            message: string;
         };
         /**
          * V2StatusResponse
@@ -3689,27 +3745,27 @@ export interface components {
          *     enrichment_complete becomes True once no holdings remain in "pending" state.
          */
         V2StatusResponse: {
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Total Holdings */
+            total_holdings: number;
             /** Enriched */
             enriched: number;
-            /** Enrichment Complete */
-            enrichment_complete: boolean;
+            /** Partial */
+            partial: number;
+            /** Pending */
+            pending: number;
             /** Failed */
             failed: number;
-            /** Holdings */
-            holdings: components["schemas"]["HoldingEnrichmentStatus"][];
+            /** Enrichment Complete */
+            enrichment_complete: boolean;
             /**
              * Overall
              * @enum {string}
              */
             overall: "in_progress" | "done" | "failed";
-            /** Partial */
-            partial: number;
-            /** Pending */
-            pending: number;
-            /** Portfolio Id */
-            portfolio_id: number;
-            /** Total Holdings */
-            total_holdings: number;
+            /** Holdings */
+            holdings: components["schemas"]["HoldingEnrichmentStatus"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -3734,46 +3790,46 @@ export interface components {
         };
         /** WatchlistItem */
         WatchlistItem: {
+            /** Ticker */
+            ticker: string;
             /** Name */
             name?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Sector */
-            sector?: string | null;
             /**
              * Tag
              * @default General
              */
             tag: string | null;
+            /** Sector */
+            sector?: string | null;
             /** Target Price */
             target_price?: number | null;
-            /** Ticker */
-            ticker: string;
+            /** Notes */
+            notes?: string | null;
         };
         /** WatchlistItemResponse */
         WatchlistItemResponse: {
+            /** Ticker */
+            ticker: string;
+            /** Name */
+            name?: string | null;
+            /**
+             * Tag
+             * @default General
+             */
+            tag: string | null;
+            /** Sector */
+            sector?: string | null;
+            /** Target Price */
+            target_price?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Id */
+            id: number;
             /**
              * Added At
              * Format: date-time
              */
             added_at: string;
-            /** Id */
-            id: number;
-            /** Name */
-            name?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Sector */
-            sector?: string | null;
-            /**
-             * Tag
-             * @default General
-             */
-            tag: string | null;
-            /** Target Price */
-            target_price?: number | null;
-            /** Ticker */
-            ticker: string;
         };
         /**
          * WatchlistItemUpdate
@@ -3782,14 +3838,14 @@ export interface components {
         WatchlistItemUpdate: {
             /** Name */
             name?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Sector */
-            sector?: string | null;
             /** Tag */
             tag?: string | null;
+            /** Sector */
+            sector?: string | null;
             /** Target Price */
             target_price?: number | null;
+            /** Notes */
+            notes?: string | null;
         };
         /**
          * WeightedFundamentals
@@ -3803,6 +3859,32 @@ export interface components {
          *     bogus provider data from poisoning portfolio-level signals.
          */
         WeightedFundamentals: {
+            /** Wtd Pe */
+            wtd_pe?: number | null;
+            /** Wtd Forward Pe */
+            wtd_forward_pe?: number | null;
+            /** Wtd Pb */
+            wtd_pb?: number | null;
+            /** Wtd Ev Ebitda */
+            wtd_ev_ebitda?: number | null;
+            /** Wtd Peg */
+            wtd_peg?: number | null;
+            /** Wtd Div Yield */
+            wtd_div_yield?: number | null;
+            /** Wtd Roe */
+            wtd_roe?: number | null;
+            /** Wtd Roa */
+            wtd_roa?: number | null;
+            /** Wtd Operating Margin */
+            wtd_operating_margin?: number | null;
+            /** Wtd Profit Margin */
+            wtd_profit_margin?: number | null;
+            /** Wtd Revenue Growth */
+            wtd_revenue_growth?: number | null;
+            /** Wtd Earnings Growth */
+            wtd_earnings_growth?: number | null;
+            /** Wtd Debt To Equity */
+            wtd_debt_to_equity?: number | null;
             /** Coverage */
             coverage?: {
                 [key: string]: number;
@@ -3811,32 +3893,6 @@ export interface components {
             outliers_excluded?: {
                 [key: string]: number;
             };
-            /** Wtd Debt To Equity */
-            wtd_debt_to_equity?: number | null;
-            /** Wtd Div Yield */
-            wtd_div_yield?: number | null;
-            /** Wtd Earnings Growth */
-            wtd_earnings_growth?: number | null;
-            /** Wtd Ev Ebitda */
-            wtd_ev_ebitda?: number | null;
-            /** Wtd Forward Pe */
-            wtd_forward_pe?: number | null;
-            /** Wtd Operating Margin */
-            wtd_operating_margin?: number | null;
-            /** Wtd Pb */
-            wtd_pb?: number | null;
-            /** Wtd Pe */
-            wtd_pe?: number | null;
-            /** Wtd Peg */
-            wtd_peg?: number | null;
-            /** Wtd Profit Margin */
-            wtd_profit_margin?: number | null;
-            /** Wtd Revenue Growth */
-            wtd_revenue_growth?: number | null;
-            /** Wtd Roa */
-            wtd_roa?: number | null;
-            /** Wtd Roe */
-            wtd_roe?: number | null;
         };
     };
     responses: never;
@@ -3847,7 +3903,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    root__get: {
+    get_market_overview_api_v1_market_overview_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3862,7 +3918,576 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    get_portfolio_full_api_v1_portfolio_full_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioFullResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_holdings_api_v1_portfolio__get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingBase"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_api_v1_portfolio_summary_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sector_allocation_api_v1_portfolio_sectors_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectorAllocation"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_portfolio_api_v1_portfolio_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_portfolio_api_v1_portfolio_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_risk_metrics_api_v1_analytics_risk_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_financial_ratios_api_v1_analytics_ratios_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialRatiosResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_commentary_api_v1_analytics_commentary_get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_watchlist_api_v1_watchlist__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemResponse"][];
+                };
+            };
+        };
+    };
+    add_to_watchlist_api_v1_watchlist__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistItem"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_from_watchlist_api_v1_watchlist__ticker__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_watchlist_item_api_v1_watchlist__ticker__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_peers_api_v1_peers__ticker__get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_news_api_v1_news__get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated ticker list to filter articles (e.g. TCS.NS,INFY.NS). If omitted, all portfolio holdings are used. */
+                tickers?: string | null;
+                /** @description Filter by event type. One of: earnings, dividend, deal, rating, company_update, market_event, regulatory, management */
+                event_type?: string | null;
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_events_api_v1_news_events_get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated ticker list. If omitted, all holdings are used. */
+                tickers?: string | null;
+                /** @description Filter by event type (earnings, dividend, agm, bonus, split). */
+                event_type?: string | null;
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_efficient_frontier_api_v1_frontier__get: {
+        parameters: {
+            query?: {
+                /** @description Data source mode */
+                mode?: "uploaded" | "live" | "broker";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_api_v1_ai_chat__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_advisor_status_api_v1_advisor_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvisorStatusResponse"];
                 };
             };
         };
@@ -3931,64 +4556,14 @@ export interface operations {
             };
         };
     };
-    get_advisor_status_api_v1_advisor_status_get: {
+    get_live_quotes_api_v1_live_quotes_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdvisorStatusResponse"];
-                };
-            };
-        };
-    };
-    chat_api_v1_ai_chat__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatMessage"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_commentary_api_v1_analytics_commentary_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
+            query: {
+                /**
+                 * @description Comma-separated ticker symbols, e.g. TCS.NS,INFY.NS,RELIANCE.NS
+                 * @example TCS.NS,INFY.NS
+                 */
+                tickers: string;
             };
             header?: never;
             path?: never;
@@ -4002,313 +4577,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_financial_ratios_api_v1_analytics_ratios_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FinancialRatiosResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_risk_metrics_api_v1_analytics_risk_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RiskMetrics"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_brokers_api_v1_brokers__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrokerListResponse"];
-                };
-            };
-        };
-    };
-    connect_broker_api_v1_brokers__portfolio_id__connect_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConnectRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConnectResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_connection_api_v1_brokers__portfolio_id__connection_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrokerConnectionMeta"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    disconnect_broker_api_v1_brokers__portfolio_id__connection_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisconnectResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    sync_broker_api_v1_brokers__portfolio_id__sync_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SyncResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_efficient_frontier_api_v1_frontier__get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_canonical_history_daily_api_v1_history__portfolio_id__daily_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalHistoryDaily"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_canonical_history_status_api_v1_history__portfolio_id__status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanonicalHistoryStatus"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4381,43 +4652,6 @@ export interface operations {
             };
         };
     };
-    get_live_quotes_api_v1_live_quotes_get: {
-        parameters: {
-            query: {
-                /**
-                 * @description Comma-separated ticker symbols, e.g. TCS.NS,INFY.NS,RELIANCE.NS
-                 * @example TCS.NS,INFY.NS
-                 */
-                tickers: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_live_status_api_v1_live_status_get: {
         parameters: {
             query?: never;
@@ -4440,35 +4674,11 @@ export interface operations {
             };
         };
     };
-    get_market_overview_api_v1_market_overview_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-        };
-    };
-    get_news_api_v1_news__get: {
+    get_quant_full_api_v1_quant_full_get: {
         parameters: {
             query?: {
-                /** @description Comma-separated ticker list to filter articles (e.g. TCS.NS,INFY.NS). If omitted, all portfolio holdings are used. */
-                tickers?: string | null;
-                /** @description Filter by event type. One of: earnings, dividend, deal, rating, company_update, market_event, regulatory, management */
-                event_type?: string | null;
+                /** @description Lookback period: 1y | 6mo | 3mo */
+                period?: "1y" | "6mo" | "3mo";
                 /** @description Data source mode */
                 mode?: "uploaded" | "live" | "broker";
             };
@@ -4484,7 +4694,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuantFullResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4498,13 +4708,10 @@ export interface operations {
             };
         };
     };
-    get_events_api_v1_news_events_get: {
+    get_quant_status_api_v1_quant_status_get: {
         parameters: {
             query?: {
-                /** @description Comma-separated ticker list. If omitted, all holdings are used. */
-                tickers?: string | null;
-                /** @description Filter by event type (earnings, dividend, agm, bonus, split). */
-                event_type?: string | null;
+                period?: "1y" | "6mo" | "3mo";
                 /** @description Data source mode */
                 mode?: "uploaded" | "live" | "broker";
             };
@@ -4607,169 +4814,7 @@ export interface operations {
             };
         };
     };
-    get_peers_api_v1_peers__ticker__get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_holdings_api_v1_portfolio__get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HoldingBase"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_portfolio_full_api_v1_portfolio_full_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortfolioFullResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_sector_allocation_api_v1_portfolio_sectors_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SectorAllocation"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_summary_api_v1_portfolio_summary_get: {
-        parameters: {
-            query?: {
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortfolioSummary"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upload_portfolio_api_v1_portfolio_upload_post: {
+    parse_upload_api_v1_upload_parse_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4778,7 +4823,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_portfolio_api_v1_portfolio_upload_post"];
+                "multipart/form-data": components["schemas"]["Body_parse_upload_api_v1_upload_parse_post"];
             };
         };
         responses: {
@@ -4788,7 +4833,136 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadResponse"];
+                    "application/json": components["schemas"]["ParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_upload_api_v1_upload_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_confirm_upload_api_v1_upload_confirm_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_status_api_v1_upload_status_get: {
+        parameters: {
+            query: {
+                /** @description ID of the portfolio to check */
+                portfolio_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2StatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_upload_v2_api_v1_upload_v2_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_confirm_upload_v2_api_v1_upload_v2_confirm_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2ConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_status_v2_api_v1_upload_v2_status__portfolio_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["V2StatusResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4968,164 +5142,6 @@ export interface operations {
             };
         };
     };
-    get_portfolio_history_api_v1_portfolios__portfolio_id__history_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortfolioHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_benchmark_history_api_v1_portfolios__portfolio_id__history_benchmark_get: {
-        parameters: {
-            query?: {
-                /** @description Benchmark ticker (default: ^NSEI / Nifty 50) */
-                ticker?: string;
-            };
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BenchmarkPoint"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_history_build_status_endpoint_api_v1_portfolios__portfolio_id__history_build_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HistoryBuildStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_holdings_since_purchase_api_v1_portfolios__portfolio_id__holdings_since_purchase_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SincePurchaseResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_holdings_status_api_v1_portfolios__portfolio_id__holdings_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HoldingsStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     refresh_portfolio_api_v1_portfolios__portfolio_id__refresh_post: {
         parameters: {
             query?: never;
@@ -5262,105 +5278,6 @@ export interface operations {
             };
         };
     };
-    get_quant_full_api_v1_quant_full_get: {
-        parameters: {
-            query?: {
-                /** @description Lookback period: 1y | 6mo | 3mo */
-                period?: "1y" | "6mo" | "3mo";
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuantFullResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_quant_status_api_v1_quant_status_get: {
-        parameters: {
-            query?: {
-                period?: "1y" | "6mo" | "3mo";
-                /** @description Data source mode */
-                mode?: "uploaded" | "live" | "broker";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    snapshot_delta_api_v1_snapshots__snapshot_a_id__delta__snapshot_b_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                snapshot_a_id: number;
-                snapshot_b_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortfolioDeltaResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_snapshot_api_v1_snapshots__snapshot_id__get: {
         parameters: {
             query?: never;
@@ -5423,6 +5340,406 @@ export interface operations {
             };
         };
     };
+    snapshot_delta_api_v1_snapshots__snapshot_a_id__delta__snapshot_b_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshot_a_id: number;
+                snapshot_b_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioDeltaResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_brokers_api_v1_brokers__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrokerListResponse"];
+                };
+            };
+        };
+    };
+    get_connection_api_v1_brokers__portfolio_id__connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrokerConnectionMeta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_broker_api_v1_brokers__portfolio_id__connection_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisconnectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_broker_api_v1_brokers__portfolio_id__connect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_broker_api_v1_brokers__portfolio_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio_history_api_v1_portfolios__portfolio_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_benchmark_history_api_v1_portfolios__portfolio_id__history_benchmark_get: {
+        parameters: {
+            query?: {
+                /** @description Benchmark ticker (default: ^NSEI / Nifty 50) */
+                ticker?: string;
+            };
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchmarkPoint"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_holdings_status_api_v1_portfolios__portfolio_id__holdings_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldingsStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_history_build_status_endpoint_api_v1_portfolios__portfolio_id__history_build_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryBuildStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_canonical_history_status_api_v1_history__portfolio_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalHistoryStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_canonical_history_daily_api_v1_history__portfolio_id__daily_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalHistoryDaily"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_holdings_since_purchase_api_v1_portfolios__portfolio_id__holdings_since_purchase_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SincePurchaseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_features_api_v1_system_features_get: {
         parameters: {
             query?: never;
@@ -5439,287 +5756,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeatureRegistryResponse"];
-                };
-            };
-        };
-    };
-    confirm_upload_api_v1_upload_confirm_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_confirm_upload_api_v1_upload_confirm_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfirmResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    parse_upload_api_v1_upload_parse_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_parse_upload_api_v1_upload_parse_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ParseResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_upload_status_api_v1_upload_status_get: {
-        parameters: {
-            query: {
-                /** @description ID of the portfolio to check */
-                portfolio_id: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2StatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    confirm_upload_v2_api_v1_upload_v2_confirm_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_confirm_upload_v2_api_v1_upload_v2_confirm_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2ConfirmResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_upload_status_v2_api_v1_upload_v2_status__portfolio_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                portfolio_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["V2StatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_watchlist_api_v1_watchlist__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WatchlistItemResponse"][];
-                };
-            };
-        };
-    };
-    add_to_watchlist_api_v1_watchlist__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WatchlistItem"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WatchlistItemResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_from_watchlist_api_v1_watchlist__ticker__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_watchlist_item_api_v1_watchlist__ticker__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ticker: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WatchlistItemUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WatchlistItemResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5745,6 +5781,26 @@ export interface operations {
         };
     };
     readiness_check_readiness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    root__get: {
         parameters: {
             query?: never;
             header?: never;

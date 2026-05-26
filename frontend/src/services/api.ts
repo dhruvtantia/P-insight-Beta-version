@@ -9,10 +9,11 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsArticle, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, CorporateEvent, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsResponse, EventsResponse, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
 import type { ApiFeatureRegistryResponse, ApiParseResponse, ApiRefreshResponse, ApiV2ConfirmResponse, ApiV2StatusResponse } from '@/generated/api-contracts'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const MARKET_OVERVIEW_CLIENT_CACHE_MS = 5_000
 
 // ─── Typed API Error ──────────────────────────────────────────────────────────
 // Distinguishes error categories so the UI can show specific messages
@@ -58,6 +59,27 @@ export class ApiError extends Error {
   }
 }
 
+function formatApiErrorDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object') {
+    const record = detail as Record<string, unknown>
+    const feature = typeof record.feature_id === 'string' ? record.feature_id : null
+    const status = typeof record.status === 'string' ? record.status : null
+    const reason = typeof record.reason === 'string' ? record.reason : null
+    const message = typeof record.message === 'string' ? record.message : null
+    const disableBehavior = typeof record.disable_behavior === 'string' ? record.disable_behavior : null
+
+    const parts = [
+      feature && status ? `${feature} is ${status}` : null,
+      reason ?? message,
+      disableBehavior,
+    ].filter(Boolean)
+
+    if (parts.length > 0) return parts.join(' — ')
+  }
+  return fallback
+}
+
 // ─── Base Fetch Utility ───────────────────────────────────────────────────────
 // All API calls are given a 15-second hard timeout so that a slow or blocked
 // backend endpoint never leaves the UI in an indefinite loading state.
@@ -78,7 +100,7 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ detail: response.statusText }))
-      const detail = body?.detail ?? `HTTP ${response.status}`
+      const detail = formatApiErrorDetail(body?.detail, `HTTP ${response.status}`)
       const errorType: ApiErrorType =
         response.status === 404 ? 'not_found'    :
         response.status >= 500  ? 'server_error' : 'client_error'
@@ -134,7 +156,7 @@ async function formFetch<T>(endpoint: string, formData: FormData): Promise<T> {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({ detail: response.statusText }))
-      const detail = body?.detail ?? `HTTP ${response.status}`
+      const detail = formatApiErrorDetail(body?.detail, `HTTP ${response.status}`)
       const errorType: ApiErrorType =
         response.status === 404 ? 'not_found'    :
         response.status >= 500  ? 'server_error' : 'client_error'
@@ -171,6 +193,16 @@ async function formFetch<T>(endpoint: string, formData: FormData): Promise<T> {
 
 function withMode(endpoint: string, mode: DataMode): string {
   return `${endpoint}?mode=${mode}`
+}
+
+let marketOverviewCache: {
+  data: MarketOverviewResponse | null
+  fetchedAt: number
+  inflight: Promise<MarketOverviewResponse> | null
+} = {
+  data: null,
+  fetchedAt: 0,
+  inflight: null,
 }
 
 function toFeatureRegistryResponse(response: ApiFeatureRegistryResponse): FeatureRegistryResponse {
@@ -238,8 +270,36 @@ export const uploadApi = {
 // ─── Market API ──────────────────────────────────────────────────────────────
 
 export const marketApi = {
-  getOverview: () =>
-    apiFetch<MarketOverviewResponse>('/api/v1/market/overview'),
+  getOverview: async () => {
+    const now = Date.now()
+    if (
+      marketOverviewCache.data &&
+      now - marketOverviewCache.fetchedAt < MARKET_OVERVIEW_CLIENT_CACHE_MS
+    ) {
+      return marketOverviewCache.data
+    }
+
+    if (marketOverviewCache.inflight) {
+      return marketOverviewCache.inflight
+    }
+
+    const request = apiFetch<MarketOverviewResponse>('/api/v1/market/overview')
+      .then((data) => {
+        marketOverviewCache = {
+          data,
+          fetchedAt: Date.now(),
+          inflight: null,
+        }
+        return data
+      })
+      .catch((error) => {
+        marketOverviewCache.inflight = null
+        throw error
+      })
+
+    marketOverviewCache.inflight = request
+    return request
+  },
 }
 
 // ─── Analytics API ────────────────────────────────────────────────────────────
@@ -312,16 +372,7 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length)  params.set('tickers', options.tickers.join(','))
     if (options?.eventType)        params.set('event_type', options.eventType)
-    return apiFetch<{
-      articles:            NewsArticle[]
-      total:               number
-      source:              string
-      event_types:         string[]
-      live_unavailable:    boolean
-      news_unavailable:    boolean
-      news_key_configured: boolean
-      scaffolded:          boolean
-    }>(`/api/v1/news/?${params.toString()}`)
+    return apiFetch<NewsResponse>(`/api/v1/news/?${params.toString()}`)
   },
 
   getEvents: (
@@ -331,14 +382,7 @@ export const newsApi = {
     const params = new URLSearchParams({ mode })
     if (options?.tickers?.length) params.set('tickers', options.tickers.join(','))
     if (options?.eventType)       params.set('event_type', options.eventType)
-    return apiFetch<{
-      events:           CorporateEvent[]
-      total:            number
-      source:           string
-      live_unavailable: boolean
-      news_unavailable: boolean
-      scaffolded:       boolean
-    }>(`/api/v1/news/events?${params.toString()}`)
+    return apiFetch<EventsResponse>(`/api/v1/news/events?${params.toString()}`)
   },
 }
 

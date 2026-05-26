@@ -130,6 +130,10 @@ class HoldingEnrichmentStatus(BaseModel):
     name_status:         Optional[str] = None
     fundamentals_status: str = "pending"
     peers_status:        str = "pending"
+    price_status:        Optional[str] = None
+    price_source:        Optional[str] = None
+    price_timestamp:     Optional[str] = None
+    price_failure_reason: Optional[str] = None
     failure_reason:      Optional[str] = None
     last_enriched_at:    Optional[str] = None  # ISO-8601 UTC
 
@@ -165,6 +169,10 @@ class V2StatusResponse(BaseModel):
 #   sector:        Optional[str]  — None at persist time; enrichment sets or "Unknown"
 #   industry:      Optional[str]  — None at persist time; enrichment sets
 #   current_price: Optional[float]— None at persist time; price-fetch background sets
+#   price_status:  Optional[str]  — uploaded_current_price | live | missing |
+#                                    provider_failed | stale | pending | unknown
+#   price_source:  Optional[str]  — uploaded_csv | yfinance | average_cost | unknown
+#   price_failure_reason: Optional[str] — set when provider price lookup fails
 #   purchase_date: Optional[str]  — YYYY-MM-DD or None
 #   asset_class:   str = "Equity"
 #   currency:      str = "INR"

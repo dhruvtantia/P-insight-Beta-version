@@ -58,6 +58,9 @@ function PeersPageContent() {
 
   // ── Peer comparison data ──────────────────────────────────────────────────
   const { data, loading, error, refetch } = usePeerComparison(autoSelected)
+  const selectedFundamentalsAvailable =
+    data?.meta?.selected_fundamentals_available
+    ?? (data ? !['timeout', 'unavailable', 'unknown'].includes(data.selected.source) : true)
 
   // Ticker options for selector
   const tickerOptions = useMemo(
@@ -99,9 +102,8 @@ function PeersPageContent() {
       <div className="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
         <Info className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
         <p className="text-xs text-slate-500">
-          Peer fundamentals are sourced from Yahoo Finance.
-          Coverage depends on whether the ticker is listed on Yahoo Finance.
-          Switch to <span className="font-medium text-slate-600">Live</span> mode for real-time data.
+          Peer fundamentals use the selected data mode and available market-data providers.
+          Peer universe source and coverage are shown below when comparison data loads.
         </p>
       </div>
 
@@ -152,7 +154,7 @@ function PeersPageContent() {
           <TrustBanners meta={data.meta} />
 
           {/* ── 4. Relative valuation summary (insight pills) ─────────── */}
-          {data.peers.length > 0 && (
+          {data.peers.length > 0 && selectedFundamentalsAvailable && (
             <RelativeValuationSummary
               selected={data.selected}
               peers={data.peers}
@@ -169,7 +171,7 @@ function PeersPageContent() {
               ))}
             </div>
           ) : (
-            <NoPeersState ticker={autoSelected ?? ''} />
+            <NoPeersState ticker={autoSelected ?? ''} meta={data.meta} />
           )}
 
           {/* ── 6. Full comparison table ──────────────────────────────── */}
@@ -208,16 +210,72 @@ function TrustBanners({ meta }: TrustBannersProps) {
 
   const showSparse     = meta.sparse_set
   const showIncomplete = meta.incomplete && !meta.sparse_set  // sparse already implies incomplete
+  const showStaticPeerSource = meta.peer_universe_static === true
+  const showPeerDiscoveryIssue =
+    meta.peer_discovery_status === 'not_found'
+    || meta.peer_discovery_status === 'error'
+    || meta.peer_discovery_status === 'unknown'
+  const showSelectedUnavailable = meta.selected_fundamentals_available === false
 
   const missingPeers = [
     ...meta.timed_out_peers.map((t) => `${t} (timed out)`),
     ...meta.unavailable_peers.map((t) => `${t} (unavailable)`),
   ]
 
-  if (!showSparse && !showIncomplete) return null
+  if (
+    !showSparse
+    && !showIncomplete
+    && !showStaticPeerSource
+    && !showPeerDiscoveryIssue
+    && !showSelectedUnavailable
+  ) return null
 
   return (
     <div className="space-y-2">
+      {showSelectedUnavailable && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-red-800">
+              Selected ticker fundamentals are unavailable
+            </p>
+            <p className="text-xs text-red-700 mt-0.5">
+              The selected stock could not be valued from the provider response.
+              {meta.selected_fundamentals_error && <> {meta.selected_fundamentals_error}</>}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showStaticPeerSource && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-amber-800">
+              Peer universe source: {meta.peer_source_label ?? 'Static curated peer map'}
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Peer tickers are from a curated static map, while fundamentals are sourced separately
+              from {meta.data_source ?? meta.source}. The peer list may not reflect current industry constituents.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showPeerDiscoveryIssue && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-amber-800">
+              Peer universe could not be discovered
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {meta.peer_discovery_reason ?? 'No peer candidates were returned for this ticker.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {showSparse && (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
@@ -268,14 +326,15 @@ function EmptySelectState() {
   )
 }
 
-function NoPeersState({ ticker }: { ticker: string }) {
+function NoPeersState({ ticker, meta }: { ticker: string; meta?: import('@/types').PeerComparisonMeta }) {
   const base = ticker.replace(/\.(NS|BSE|BO)$/i, '')
+  const reason = meta?.peer_discovery_reason
+    ?? 'No peer candidates were returned for this ticker.'
   return (
     <div className="card px-6 py-10 text-center">
       <p className="text-sm font-semibold text-slate-500">No peers configured for {base}</p>
       <p className="text-xs text-slate-400 mt-1">
-        Peers are resolved via Yahoo Finance sector classification.
-        If no peers appear, the ticker may not be recognised or sector data is unavailable.
+        {reason}
       </p>
     </div>
   )

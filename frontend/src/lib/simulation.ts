@@ -34,6 +34,9 @@ import { computeWeightedMetrics }  from '@/lib/fundamentals'
 /** Action tag for a position in the simulated portfolio */
 export type SimulationAction = 'hold' | 'add' | 'modified' | 'remove'
 
+/** Where a simulated position came from */
+export type SimulationHoldingSource = 'portfolio' | 'watchlist' | 'search'
+
 /** A single position inside a simulated portfolio */
 export interface SimulatedHolding {
   ticker:          string
@@ -44,6 +47,7 @@ export interface SimulatedHolding {
   action:          SimulationAction
   original_weight: number             // weight before simulation (0 if newly added)
   fundamentals:    FinancialRatio | null
+  source:          SimulationHoldingSource
 }
 
 /** A fully-computed portfolio snapshot — used for both Current and Simulated states */
@@ -65,15 +69,22 @@ export interface MetricDelta<T> {
   improved:   boolean
 }
 
+interface NullableNumberDelta {
+  current:    number | null
+  simulated:  number | null
+  delta:      number | null
+  improved:   boolean
+}
+
 /** Full before/after comparison between two scenarios */
 export interface ScenarioDelta {
-  hhi:                   { current: number; simulated: number; delta: number; improved: boolean }
-  diversification_score: { current: number; simulated: number; delta: number; improved: boolean }
-  risk_profile:          { current: string; simulated: string; changed: boolean; improved: boolean }
-  max_holding_weight:    { current: number; simulated: number; delta: number; improved: boolean }
-  max_sector_weight:     { current: number; simulated: number; delta: number; improved: boolean }
-  num_sectors:           { current: number; simulated: number; delta: number; improved: boolean }
-  num_holdings:          { current: number; simulated: number; delta: number }
+  hhi:                   NullableNumberDelta
+  diversification_score: NullableNumberDelta
+  risk_profile:          { current: string | null; simulated: string | null; changed: boolean; improved: boolean }
+  max_holding_weight:    NullableNumberDelta
+  max_sector_weight:     NullableNumberDelta
+  num_sectors:           NullableNumberDelta
+  num_holdings:          { current: number | null; simulated: number | null; delta: number | null }
   wtd_pe:                { current: number | null; simulated: number | null; delta: number | null }
   wtd_roe:               { current: number | null; simulated: number | null; delta: number | null; improved: boolean }
   wtd_div_yield:         { current: number | null; simulated: number | null; delta: number | null; improved: boolean }
@@ -210,6 +221,7 @@ export function initSimulatedHoldings(
     action:          'hold' as SimulationAction,
     original_weight: h.weight ?? 0,
     fundamentals:    ratioMap.get(h.ticker) ?? null,
+    source:          'portfolio',
   }))
 }
 
@@ -270,7 +282,9 @@ export function normalizeWeights(
  */
 export function addHolding(
   holdings:      SimulatedHolding[],
-  newHolding:    Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value'>,
+  newHolding:    Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value' | 'source'> & {
+    source?: SimulationHoldingSource
+  },
   totalValue:    number,
 ): SimulatedHolding[] {
   // Don't add if already present
@@ -282,6 +296,7 @@ export function addHolding(
     market_value:    (weight / 100) * totalValue,
     action:          'add',
     original_weight: 0,
+    source:          newHolding.source ?? 'search',
   }
   return [...holdings, added]
 }
@@ -349,14 +364,25 @@ export function computeScenarioDelta(
   const bm = base.weightedMetrics
   const sm = sim.weightedMetrics
 
-  const hhi_b = b?.hhi ?? 0
-  const hhi_s = s?.hhi ?? 0
+  const nullableDelta = (
+    current: number | null,
+    simulated: number | null,
+    improvedWhen: (current: number, simulated: number) => boolean,
+  ): NullableNumberDelta => ({
+    current,
+    simulated,
+    delta: current !== null && simulated !== null ? simulated - current : null,
+    improved: current !== null && simulated !== null ? improvedWhen(current, simulated) : false,
+  })
 
-  const ds_b = b?.diversification_score ?? 0
-  const ds_s = s?.diversification_score ?? 0
+  const hhi_b = b?.hhi ?? null
+  const hhi_s = s?.hhi ?? null
 
-  const profile_b = b?.risk_profile ?? 'moderate'
-  const profile_s = s?.risk_profile ?? 'moderate'
+  const ds_b = b?.diversification_score ?? null
+  const ds_s = s?.diversification_score ?? null
+
+  const profile_b = b?.risk_profile ?? null
+  const profile_s = s?.risk_profile ?? null
 
   const pe_b = bm?.wtd_pe ?? null
   const pe_s = sm?.wtd_pe ?? null
@@ -368,46 +394,37 @@ export function computeScenarioDelta(
   const dy_s = sm?.wtd_div_yield ?? null
 
   return {
-    hhi: {
-      current:   hhi_b,
-      simulated: hhi_s,
-      delta:     hhi_s - hhi_b,
-      improved:  hhi_s < hhi_b,
-    },
-    diversification_score: {
-      current:   ds_b,
-      simulated: ds_s,
-      delta:     ds_s - ds_b,
-      improved:  ds_s > ds_b,
-    },
+    hhi: nullableDelta(hhi_b, hhi_s, (current, simulated) => simulated < current),
+    diversification_score: nullableDelta(ds_b, ds_s, (current, simulated) => simulated > current),
     risk_profile: {
       current:  profile_b,
       simulated: profile_s,
-      changed:  profile_b !== profile_s,
-      improved: (PROFILE_ORDER[profile_s] ?? 3) > (PROFILE_ORDER[profile_b] ?? 3),
+      changed:  profile_b !== null && profile_s !== null ? profile_b !== profile_s : false,
+      improved: profile_b !== null && profile_s !== null
+        ? (PROFILE_ORDER[profile_s] ?? 3) > (PROFILE_ORDER[profile_b] ?? 3)
+        : false,
     },
-    max_holding_weight: {
-      current:   b?.max_holding_weight ?? 0,
-      simulated: s?.max_holding_weight ?? 0,
-      delta:     (s?.max_holding_weight ?? 0) - (b?.max_holding_weight ?? 0),
-      improved:  (s?.max_holding_weight ?? 0) < (b?.max_holding_weight ?? 0),
-    },
-    max_sector_weight: {
-      current:   b?.max_sector_weight ?? 0,
-      simulated: s?.max_sector_weight ?? 0,
-      delta:     (s?.max_sector_weight ?? 0) - (b?.max_sector_weight ?? 0),
-      improved:  (s?.max_sector_weight ?? 0) < (b?.max_sector_weight ?? 0),
-    },
-    num_sectors: {
-      current:   b?.num_sectors ?? 0,
-      simulated: s?.num_sectors ?? 0,
-      delta:     (s?.num_sectors ?? 0) - (b?.num_sectors ?? 0),
-      improved:  (s?.num_sectors ?? 0) > (b?.num_sectors ?? 0),
-    },
+    max_holding_weight: nullableDelta(
+      b?.max_holding_weight ?? null,
+      s?.max_holding_weight ?? null,
+      (current, simulated) => simulated < current,
+    ),
+    max_sector_weight: nullableDelta(
+      b?.max_sector_weight ?? null,
+      s?.max_sector_weight ?? null,
+      (current, simulated) => simulated < current,
+    ),
+    num_sectors: nullableDelta(
+      b?.num_sectors ?? null,
+      s?.num_sectors ?? null,
+      (current, simulated) => simulated > current,
+    ),
     num_holdings: {
-      current:  b?.num_holdings ?? 0,
-      simulated: s?.num_holdings ?? 0,
-      delta:    (s?.num_holdings ?? 0) - (b?.num_holdings ?? 0),
+      current:  b?.num_holdings ?? null,
+      simulated: s?.num_holdings ?? null,
+      delta:    b?.num_holdings !== undefined && s?.num_holdings !== undefined
+        ? s.num_holdings - b.num_holdings
+        : null,
     },
     wtd_pe: {
       current:   pe_b,

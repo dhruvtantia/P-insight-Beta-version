@@ -66,6 +66,30 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   )
 }
 
+function StaleDataBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-amber-800 text-sm">Showing stale portfolio data</p>
+          <p className="text-xs text-amber-700 mt-1 break-words">
+            Last refresh failed, so values below are from the last successful fetch. {message}
+          </p>
+        </div>
+        <button
+          onClick={onRetry}
+          className="shrink-0 flex items-center gap-1.5 rounded-md bg-amber-100
+                     hover:bg-amber-200 text-amber-800 px-3 py-1.5 text-xs font-medium transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Retry
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Section heading ──────────────────────────────────────────────────────────
 
 function SectionHeading({
@@ -181,7 +205,7 @@ function EmptyPortfolioState() {
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { holdings, summary, sectors, riskSnapshot, loading, error, refetch } = usePortfolio()
+  const { holdings, summary, sectors, riskSnapshot, loading, error, stale, refetch } = usePortfolio()
   const { currentConfig }  = useDataMode()
 
   // Cross-filter store
@@ -199,6 +223,9 @@ export default function DashboardPage() {
   const divStatus  = (d: number | null | undefined): 'good' | 'warn' | 'bad' | 'neutral' =>
     d == null ? 'neutral' : d >= 65 ? 'good' : d >= 40 ? 'warn' : 'bad'
 
+  const hasStaleData = stale && !!error && holdings.length > 0
+  const hasBlockingError = !!error && !hasStaleData
+
   return (
     <div className="space-y-6 max-w-[1400px]">
 
@@ -208,14 +235,17 @@ export default function DashboardPage() {
           <div className={cn(
             'h-2 w-2 rounded-full shrink-0',
             loading  ? 'bg-amber-400 animate-pulse'
-            : error  ? 'bg-red-400'
+            : hasBlockingError ? 'bg-red-400'
+            : hasStaleData ? 'bg-amber-400'
             :           'bg-emerald-500'
           )} />
           <p className="text-xs text-slate-500">
             {loading
               ? 'Loading portfolio data…'
-              : error
+              : hasBlockingError
               ? 'Data unavailable'
+              : hasStaleData
+              ? <>Showing stale <span className="font-semibold text-slate-700">{currentConfig?.label}</span></>
               : <>Showing <span className="font-semibold text-slate-700">{currentConfig?.label}</span></>
             }
           </p>
@@ -248,14 +278,15 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Error ────────────────────────────────────────────────────────── */}
-      {error && <ErrorBanner message={error} onRetry={refetch} />}
+      {hasBlockingError && <ErrorBanner message={error} onRetry={refetch} />}
+      {hasStaleData && <StaleDataBanner message={error} onRetry={refetch} />}
 
       {/* ── Empty state — no portfolio uploaded ──────────────────────────── */}
-      {!error && !loading && holdings.length === 0 && (
+      {!hasBlockingError && !loading && holdings.length === 0 && (
         <EmptyPortfolioState />
       )}
 
-      {!error && (loading || holdings.length > 0) && (
+      {!hasBlockingError && (loading || holdings.length > 0) && (
         <div className="space-y-0">
 
           {/* ══════════════════════════════════════════════════════════════════

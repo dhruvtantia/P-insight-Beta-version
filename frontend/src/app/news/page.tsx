@@ -1,6 +1,6 @@
 /**
- * News & Events Page — Phase 1
- * --------------------------------
+ * News & Events Page
+ * ------------------
  * Layout:
  *   1. Page header (title + description + source note)
  *   2. Sentiment summary bar — count of positive / neutral / negative articles
@@ -9,13 +9,11 @@
  *
  * Data flow:
  *   usePortfolio()  → holdings[] → ticker options for FilterBar
- *   useNews()       → articles + events → passed to FilterBar + NewsFeed
- *   Client-side     → ticker + eventType filters update view without re-fetch
- *                     (event_type is sent to backend; ticker is client-filtered
- *                      for instant chip switching)
+ *   useNews()       → articles + events using selected ticker/event filters
+ *   Client-side     → defensive filtering keeps the visible list aligned with
+ *                     selected chips if a provider returns broader data.
  *
- * Phase 2 extension points:
- *   - Replace static mock data with live newsApi call per ticker
+ * Extension points:
  *   - Add "Mark as read" / "Save" actions per card
  *   - Persist filters in URL search params for deep-linking
  */
@@ -29,7 +27,6 @@ import { Newspaper, AlertCircle,
          Minus, X, Filter }             from 'lucide-react'
 import { usePortfolio }                from '@/hooks/usePortfolio'
 import { useNews }                     from '@/hooks/useNews'
-import { useDataModeStore }            from '@/store/dataModeStore'
 import { NewsFilterBar }               from '@/components/news/NewsFilterBar'
 import { NewsFeed }                    from '@/components/news/NewsFeed'
 import { cn }                          from '@/lib/utils'
@@ -39,17 +36,22 @@ export default function NewsPage() {
   // ── Portfolio (for ticker options in FilterBar) ───────────────────────────
   const { holdings, loading: holdingsLoading } = usePortfolio()
 
-  // ── Current data mode ─────────────────────────────────────────────────────
-  const { mode } = useDataModeStore()
-
   // ── Filters — managed in page state ───────────────────────────────────────
   const [tickerFilter,    setTickerFilter]    = useState<string | null>(null)
   const [eventTypeFilter, setEventTypeFilter] = useState<NewsEventType | null>(null)
 
   // ── News data ─────────────────────────────────────────────────────────────
-  // We only pass eventType to the API (server-side filter).
-  // Ticker is filtered client-side for instant chip switching.
-  const { articles, events, loading, error, refetch, liveUnavailable } = useNews({
+  const {
+    articles,
+    events,
+    loading,
+    error,
+    refetch,
+    newsUnavailable,
+    unavailableReason,
+    newsKeyConfigured,
+  } = useNews({
+    tickers:   tickerFilter ? [tickerFilter] : undefined,
     eventType: eventTypeFilter ?? undefined,
   })
 
@@ -57,7 +59,7 @@ export default function NewsPage() {
   const visibleArticles = useMemo(() => {
     if (!tickerFilter) return articles
     const upper = tickerFilter.toUpperCase()
-    return articles.filter((a) => a.tickers.some((t) => t.toUpperCase() === upper))
+    return articles.filter((a) => a.tickers.some((t) => tickerMatches(t, upper)))
   }, [articles, tickerFilter])
 
   // ── Sentiment summary ─────────────────────────────────────────────────────
@@ -100,23 +102,31 @@ export default function NewsPage() {
         </button>
       </div>
 
-      {/* ── Data source note — shown when NEWS_API_KEY is not configured ─── */}
-      {liveUnavailable && !loading && !error && (
+      {/* ── Data source note — shown when the backend marks news unavailable ─── */}
+      {newsUnavailable && !loading && !error && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
           <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
           <div className="text-xs text-slate-600 space-y-1">
-            <p className="font-semibold text-slate-700">News provider not configured</p>
+            <p className="font-semibold text-slate-700">
+              {newsKeyConfigured ? 'News provider unavailable' : 'News provider not configured'}
+            </p>
             <p>
-              Add{' '}
-              <code className="bg-amber-100 px-1 rounded text-amber-800 font-mono">NEWS_API_KEY</code>{' '}
-              to your <code className="font-mono">.env</code> file to see portfolio-relevant headlines
-              for your holdings. Get a free key at{' '}
-              <a href="https://newsapi.org" target="_blank" rel="noopener noreferrer"
-                 className="text-indigo-600 hover:underline font-medium">newsapi.org</a>{' '}
-              (100 requests/day on the free tier).
+              {newsKeyConfigured ? (
+                'The configured news provider did not return usable data for this request.'
+              ) : (
+                <>
+                  Add{' '}
+                  <code className="bg-amber-100 px-1 rounded text-amber-800 font-mono">NEWS_API_KEY</code>{' '}
+                  to your <code className="font-mono">.env</code> file to see portfolio-relevant headlines
+                  for your holdings. Get a free key at{' '}
+                  <a href="https://newsapi.org" target="_blank" rel="noopener noreferrer"
+                     className="text-indigo-600 hover:underline font-medium">newsapi.org</a>{' '}
+                  (100 requests/day on the free tier).
+                </>
+              )}
             </p>
             <p className="text-slate-400">
-              Without a key, upcoming events and scheduled earnings will still appear below.
+              {unavailableReason ?? 'Corporate events remain limited until a real events provider is configured.'}
             </p>
           </div>
         </div>
@@ -186,7 +196,7 @@ export default function NewsPage() {
       )}
 
       {/* ── No results for selected ticker ───────────────────────────────── */}
-      {tickerFilter && !loading && visibleArticles.length === 0 && !liveUnavailable && (
+      {tickerFilter && !loading && visibleArticles.length === 0 && !newsUnavailable && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-8 text-center">
           <Newspaper className="h-8 w-8 text-slate-200 mx-auto mb-2" />
           <p className="text-sm font-semibold text-slate-600">
@@ -218,12 +228,20 @@ export default function NewsPage() {
             events={events}
             tickerFilter={tickerFilter}
             eventTypeFilter={eventTypeFilter}
-            liveUnavailable={liveUnavailable}
+            newsUnavailable={newsUnavailable}
           />
         )
       )}
     </div>
   )
+}
+
+function bareTicker(ticker: string): string {
+  return ticker.toUpperCase().replace(/\.(NS|BSE|BO)$/i, '')
+}
+
+function tickerMatches(articleTicker: string, selectedUpper: string): boolean {
+  return articleTicker.toUpperCase() === selectedUpper || bareTicker(articleTicker) === bareTicker(selectedUpper)
 }
 
 // ─── Sentiment summary bar ────────────────────────────────────────────────────

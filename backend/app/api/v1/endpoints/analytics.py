@@ -131,13 +131,23 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
         )
 
     # ── Compute holding weights (needed for weighted metric calculation) ───────
+    trusted_price_statuses = {"live", "uploaded_current_price"}
+    priceable_holdings = [
+        h for h in holdings
+        if h.current_price is not None
+        and (getattr(h, "price_status", None) or "unknown") in trusted_price_statuses
+    ]
+    priceable_tickers = {h.ticker for h in priceable_holdings}
     total_value = sum(
-        h.quantity * (h.current_price or h.average_cost) for h in holdings
+        h.quantity * h.current_price for h in priceable_holdings
     )
     weights: dict[str, float] = {}
     for h in holdings:
-        market_val = h.quantity * (h.current_price or h.average_cost)
-        weights[h.ticker] = (market_val / total_value) if total_value > 0 else 0.0
+        if h.ticker in priceable_tickers and h.current_price is not None and total_value > 0:
+            market_val = h.quantity * h.current_price
+            weights[h.ticker] = market_val / total_value
+        else:
+            weights[h.ticker] = 0.0
 
     # ── Fetch per-holding fundamentals ────────────────────────────────────────
     ratio_list:          list[FinancialRatioResponse] = []

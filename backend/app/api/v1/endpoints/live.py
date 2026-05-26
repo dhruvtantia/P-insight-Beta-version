@@ -20,6 +20,7 @@ DEPRECATED route (no longer called by any UI path as of 2026-04-12):
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -77,10 +78,18 @@ async def get_live_quotes(
         raise HTTPException(status_code=400, detail="Maximum 50 tickers per request.")
 
     if not YFINANCE_AVAILABLE:
+        ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
         return {
             "prices": {},
+            "requested": ticker_list,
+            "found": [],
+            "missing": ticker_list,
             "note": "yfinance is not installed. Run `poetry add yfinance httpx` to enable live quotes.",
             "yfinance_available": False,
+            "source": "yfinance",
+            "timed_out": False,
+            "status_by_ticker": {ticker: "provider_failed" for ticker in ticker_list},
+            "price_timestamps": {},
         }
 
     # Run the blocking yf.download() call off the event loop with a hard timeout.
@@ -94,15 +103,29 @@ async def get_live_quotes(
     except asyncio.TimeoutError:
         logger.warning("Live price fetch timed out after 15s for tickers: %s", ticker_list)
         prices = {}
+        timed_out = True
+    else:
+        timed_out = False
+
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    missing = [t for t in ticker_list if t not in prices]
 
     return {
         "prices": prices,
         "requested": ticker_list,
         "found": list(prices.keys()),
-        "missing": [t for t in ticker_list if t not in prices],
+        "missing": missing,
         "yfinance_available": True,
         "source": "yfinance",
-        "timed_out": len(prices) == 0 and bool(ticker_list),
+        "timed_out": timed_out,
+        "status_by_ticker": {
+            ticker: "live" if ticker in prices else ("provider_failed" if timed_out else "missing")
+            for ticker in ticker_list
+        },
+        "price_timestamps": {
+            ticker: fetched_at
+            for ticker in prices
+        },
     }
 
 

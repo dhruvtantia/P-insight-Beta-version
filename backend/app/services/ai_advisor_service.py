@@ -5,9 +5,9 @@ Orchestrates the full AI advisory pipeline:
   1. Resolve portfolio_id (use active portfolio if None)
   2. Build PortfolioContext via PortfolioContextBuilder
   3. Render a rich system prompt from the context
-  4. Call the LLM provider (Claude → OpenAI → FallbackProvider)
+  4. Call Anthropic when ANTHROPIC_API_KEY is configured
   5. Parse JSON response into AIAdvisorResponse
-  6. Set fallback_used=True if provider unavailable or response unparseable
+  6. Set fallback_used=True if Anthropic is unavailable
 
 The frontend decides what to do with fallback_used=True:
   - It runs local rule-based routeQuery() and ignores the empty AI response
@@ -42,9 +42,13 @@ from app.schemas.advisor   import (
 )
 from app.services.context_builder import PortfolioContextBuilder, PortfolioContext
 from app.services.portfolio_service import PortfolioReadService
-from app.services.ai.provider     import get_provider, ProviderError, ConversationHistory
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+CLAUDE_MODEL = "claude-3-5-haiku-20241022"
+MAX_TOKENS   = 1024
+ConversationHistory = list[dict[str, str]]
 
 # ─── System prompt template ───────────────────────────────────────────────────
 
@@ -186,6 +190,54 @@ def _render_optimization_note(ctx: PortfolioContext) -> str:
 
 
 # ─── Response parser ──────────────────────────────────────────────────────────
+
+def _fallback_signal(reason: str) -> str:
+    """
+    Return the existing fallback signal consumed by _parse_response().
+    The frontend sees fallback_used=True and runs the local rule-based advisor.
+    """
+    return json.dumps({
+        "_fallback": True,
+        "_reason":   reason,
+    })
+
+
+def _call_anthropic(system_prompt: str, user_message: str, history: ConversationHistory) -> str:
+    """
+    Call Anthropic Claude with the portfolio-aware system prompt.
+
+    The system_prompt is assembled from PortfolioContext by _render_system_prompt(ctx)
+    inside AIAdvisorService.ask(), so Claude receives the user's current portfolio
+    holdings, allocation, risk metrics, snapshots, recent changes, and data quality.
+    """
+    try:
+        import anthropic
+    except ImportError as e:
+        raise RuntimeError("anthropic package not installed") from e
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    messages: list[dict[str, str]] = []
+    for turn in history:
+        role = turn.get("role", "user")
+        content = turn.get("content", "")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_message})
+
+    response = client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=MAX_TOKENS,
+        system=system_prompt,
+        messages=messages,
+    )
+
+    text_parts = [
+        block.text
+        for block in response.content
+        if getattr(block, "type", None) == "text" and getattr(block, "text", None)
+    ]
+    return "\n".join(text_parts).strip()
 
 def _parse_response(raw: str, query: str, provider_name: str, model: Optional[str], latency_ms: int) -> AIAdvisorResponse:
     """
@@ -338,8 +390,8 @@ class AIAdvisorService:
 
         1. Resolve portfolio
         2. Build context
-        3. Get provider
-        4. Call LLM
+        3. Render a portfolio-aware system prompt
+        4. Call Anthropic if configured
         5. Parse + return response
         """
         t0 = time.monotonic()
@@ -373,10 +425,6 @@ class AIAdvisorService:
                 error_message = f"Context build failed: {e}",
             )
 
-        # Get provider
-        provider = get_provider()
-        info     = provider.get_info()
-
         # Build system prompt — include optimization narrative if requested
         system_prompt = _render_system_prompt(ctx)
         if req.include_optimization:
@@ -389,21 +437,19 @@ class AIAdvisorService:
         ][-6:]  # truncate to last 6 turns
 
         raw_response  = ""
+        provider_name = "none"
+        model         = None
 
-        try:
-            raw_response = provider.complete(system_prompt, req.query, history)
-        except ProviderError as e:
-            logger.warning("Provider %s failed: %s", info.get("provider"), e)
-            raw_response = json.dumps({
-                "_fallback": True,
-                "_reason":   str(e),
-            })
-        except Exception as e:
-            logger.error("Unexpected provider error: %s", e)
-            raw_response = json.dumps({
-                "_fallback": True,
-                "_reason":   f"Unexpected error: {e}",
-            })
+        if not settings.ANTHROPIC_API_KEY:
+            raw_response = _fallback_signal("No ANTHROPIC_API_KEY in settings")
+        else:
+            provider_name = "claude"
+            model         = CLAUDE_MODEL
+            try:
+                raw_response = _call_anthropic(system_prompt, req.query, history)
+            except Exception as e:
+                logger.warning("Anthropic advisor call failed: %s", e)
+                raw_response = _fallback_signal(str(e))
 
         latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -411,8 +457,8 @@ class AIAdvisorService:
         resp = _parse_response(
             raw          = raw_response,
             query        = req.query,
-            provider_name = info.get("provider", "none"),
-            model         = info.get("model"),
+            provider_name = provider_name,
+            model         = model,
             latency_ms    = latency_ms,
         )
 

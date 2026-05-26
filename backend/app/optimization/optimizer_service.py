@@ -40,6 +40,12 @@ from app.optimization.frontier import (
     compute_frontier,
     current_portfolio_point,
 )
+from app.optimization.objectives import (
+    portfolio_return,
+    portfolio_volatility,
+    sharpe_ratio,
+)
+from app.services.price_enrichment_service import valuation_price_and_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -153,14 +159,26 @@ class OptimizerService:
             )
 
         # 4. Current portfolio weights (normalised to valid tickers)
-        total_value = sum(
-            h.quantity * (h.current_price or h.average_cost)
-            for h in holdings if h.ticker in valid_tickers
-        )
+        holding_values: dict[str, float] = {}
+        for h in holdings:
+            if h.ticker not in valid_tickers:
+                continue
+            price, uses_fallback, _status = valuation_price_and_fallback(
+                h,
+                allow_cost_basis_fallback=False,
+            )
+            if uses_fallback or price is None:
+                continue
+            holding_values[h.ticker] = h.quantity * price
+
+        total_value = sum(holding_values.values())
+        if total_value <= 0:
+            return self._error_result("No trusted current prices available for optimizer weights")
+
         weight_dict: dict[str, float] = {}
         for h in holdings:
-            if h.ticker in valid_tickers and total_value > 0:
-                weight_dict[h.ticker] = (h.quantity * (h.current_price or h.average_cost)) / total_value
+            if h.ticker in valid_tickers and h.ticker in holding_values:
+                weight_dict[h.ticker] = holding_values[h.ticker] / total_value
         w_sum = sum(weight_dict.values())
         if w_sum > 0:
             weight_dict = {t: w / w_sum for t, w in weight_dict.items()}
@@ -192,6 +210,13 @@ class OptimizerService:
         except Exception as exc:
             logger.exception(f"Optimization solve failed: {exc}")
             return self._error_result(f"Optimization failed: {exc}")
+
+        min_var_pt = _post_process_portfolio_point(min_var_pt, mu, sigma, constraints)
+        max_shr_pt = _post_process_portfolio_point(max_shr_pt, mu, sigma, constraints)
+        frontier_pts = [
+            _post_process_portfolio_point(pt, mu, sigma, constraints)
+            for pt in frontier_pts
+        ]
 
         # Determine which method was used + library availability
         try:
@@ -334,6 +359,102 @@ class OptimizerService:
 
 
 # ─── Serialization helper ─────────────────────────────────────────────────────
+
+_WEIGHT_TOL = 1e-10
+
+
+def _normalise_nonnegative_weights(weights: np.ndarray) -> np.ndarray:
+    w = np.asarray(weights, dtype=float).copy()
+    if w.size == 0:
+        return w
+
+    w = np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
+    w = np.maximum(w, 0.0)
+    total = float(w.sum())
+    if total <= _WEIGHT_TOL:
+        return np.ones(len(w), dtype=float) / len(w)
+    return w / total
+
+
+def _enforce_max_weight(weights: np.ndarray, constraints: OptimizationConstraints) -> np.ndarray:
+    w = _normalise_nonnegative_weights(weights)
+    n = len(w)
+    if n == 0:
+        return w
+
+    max_weight = float(constraints.max_weight)
+    if not np.isfinite(max_weight) or max_weight >= 1.0:
+        return w
+
+    if max_weight <= 0.0:
+        logger.warning(
+            "Max weight constraint %.4f is not positive; returning normalised weights",
+            max_weight,
+        )
+        return w
+
+    if n * max_weight < 1.0 - _WEIGHT_TOL:
+        logger.warning(
+            "Max weight constraint %.4f is infeasible for %d assets; "
+            "returning normalised best-effort weights",
+            max_weight,
+            n,
+        )
+        clipped = np.minimum(w, max_weight)
+        return _normalise_nonnegative_weights(clipped)
+
+    for _ in range(n + 1):
+        over_cap = w > max_weight + _WEIGHT_TOL
+        if not bool(over_cap.any()):
+            break
+
+        excess = float(np.sum(w[over_cap] - max_weight))
+        w[over_cap] = max_weight
+
+        while excess > _WEIGHT_TOL:
+            remaining = np.where(w < max_weight - _WEIGHT_TOL)[0]
+            if remaining.size == 0:
+                break
+
+            capacity = max_weight - w[remaining]
+            total_capacity = float(capacity.sum())
+            if total_capacity <= _WEIGHT_TOL:
+                break
+
+            basis = w[remaining].copy()
+            if float(basis.sum()) <= _WEIGHT_TOL:
+                basis = capacity
+
+            proposed = excess * basis / float(basis.sum())
+            allocation = np.minimum(proposed, capacity)
+            allocated = float(allocation.sum())
+            if allocated <= _WEIGHT_TOL:
+                break
+
+            w[remaining] += allocation
+            excess -= allocated
+
+    return _normalise_nonnegative_weights(w)
+
+
+def _post_process_portfolio_point(
+    pt: PortfolioPoint,
+    mu: np.ndarray,
+    sigma: np.ndarray,
+    constraints: OptimizationConstraints,
+) -> PortfolioPoint:
+    weights = _enforce_max_weight(pt.weights, constraints)
+    ret = portfolio_return(weights, mu)
+    vol = portfolio_volatility(weights, sigma)
+    sr  = sharpe_ratio(weights, mu, sigma, RISK_FREE_RATE)
+    return PortfolioPoint(
+        weights=weights,
+        expected_return=ret * 100,
+        volatility=vol * 100,
+        sharpe_ratio=sr,
+        label=pt.label,
+    )
+
 
 def _serialize_point(pt: PortfolioPoint, tickers: list[str]) -> dict:
     return {

@@ -28,6 +28,10 @@ function profileLabel(profile: string): string {
   return profile.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function fmtInt(v: number | null): string {
+  return v !== null ? String(v) : '—'
+}
+
 // ─── Delta arrow ──────────────────────────────────────────────────────────────
 
 function DeltaArrow({
@@ -135,6 +139,8 @@ export function ScenarioComparisonPanel({
   delta,
 }: ScenarioComparisonPanelProps) {
   const isModified = sim.holdings.some((h) => h.action !== 'hold')
+  const canSummarizeConcentration =
+    delta.hhi.delta !== null && delta.diversification_score.delta !== null
 
   return (
     <div className="card overflow-hidden">
@@ -185,8 +191,8 @@ export function ScenarioComparisonPanel({
         />
         <MetricRow
           label="Risk Profile"
-          current={profileLabel(base.riskSnapshot?.risk_profile ?? '—')}
-          simulated={profileLabel(sim.riskSnapshot?.risk_profile ?? '—')}
+          current={base.riskSnapshot?.risk_profile ? profileLabel(base.riskSnapshot.risk_profile) : '—'}
+          simulated={sim.riskSnapshot?.risk_profile ? profileLabel(sim.riskSnapshot.risk_profile) : '—'}
           delta={null}
           improved={delta.risk_profile.improved}
         />
@@ -211,15 +217,15 @@ export function ScenarioComparisonPanel({
         <SectionHeader icon={PieChart} label="Portfolio Structure" />
         <MetricRow
           label="Holdings"
-          current={String(base.riskSnapshot?.num_holdings ?? '—')}
-          simulated={String(sim.riskSnapshot?.num_holdings ?? '—')}
+          current={fmtInt(delta.num_holdings.current)}
+          simulated={fmtInt(delta.num_holdings.simulated)}
           delta={delta.num_holdings.delta}
-          improved={delta.num_holdings.delta > 0}
+          improved={(delta.num_holdings.delta ?? 0) > 0}
         />
         <MetricRow
           label="Sectors"
-          current={String(base.riskSnapshot?.num_sectors ?? '—')}
-          simulated={String(sim.riskSnapshot?.num_sectors ?? '—')}
+          current={fmtInt(delta.num_sectors.current)}
+          simulated={fmtInt(delta.num_sectors.simulated)}
           delta={delta.num_sectors.delta}
           improved={delta.num_sectors.improved}
         />
@@ -252,14 +258,14 @@ export function ScenarioComparisonPanel({
       </div>
 
       {/* Summary footer */}
-      {isModified && delta && (
+      {isModified && canSummarizeConcentration && (
         <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-3">
           <p className="text-[11px] text-slate-500">
             {delta.hhi.improved
-              ? `✓ HHI ${delta.hhi.delta > 0 ? '+' : ''}${(delta.hhi.delta * 1000).toFixed(1)}m points — concentration ${delta.hhi.improved ? 'improved' : 'worsened'}`
-              : `HHI ${delta.hhi.delta > 0 ? 'increased' : 'decreased'} — concentration ${delta.hhi.improved ? 'improved' : 'worsened'}`
+              ? `HHI ${delta.hhi.delta! > 0 ? '+' : ''}${(delta.hhi.delta! * 1000).toFixed(1)}m points — concentration improved`
+              : `HHI ${delta.hhi.delta! > 0 ? 'increased' : 'decreased'} — concentration worsened`
             }
-            {delta.diversification_score.delta !== 0
+            {delta.diversification_score.delta !== null && delta.diversification_score.delta !== 0
               ? `. Diversification score ${delta.diversification_score.delta > 0 ? '+' : ''}${delta.diversification_score.delta.toFixed(0)} pts.`
               : '.'
             }

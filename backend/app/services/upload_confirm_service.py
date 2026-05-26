@@ -172,13 +172,26 @@ async def _fetch_and_persist_prices(portfolio_id: int, holdings: list) -> list:
             _fetch_live_prices_batch,
         )
     except ImportError:
+        _persist_legacy_price_outcomes(
+            portfolio_id,
+            [holding.ticker for holding in holdings],
+            {},
+            "live price provider is not importable",
+        )
         return holdings
 
     if not yfinance_available:
+        _persist_legacy_price_outcomes(
+            portfolio_id,
+            [holding.ticker for holding in holdings],
+            {},
+            "yfinance is not installed",
+        )
         return holdings
 
     ticker_list = [holding.ticker for holding in holdings]
     prices: dict[str, float] = {}
+    failure_reason: str | None = None
     try:
         prices = await asyncio.wait_for(
             asyncio.to_thread(_fetch_live_prices_batch, ticker_list),
@@ -187,42 +200,46 @@ async def _fetch_and_persist_prices(portfolio_id: int, holdings: list) -> list:
         logger.info("Upload price fetch: got %d/%d prices", len(prices), len(ticker_list))
     except asyncio.TimeoutError:
         logger.warning("Upload price fetch timed out after 20s — proceeding without live prices")
-
-    if not prices:
-        return holdings
+        failure_reason = "live price fetch timed out after 20s"
 
     updated_holdings = [
         holding.model_copy(update={"current_price": prices[holding.ticker]})
         if holding.ticker in prices else holding
         for holding in holdings
     ]
+    _persist_legacy_price_outcomes(portfolio_id, ticker_list, prices, failure_reason)
 
+    return updated_holdings
+
+
+def _persist_legacy_price_outcomes(
+    portfolio_id: int,
+    ticker_list: list[str],
+    prices: dict[str, float],
+    failure_reason: str | None = None,
+) -> None:
     try:
         from app.db.database import SessionLocal
-        from app.models.portfolio import Holding as DBHolding
+        from app.services.price_enrichment_service import persist_price_outcomes
 
         price_session = SessionLocal()
         try:
-            db_holdings = (
-                price_session.query(DBHolding)
-                .filter(DBHolding.portfolio_id == portfolio_id)
-                .all()
+            persist_price_outcomes(
+                db=price_session,
+                portfolio_id=portfolio_id,
+                requested_tickers=ticker_list,
+                prices=prices,
+                failure_reason=failure_reason,
             )
-            for db_holding in db_holdings:
-                if db_holding.ticker in prices:
-                    db_holding.current_price = prices[db_holding.ticker]
-            price_session.commit()
             logger.info(
-                "Persisted %d live prices to DB (portfolio_id=%s)",
+                "Persisted price outcomes to DB: %d live prices (portfolio_id=%s)",
                 len(prices),
                 portfolio_id,
             )
         finally:
             price_session.close()
     except Exception as exc:
-        logger.warning("Could not persist live prices to DB: %s", exc)
-
-    return updated_holdings
+        logger.warning("Could not persist price outcomes to DB: %s", exc)
 
 
 def _schedule_legacy_background_work(
@@ -273,7 +290,11 @@ def _save_legacy_canonical_csv(uploads_path: Path, holdings: list) -> None:
             "name":          holding.name,
             "quantity":      holding.quantity,
             "average_cost":  holding.average_cost,
-            "current_price": holding.current_price or holding.average_cost,
+            "current_price": holding.current_price,
+            "price_status":  getattr(holding, "price_status", None) or (
+                "uploaded_current_price" if holding.current_price is not None else "pending"
+            ),
+            "price_source":  getattr(holding, "price_source", None),
             "sector":        holding.sector or "Unknown",
             "asset_class":   holding.asset_class or "Equity",
             "currency":      holding.currency or "INR",

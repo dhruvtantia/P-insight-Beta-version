@@ -80,8 +80,19 @@ def test_upload_v2_confirm_contract(client, monkeypatch, tmp_path):
     query_payload = status_query.json()
     assert query_payload["portfolio_id"] == payload["portfolio_id"]
     assert query_payload["total_holdings"] == 2
-    assert query_payload["overall"] in {"in_progress", "done", "failed"}
+    assert query_payload["enriched"] == 0
+    assert query_payload["partial"] == 0
+    assert query_payload["pending"] == 2
+    assert query_payload["failed"] == 0
+    assert query_payload["enrichment_complete"] is False
+    assert query_payload["overall"] == "in_progress"
     assert isinstance(query_payload["holdings"], list)
+    assert all(holding["enrichment_status"] == "pending" for holding in query_payload["holdings"])
+    assert all(holding["fundamentals_status"] == "pending" for holding in query_payload["holdings"])
+    assert all(holding["price_status"] == "uploaded_current_price" for holding in query_payload["holdings"])
+    assert all(holding["price_source"] == "uploaded_csv" for holding in query_payload["holdings"])
+    assert all(holding["price_timestamp"] is None for holding in query_payload["holdings"])
+    assert all(holding["price_failure_reason"] is None for holding in query_payload["holdings"])
 
     status_path = client.get(f"/api/v1/upload/v2/status/{payload['portfolio_id']}")
     assert status_path.status_code == 200
@@ -99,6 +110,81 @@ def test_upload_status_contract_returns_404_for_missing_portfolio(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Portfolio 999999 not found"
+
+
+def test_upload_status_contract_reports_mixed_terminal_enrichment(client, monkeypatch, tmp_path):
+    import app.api.v1.endpoints.upload as upload_endpoint
+    import app.data_providers.file_provider as file_provider
+    from app.db.database import SessionLocal
+    from app.models.portfolio import Holding
+
+    async def _noop_background_enrichment(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(upload_endpoint, "run_background_enrichment", _noop_background_enrichment)
+    monkeypatch.setattr(upload_endpoint, "UPLOADS_PATH", tmp_path)
+    file_provider._uploaded_holdings = []
+
+    created = client.post(
+        "/api/v1/upload/v2/confirm",
+        files={"file": ("portfolio.csv", _csv_bytes(), "text/csv")},
+        data={"column_mapping": _column_mapping()},
+    )
+    assert created.status_code == 200
+    portfolio_id = created.json()["portfolio_id"]
+
+    db = SessionLocal()
+    try:
+        holdings = (
+            db.query(Holding)
+            .filter(Holding.portfolio_id == portfolio_id)
+            .order_by(Holding.ticker)
+            .all()
+        )
+        assert len(holdings) == 2
+        holdings[0].enrichment_status = "enriched"
+        holdings[0].sector_status = "from_file"
+        holdings[0].name_status = "from_file"
+        holdings[0].fundamentals_status = "fetched"
+        holdings[0].peers_status = "found"
+        holdings[0].current_price = 3210.5
+        holdings[0].price_status = "live"
+        holdings[0].price_source = "yfinance"
+        holdings[0].price_failure_reason = None
+        holdings[1].enrichment_status = "partial"
+        holdings[1].sector_status = "static_map"
+        holdings[1].name_status = "from_file"
+        holdings[1].fundamentals_status = "unavailable"
+        holdings[1].peers_status = "found"
+        holdings[1].failure_reason = "fundamentals_unavailable"
+        holdings[1].current_price = None
+        holdings[1].price_status = "provider_failed"
+        holdings[1].price_source = "yfinance"
+        holdings[1].price_failure_reason = "yfinance unavailable"
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get(f"/api/v1/upload/v2/status/{portfolio_id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["enriched"] == 1
+    assert payload["partial"] == 1
+    assert payload["pending"] == 0
+    assert payload["failed"] == 0
+    assert payload["enrichment_complete"] is True
+    assert payload["overall"] == "done"
+    assert any(
+        holding["failure_reason"] == "fundamentals_unavailable"
+        for holding in payload["holdings"]
+    )
+    by_ticker = {holding["ticker"]: holding for holding in payload["holdings"]}
+    assert by_ticker["INFY"]["price_status"] == "live"
+    assert by_ticker["INFY"]["price_source"] == "yfinance"
+    assert by_ticker["INFY"]["price_failure_reason"] is None
+    assert by_ticker["TCS"]["price_status"] == "provider_failed"
+    assert by_ticker["TCS"]["price_source"] == "yfinance"
+    assert by_ticker["TCS"]["price_failure_reason"] == "yfinance unavailable"
 
 
 def test_upload_confirm_contract_uses_db_not_memory_cache(client, monkeypatch, tmp_path):

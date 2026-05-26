@@ -5,7 +5,7 @@ Provides live market summary data for the landing page.
 
 Routes:
   GET /market/overview  — NIFTY 50 / SENSEX / BANK NIFTY, sector indices,
-                          top gainers, top losers, headlines placeholder
+                          top gainers, top losers
 
 Provider:
   yfinance exclusively. No other live market data source is configured.
@@ -234,10 +234,11 @@ def _fetch_single_index(sym: str, name: str) -> dict:
 
 # ─── Gainers / Losers ─────────────────────────────────────────────────────────
 
-def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
+def _fetch_gainers_losers() -> tuple[list[dict], list[dict], dict]:
     """
     Batch yf.download() for the NIFTY 50 universe.
-    Returns (gainers, losers) — both [] on any failure.
+    Returns (gainers, losers, status). Arrays remain for compatibility; status
+    tells clients whether [] means an unavailable feed or no returned movers.
     """
     try:
         import yfinance as yf
@@ -254,11 +255,11 @@ def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
             raw = fut.result(timeout=25)
 
         if raw is None or raw.empty:
-            return [], []
+            return [], [], {"status": "unavailable", "reason": "no_data_returned", "source": "yfinance"}
 
         close = raw.get("Close")
         if close is None:
-            return [], []
+            return [], [], {"status": "unavailable", "reason": "missing_close_series", "source": "yfinance"}
 
         changes: list[dict] = []
         for sym in _NIFTY50_TICKERS:
@@ -285,11 +286,13 @@ def _fetch_gainers_losers() -> tuple[list[dict], list[dict]]:
         changes.sort(key=lambda x: x["change_pct"], reverse=True)
         gainers = changes[:5]
         losers  = list(reversed(changes[-5:])) if len(changes) >= 5 else []
-        return gainers, losers
+        if not changes:
+            return [], [], {"status": "unavailable", "reason": "no_mover_rows", "source": "yfinance"}
+        return gainers, losers, {"status": "ok", "reason": None, "source": "yfinance"}
 
     except Exception as exc:
         logger.warning("Gainers/losers batch failed: %s", exc)
-        return [], []
+        return [], [], {"status": "unavailable", "reason": f"{type(exc).__name__}: {str(exc)[:120]}", "source": "yfinance"}
 
 
 # ─── Main orchestrator ────────────────────────────────────────────────────────
@@ -305,15 +308,22 @@ def _fetch_overview() -> dict:
     try:
         import yfinance  # noqa: F401
     except ImportError:
+        checked_at_ist = _ist_now().strftime("%H:%M IST")
         return {
             "available":     False,
             "reason":        "yfinance_not_installed",
-            "market_status": {"open": False, "reason": "yfinance_not_installed"},
+            "market_status": {
+                "open": False,
+                "note": "Market data unavailable — yfinance is not installed",
+                "next_open": None,
+                "checked_at_ist": checked_at_ist,
+                "reason": "yfinance_not_installed",
+            },
             "main_indices":   [],
             "sector_indices": [],
             "top_gainers":    [],
             "top_losers":     [],
-            "headlines":      {"available": False, "reason": "yfinance_not_installed"},
+            "movers_status":   {"status": "unavailable", "reason": "yfinance_not_installed", "source": "none"},
             "fetched_at":     now_utc,
             "source":         "none",
         }
@@ -354,15 +364,7 @@ def _fetch_overview() -> dict:
     sector_out = [results[sym] for sym, _ in _SECTOR_INDICES]
 
     # Gainers / losers — separate batch call
-    gainers, losers = _fetch_gainers_losers()
-
-    # Headlines — no provider configured; return explicit placeholder
-    headlines_payload = {
-        "available": False,
-        "reason":    "no_news_provider_configured",
-        "note":      "Set NEWS_API_KEY in .env to enable market headlines.",
-        "articles":  [],
-    }
+    gainers, losers, movers_status = _fetch_gainers_losers()
 
     any_live = any(not e.get("unavailable", True) for e in main_out)
 
@@ -373,7 +375,7 @@ def _fetch_overview() -> dict:
         "sector_indices": sector_out,
         "top_gainers":    gainers,
         "top_losers":     losers,
-        "headlines":      headlines_payload,
+        "movers_status":   movers_status,
         "fetched_at":     now_utc,
         "source":         "yfinance",
     }
@@ -383,7 +385,7 @@ def _fetch_overview() -> dict:
 
 @router.get(
     "/overview",
-    summary="Live market overview — indices, gainers, losers, headlines",
+    summary="Live market overview — indices, gainers, losers",
     dependencies=[Depends(feature_dependency("market_data"))],
 )
 async def get_market_overview() -> dict:
@@ -400,6 +402,7 @@ async def get_market_overview() -> dict:
     Market status:
       market_status.open: true if NSE is currently within trading hours
       market_status.next_open: when market next opens (if closed)
+      market_status.checked_at_ist: time the market-hours evaluation was made
 
     Cached for 2 minutes. When yfinance is not installed, available=false.
     """

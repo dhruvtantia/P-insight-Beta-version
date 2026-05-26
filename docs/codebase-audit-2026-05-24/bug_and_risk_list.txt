@@ -1,0 +1,28 @@
+Bug and Risk List
+Generated: 2026-05-24
+
+Critical Risks
+- Authentication / tenancy: the backend has no user isolation, so portfolio state is effectively global.
+- Broker sync: the UI exists while the feature is disabled and connector implementations are scaffolded.
+- Standalone AI chat: a visible product surface returns scaffold responses rather than a real workflow.
+- Snapshots / historical trust: snapshot risk metrics are not actually persisted even though history views imply deeper archival fidelity.
+
+High Risks
+- Upload workflow: the success state does not poll async enrichment, so users can trust incomplete analytics too early.
+- News and events: empty-provider fallbacks can read like "no news" instead of "service unavailable."
+- Peer comparison: static peer maps can produce incomplete or misleading competitive sets.
+- Pricing pipeline: average-cost fallback can stabilize math while hiding stale or missing live prices.
+- Quant and optimization: output quality depends heavily on symbol normalization and available Yahoo history coverage.
+- Legacy surfaces: deprecated frontier and scaffold-era endpoints/pages increase confusion and maintenance drag.
+
+Medium Risks
+- Market landing page: some panels are live while headlines and other blocks are placeholders, creating mixed trust.
+- Simulation: the product reads like a workflow but is mostly a client-side sandbox with no persistence.
+- Commentary loading: supplementary commentary can fail separately from portfolio core without a strong visible degraded state.
+- Pydantic/runtime maintenance: the backend test run emits deprecation warnings that will become upgrade debt.
+- Mock-mode remnants: schemas, generated types, and some UI copy still mention mock behavior that runtime no longer supports.
+
+Low Risks
+- Repo cleanup: disabled mock seeding and mock provider code still exist and can be pruned.
+- Documentation drift: several comments and phase notes describe older behavior rather than the true current implementation.
+- Test coverage shape: the backend suite passes, but it is mostly contract-focused and does not validate browser-level workflows.

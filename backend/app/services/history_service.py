@@ -43,6 +43,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.services.cache_service import HistoryBuildStatusStore
 
@@ -219,18 +220,22 @@ def build_and_store_portfolio_history(
                 PortfolioHistory.portfolio_id == portfolio_id
             ).delete(synchronize_session=False)
 
-            history_rows = []
+            history_values_by_date: dict[str, float] = {}
             for date_idx, value in daily_values.items():
                 date_str = (
                     date_idx.strftime("%Y-%m-%d")
                     if hasattr(date_idx, "strftime")
                     else str(date_idx)[:10]
                 )
+                history_values_by_date[date_str] = float(value)
+
+            history_rows = []
+            for date_str, value in sorted(history_values_by_date.items()):
                 history_rows.append(
                     PortfolioHistory(
                         portfolio_id=portfolio_id,
                         date=date_str,
-                        total_value=float(value),
+                        total_value=value,
                     )
                 )
 
@@ -407,15 +412,13 @@ def get_portfolio_history_status(portfolio_id: int, db: Session) -> dict:
         return {"has_data": False, "count": 0, "earliest": None, "latest": None}
 
     earliest = (
-        db.query(PortfolioHistory.date)
+        db.query(func.min(PortfolioHistory.date))
         .filter(PortfolioHistory.portfolio_id == portfolio_id)
-        .order_by(PortfolioHistory.date.asc())
         .scalar()
     )
     latest = (
-        db.query(PortfolioHistory.date)
+        db.query(func.max(PortfolioHistory.date))
         .filter(PortfolioHistory.portfolio_id == portfolio_id)
-        .order_by(PortfolioHistory.date.desc())
         .scalar()
     )
     return {"has_data": True, "count": count, "earliest": earliest, "latest": latest}

@@ -202,6 +202,8 @@ def normalize_to_holdings(
                 quantity=row["quantity"],
                 average_cost=row["average_cost"],
                 current_price=row.get("current_price"),
+                price_status="uploaded_current_price" if row.get("current_price") is not None else None,
+                price_source="uploaded_csv" if row.get("current_price") is not None else None,
                 sector=row.get("sector"),      # None → enrichment fills it later
                 industry=row.get("industry"),  # None → enrichment fills it later
                 purchase_date=row.get("purchase_date"),

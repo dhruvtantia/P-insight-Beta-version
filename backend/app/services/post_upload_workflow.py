@@ -63,7 +63,11 @@ class PostUploadWorkflow:
                         "name":          h.name,
                         "quantity":      h.quantity,
                         "average_cost":  h.average_cost,
-                        "current_price": h.current_price or h.average_cost,
+                        "current_price": h.current_price,
+                        "price_status":  getattr(h, "price_status", None) or (
+                            "uploaded_current_price" if h.current_price is not None else "pending"
+                        ),
+                        "price_source":  getattr(h, "price_source", None),
                         "sector":        h.sector or "",
                         "asset_class":   h.asset_class or "Equity",
                         "currency":      h.currency or "INR",

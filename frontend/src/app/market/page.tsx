@@ -3,9 +3,14 @@
 /**
  * Market Landing Page — Primary entry point for P-Insight.
  *
- * Data sources (all gracefully degrade when unavailable):
+ * Data sources:
  *   - GET /api/v1/market/overview  → main indices, sector indices, gainers/losers
- *   - GET /api/v1/news/?mode=live  → market headlines (optional, NewsAPI)
+ *   - GET /api/v1/news/?mode=live  → market headlines when NEWS_API_KEY is configured
+ *
+ * Degradation rules:
+ *   - Overview blocks stay visible and degrade per-block when market data fails.
+ *   - Headlines stay visible with an explicit unavailable state instead of disappearing.
+ *   - FX / commodities remain intentionally beta until a real backend path exists.
  *
  * Layout note: `-m-6` on the root div counteracts the AppShell `p-6` wrapper
  * so this page fills edge-to-edge within the content area.
@@ -31,12 +36,19 @@ import { marketApi, newsApi } from '@/services/api'
 import type {
   IndexQuote as IndexEntry,
   MarketOverviewResponse as MarketOverview,
-  MarketStatus,
   MarketTickerEntry as TickerEntry,
   NewsArticle,
 } from '@/types'
 
 const REFRESH_INTERVAL_MS = 120_000   // 2 minutes
+const MARKET_NEWS_TICKERS = [
+  'RELIANCE.NS',
+  'TCS.NS',
+  'HDFCBANK.NS',
+  'INFY.NS',
+  'SBIN.NS',
+  'BHARTIARTL.NS',
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -240,6 +252,24 @@ function NewsRow({ article }: { article: NewsArticle }) {
   )
 }
 
+function NewsUnavailableState({
+  title,
+  detail,
+}: {
+  title: string
+  detail: string
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4">
+      <WifiOff className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-medium text-slate-600">{title}</p>
+        <p className="text-xs text-slate-400 mt-1">{detail}</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Panel Wrapper ────────────────────────────────────────────────────────────
 
 function Panel({
@@ -338,8 +368,8 @@ export default function MarketPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const [news,         setNews]         = useState<NewsArticle[]>([])
-  // newsStatus: 'loading' | 'ok' | 'unavailable'
-  const [newsStatus,   setNewsStatus]   = useState<'loading' | 'ok' | 'unavailable'>('loading')
+  const [newsStatus,   setNewsStatus]   = useState<'loading' | 'ok' | 'empty' | 'unavailable'>('loading')
+  const [newsMessage,  setNewsMessage]  = useState<string | null>(null)
   // refreshError: non-null when a manual refresh failed (shown in header)
   const [refreshError, setRefreshError] = useState<string | null>(null)
 
@@ -363,7 +393,7 @@ export default function MarketPage() {
           sector_indices: mergeIndexEntries(prev.sector_indices, data.sector_indices),
         }
       })
-      setLastUpdated(new Date())
+      setLastUpdated(data.fetched_at ? new Date(data.fetched_at) : new Date())
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Refresh failed'
       if (manual) {
@@ -382,18 +412,30 @@ export default function MarketPage() {
   // ── News headlines (secondary, non-blocking) ────────────────────────────────
   const fetchNews = useCallback(async () => {
     setNewsStatus('loading')
-    const tickers = 'RELIANCE.NS,TCS.NS,HDFCBANK.NS,INFY.NS,SBIN.NS,BHARTIARTL.NS'
+    setNewsMessage(null)
     try {
-      const data = await newsApi.getNews('uploaded', { tickers: tickers.split(',') })
+      const data = await newsApi.getNews('live', { tickers: MARKET_NEWS_TICKERS })
 
-      if (!data.news_key_configured || data.news_unavailable || !data.articles?.length) {
+      if (!data.news_key_configured) {
         setNewsStatus('unavailable')
+        setNewsMessage('Market headlines are disabled until NEWS_API_KEY is configured on the backend.')
+        setNews([])
+      } else if (data.news_unavailable) {
+        setNewsStatus('unavailable')
+        setNewsMessage('Live headlines are temporarily unavailable from the configured news provider.')
+        setNews([])
+      } else if (!data.articles?.length) {
+        setNewsStatus('empty')
+        setNewsMessage('No recent headlines matched the current market basket.')
+        setNews([])
       } else {
         setNews(data.articles.slice(0, 6))
         setNewsStatus('ok')
       }
     } catch {
       setNewsStatus('unavailable')
+      setNewsMessage('The headlines request failed. Market indices and movers are still available.')
+      setNews([])
     }
   }, [])
 
@@ -410,6 +452,9 @@ export default function MarketPage() {
   const topGainers     = overview?.top_gainers    ?? []
   const topLosers      = overview?.top_losers     ?? []
   const marketStatus   = overview?.market_status
+  const moversReason   = overview?.movers_status?.status === 'unavailable'
+    ? overview.movers_status.reason
+    : null
 
   return (
     // -m-6 counteracts the AppShell's p-6 wrapper so this page fills edge-to-edge
@@ -526,7 +571,7 @@ export default function MarketPage() {
               </div>
             ) : topGainers.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
-                <WifiOff className="h-4 w-4" /> Data unavailable
+                <WifiOff className="h-4 w-4" /> Mover data unavailable{moversReason ? `: ${moversReason}` : ' from market feed'}
               </div>
             ) : (
               <div>
@@ -543,7 +588,7 @@ export default function MarketPage() {
               </div>
             ) : topLosers.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
-                <WifiOff className="h-4 w-4" /> Data unavailable
+                <WifiOff className="h-4 w-4" /> Mover data unavailable{moversReason ? `: ${moversReason}` : ' from market feed'}
               </div>
             ) : (
               <div>
@@ -556,6 +601,9 @@ export default function MarketPage() {
         {/* ── FX Rates (Beta) ──────────────────────────────────────────────── */}
         <div>
           <BetaSectionHeader title="FX Rates" icon={DollarSign} />
+          <p className="text-[11px] text-slate-400 mb-3">
+            Visible as beta placeholders only. No backend FX feed is wired into this feature yet.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {FX_INSTRUMENTS.map((fx) => (
               <BetaInstrumentCard key={fx.symbol} name={fx.name} unit={fx.unit} />
@@ -566,6 +614,9 @@ export default function MarketPage() {
         {/* ── Commodities (Beta) ───────────────────────────────────────────── */}
         <div>
           <BetaSectionHeader title="Commodities" icon={Package} />
+          <p className="text-[11px] text-slate-400 mb-3">
+            Visible as beta placeholders only. No backend commodities feed is wired into this feature yet.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {COMMODITY_INSTRUMENTS.map((c) => (
               <BetaInstrumentCard key={c.symbol} name={c.name} unit={c.unit} />
@@ -574,25 +625,36 @@ export default function MarketPage() {
         </div>
 
         {/* ── News Headlines ────────────────────────────────────────────────── */}
-        {newsStatus !== 'unavailable' && (
-          <Panel title="Market Headlines" icon={Newspaper} tag="Live">
-            {newsStatus === 'loading' ? (
-              <div className="space-y-4">
-                {[0,1,2].map((i) => (
-                  <div key={i} className="space-y-1.5">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                ))}
-              </div>
-            ) : news.length === 0 ? null : (
-              <div>
-                {news.map((a, i) => <NewsRow key={i} article={a} />)}
-              </div>
-            )}
-          </Panel>
-        )}
+        <Panel title="Market Headlines" icon={Newspaper} tag="Live">
+          <p className="text-[11px] text-slate-400 mb-3">
+            Curated from a fixed India large-cap basket until a broader market-news selection rule is added.
+          </p>
+          {newsStatus === 'loading' ? (
+            <div className="space-y-4">
+              {[0,1,2].map((i) => (
+                <div key={i} className="space-y-1.5">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              ))}
+            </div>
+          ) : newsStatus === 'ok' ? (
+            <div>
+              {news.map((a, i) => <NewsRow key={i} article={a} />)}
+            </div>
+          ) : newsStatus === 'empty' ? (
+            <NewsUnavailableState
+              title="No matching headlines right now"
+              detail={newsMessage ?? 'No recent headlines matched the current market basket.'}
+            />
+          ) : (
+            <NewsUnavailableState
+              title="Headlines unavailable"
+              detail={newsMessage ?? 'Live headlines are currently unavailable.'}
+            />
+          )}
+        </Panel>
 
         {/* ── CTA Banner ───────────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-slate-50 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

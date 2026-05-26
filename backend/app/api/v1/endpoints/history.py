@@ -42,6 +42,7 @@ from pydantic import BaseModel
 
 from app.core.dependencies import DbSession
 from app.services.feature_registry import require_feature
+from app.services.price_enrichment_service import canonical_price_status, has_trusted_current_price
 
 
 def _require_history_feature():
@@ -127,7 +128,7 @@ class SincePurchaseHolding(BaseModel):
     current_value:   Optional[float] = None   # current_price × quantity (None if no live price)
     pnl:             Optional[float] = None   # current_value − invested
     pnl_pct:         Optional[float] = None   # pnl / invested × 100
-    price_source:    str             # 'live_at_upload' | 'cost_basis_only'
+    price_source:    str             # canonical price state for this holding
 
 
 class SincePurchaseSummary(BaseModel):
@@ -617,15 +618,25 @@ async def get_holdings_since_purchase(
     for h in holdings_db:
         qty         = float(h.quantity or 0)
         avg_cost    = float(h.average_cost or 0)
-        cur_price   = float(h.current_price) if h.current_price else None
+        cur_price   = float(h.current_price) if h.current_price is not None else None
+        price_status = canonical_price_status(
+            price_status=getattr(h, "price_status", None),
+            current_price=cur_price,
+            price_timestamp=getattr(h, "price_timestamp", None),
+        )
+        trusted_price = has_trusted_current_price(
+            price_status=price_status,
+            current_price=cur_price,
+            price_timestamp=getattr(h, "price_timestamp", None),
+        )
 
         invested      = avg_cost * qty
-        current_value = cur_price * qty if cur_price is not None else None
+        current_value = cur_price * qty if trusted_price else None
         pnl           = (current_value - invested) if current_value is not None else None
         pnl_pct       = (pnl / invested * 100) if (pnl is not None and invested > 0) else None
-        price_source  = "live_at_upload" if cur_price is not None else "cost_basis_only"
+        price_source  = price_status
 
-        if cur_price is not None:
+        if trusted_price:
             any_live_price = True
 
         total_invested += invested

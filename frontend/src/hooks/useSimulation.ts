@@ -55,6 +55,46 @@ import {
 } from '@/lib/simulation'
 import type { WatchlistItem, FinancialRatio } from '@/types'
 
+// ─── Status types ────────────────────────────────────────────────────────────
+
+export type SimulationReadiness =
+  | 'loading'
+  | 'no_portfolio_loaded'
+  | 'missing_market_values'
+  | 'portfolio_stale'
+  | 'portfolio_enriching'
+  | 'portfolio_degraded'
+  | 'ready'
+
+export type TargetWeightState = 'empty' | 'valid' | 'underallocated' | 'overallocated'
+
+export interface SimulationDataQuality {
+  missingPriceCount:        number
+  fallbackMarketValueCount: number
+  unknownPriceStatusCount:  number
+  missingFundamentalsCount: number
+  activeHoldingCount:       number
+}
+
+const VALID_PRICE_STATUSES = new Set([
+  'live',
+  'stale',
+  'missing',
+  'fallback_average_cost',
+  'uploaded_current_price',
+  'provider_failed',
+  'not_applicable',
+  'pending',
+  'unknown',
+])
+
+const MISSING_PRICE_STATUSES = new Set([
+  'missing',
+  'provider_failed',
+  'pending',
+  'unknown',
+])
+
 // ─── Hook result ──────────────────────────────────────────────────────────────
 
 export interface UseSimulationResult {
@@ -69,9 +109,17 @@ export interface UseSimulationResult {
   isModified:       boolean
   watchlistItems:   WatchlistItem[]
   portfolioTickers: Set<string>
+  readiness:        SimulationReadiness
+  canSimulate:      boolean
+  blockingReason:   string | null
+  warnings:         string[]
+  targetWeightState: TargetWeightState
+  isWeightValid:    boolean
+  weightDrift:      number
+  dataQuality:      SimulationDataQuality
 
   // Actions
-  addStock:         (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value'>) => void
+  addStock:         (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value' | 'source'>) => void
   addNewStock:      (ticker: string, name?: string, sector?: string) => void
   addFromWatchlist: (item: WatchlistItem) => void
   removeStock:      (ticker: string) => void
@@ -91,7 +139,7 @@ export interface UseSimulationResult {
 
 export function useSimulation(): UseSimulationResult {
   // ── Data sources ────────────────────────────────────────────────────────────
-  const { holdings: baseHoldings, sectors: baseSectors, summary, loading, error } = usePortfolio()
+  const { holdings: baseHoldings, loading, error, stale, meta } = usePortfolio()
   const { ratios }               = useFundamentals(baseHoldings)
   const { items: watchlistItems } = useWatchlist()
 
@@ -120,10 +168,38 @@ export function useSimulation(): UseSimulationResult {
   )
 
   // ── Derived base values ──────────────────────────────────────────────────────
-  const totalValue = useMemo(
-    () => baseHoldings.reduce((s, h) => s + (h.market_value ?? 0), 0) || 1_000_000,
+  const baseMarketValueTotal = useMemo(
+    () => baseHoldings.reduce((s, h) => s + (h.market_value ?? 0), 0),
     [baseHoldings],
   )
+
+  const totalValue = baseMarketValueTotal > 0 ? baseMarketValueTotal : 0
+
+  const readiness = useMemo<SimulationReadiness>(() => {
+    if (loading) return 'loading'
+    if (baseHoldings.length === 0) return 'no_portfolio_loaded'
+    if (baseMarketValueTotal <= 0) return 'missing_market_values'
+    if (stale) return 'portfolio_stale'
+    if (meta?.lifecycle_state === 'enriching') return 'portfolio_enriching'
+    if (meta?.lifecycle_state === 'degraded' || meta?.incomplete === true) return 'portfolio_degraded'
+    return 'ready'
+  }, [loading, baseHoldings.length, baseMarketValueTotal, stale, meta?.lifecycle_state, meta?.incomplete])
+
+  const canSimulate =
+    readiness === 'ready' ||
+    readiness === 'portfolio_stale' ||
+    readiness === 'portfolio_enriching' ||
+    readiness === 'portfolio_degraded'
+
+  const blockingReason = useMemo(() => {
+    if (readiness === 'no_portfolio_loaded') {
+      return 'No portfolio loaded. Upload or activate a portfolio before using simulation.'
+    }
+    if (readiness === 'missing_market_values') {
+      return 'Simulation unavailable because holdings do not have usable market values.'
+    }
+    return null
+  }, [readiness])
 
   const ratioMap = useMemo(
     () => new Map<string, FinancialRatio>(ratios.map((r) => [r.ticker, r])),
@@ -132,13 +208,13 @@ export function useSimulation(): UseSimulationResult {
 
   // ── Initialise from base portfolio ──────────────────────────────────────────
   const initFromBase = useCallback(() => {
-    if (baseHoldings.length === 0) return
+    if (!canSimulate || baseHoldings.length === 0) return
     const initial = initSimulatedHoldings(baseHoldings, ratioMap, totalValue)
     const store   = useSimulationStore.getState()
     store.setSimHoldings(initial)
     store.setPortfolioId(activePortfolioId)
     store.setHasHydrated(true)
-  }, [baseHoldings, ratioMap, totalValue, activePortfolioId])
+  }, [canSimulate, baseHoldings, ratioMap, totalValue, activePortfolioId])
 
   /**
    * Initialisation logic:
@@ -148,7 +224,7 @@ export function useSimulation(): UseSimulationResult {
    *   4. First load (not yet hydrated) → initialise from base.
    */
   useEffect(() => {
-    if (baseHoldings.length === 0 || loading) return
+    if (!canSimulate || baseHoldings.length === 0 || loading) return
 
     // Portfolio switched → force reinitialise
     if (
@@ -169,6 +245,7 @@ export function useSimulation(): UseSimulationResult {
   }, [
     baseHoldings.length,
     loading,
+    canSimulate,
     hasHydrated,
     storedPortfolioId,
     activePortfolioId,
@@ -178,16 +255,16 @@ export function useSimulation(): UseSimulationResult {
 
   // ── Base scenario (stable) ────────────────────────────────────────────────────
   const baseScenario = useMemo<PortfolioScenario | null>(() => {
-    if (baseHoldings.length === 0) return null
+    if (!canSimulate || baseHoldings.length === 0) return null
     const baseSimHoldings = initSimulatedHoldings(baseHoldings, ratioMap, totalValue)
     return buildScenario('Current', baseSimHoldings, totalValue)
-  }, [baseHoldings, ratioMap, totalValue])
+  }, [canSimulate, baseHoldings, ratioMap, totalValue])
 
   // ── Simulated scenario (recomputed on every simHoldings mutation) ─────────────
   const simScenario = useMemo<PortfolioScenario | null>(() => {
-    if (simHoldings.length === 0) return null
+    if (!canSimulate || simHoldings.length === 0) return null
     return buildScenario('Simulated', simHoldings, totalValue)
-  }, [simHoldings, totalValue])
+  }, [canSimulate, simHoldings, totalValue])
 
   // ── Delta ────────────────────────────────────────────────────────────────────
   const delta = useMemo<ScenarioDelta | null>(() => {
@@ -212,6 +289,82 @@ export function useSimulation(): UseSimulationResult {
     [simHoldings],
   )
 
+  const activeSimHoldings = useMemo(
+    () => simHoldings.filter((h) => h.action !== 'remove'),
+    [simHoldings],
+  )
+
+  const targetWeightState = useMemo<TargetWeightState>(() => {
+    if (activeSimHoldings.length === 0) return 'empty'
+    if (totalSimWeight < 99.5) return 'underallocated'
+    if (totalSimWeight > 100.5) return 'overallocated'
+    return 'valid'
+  }, [activeSimHoldings.length, totalSimWeight])
+
+  const isWeightValid = targetWeightState === 'valid'
+  const weightDrift = totalSimWeight - 100
+
+  const dataQuality = useMemo<SimulationDataQuality>(() => {
+    const missingPriceCount = baseHoldings.filter((h) => {
+      const status = h.price_status
+      return h.current_price == null || (status != null && MISSING_PRICE_STATUSES.has(status))
+    }).length
+
+    const fallbackMarketValueCount = baseHoldings.filter(
+      (h) => h.market_value_uses_fallback === true,
+    ).length
+
+    const unknownPriceStatusCount = baseHoldings.filter((h) => {
+      const status = h.price_status
+      return status == null || !VALID_PRICE_STATUSES.has(status)
+    }).length
+
+    const missingFundamentalsCount = activeSimHoldings.filter(
+      (h) => h.fundamentals === null,
+    ).length
+
+    return {
+      missingPriceCount,
+      fallbackMarketValueCount,
+      unknownPriceStatusCount,
+      missingFundamentalsCount,
+      activeHoldingCount: activeSimHoldings.length,
+    }
+  }, [baseHoldings, activeSimHoldings])
+
+  const warnings = useMemo(() => {
+    const items: string[] = []
+    if (readiness === 'portfolio_stale') {
+      items.push('Showing the last successfully loaded portfolio because the latest refresh failed.')
+    } else if (readiness === 'portfolio_enriching') {
+      items.push('Portfolio enrichment is still running; simulation results may change as prices update.')
+    } else if (readiness === 'portfolio_degraded') {
+      items.push('Portfolio data is incomplete; treat simulation results as estimates.')
+    }
+
+    if (targetWeightState === 'underallocated') {
+      items.push(`Target weights are underallocated by ${Math.abs(weightDrift).toFixed(1)}%.`)
+    } else if (targetWeightState === 'overallocated') {
+      items.push(`Target weights are overallocated by ${Math.abs(weightDrift).toFixed(1)}%.`)
+    } else if (targetWeightState === 'empty' && canSimulate) {
+      items.push('No active simulated holdings remain.')
+    }
+
+    if (dataQuality.missingPriceCount > 0) {
+      items.push(`${dataQuality.missingPriceCount} holding${dataQuality.missingPriceCount === 1 ? '' : 's'} have missing or unavailable prices.`)
+    }
+    if (dataQuality.fallbackMarketValueCount > 0) {
+      items.push(`${dataQuality.fallbackMarketValueCount} holding${dataQuality.fallbackMarketValueCount === 1 ? '' : 's'} use fallback market values.`)
+    }
+    if (dataQuality.unknownPriceStatusCount > 0) {
+      items.push(`${dataQuality.unknownPriceStatusCount} holding${dataQuality.unknownPriceStatusCount === 1 ? '' : 's'} have unknown price status.`)
+    }
+    if (dataQuality.missingFundamentalsCount > 0 && dataQuality.activeHoldingCount > 0) {
+      items.push(`Fundamentals are available for ${dataQuality.activeHoldingCount - dataQuality.missingFundamentalsCount}/${dataQuality.activeHoldingCount} active holdings.`)
+    }
+    return items
+  }, [readiness, targetWeightState, weightDrift, canSimulate, dataQuality])
+
   const portfolioTickers = useMemo(
     () => new Set(baseHoldings.map((h) => h.ticker.toUpperCase())),
     [baseHoldings],
@@ -220,7 +373,7 @@ export function useSimulation(): UseSimulationResult {
   // ── Actions ───────────────────────────────────────────────────────────────────
 
   const addStock = useCallback(
-    (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value'>) => {
+    (holding: Omit<SimulatedHolding, 'action' | 'original_weight' | 'market_value' | 'source'>) => {
       setSimHoldings((prev) => addHolding(prev, holding, totalValue))
     },
     [setSimHoldings, totalValue],
@@ -243,6 +396,7 @@ export function useSimulation(): UseSimulationResult {
             sector:       sector ?? 'Other',
             weight:       5,
             fundamentals: ratioMap.get(upper) ?? null,
+            source:       'search',
           },
           totalValue,
         ),
@@ -262,6 +416,7 @@ export function useSimulation(): UseSimulationResult {
             sector:       item.sector ?? 'Other',
             weight:       5,
             fundamentals: ratioMap.get(item.ticker) ?? null,
+            source:       'watchlist',
           },
           totalValue,
         ),
@@ -316,6 +471,7 @@ export function useSimulation(): UseSimulationResult {
             sector:       wlItem.sector ?? 'Other',
             weight:       suggestion.suggestedWeight ?? 5,
             fundamentals: ratioMap.get(wlItem.ticker) ?? null,
+            source:       'watchlist',
           }, totalValue))
         }
       } else if (suggestion.type === 'remove' && suggestion.ticker) {
@@ -355,6 +511,14 @@ export function useSimulation(): UseSimulationResult {
     isModified,
     watchlistItems,
     portfolioTickers,
+    readiness,
+    canSimulate,
+    blockingReason,
+    warnings,
+    targetWeightState,
+    isWeightValid,
+    weightDrift,
+    dataQuality,
     addStock,
     addNewStock,
     addFromWatchlist,

@@ -220,10 +220,12 @@ function PortfolioRow({
 function SourcesTab({
   portfolios,
   activePortfolioId,
+  loading,
   onRefreshSuccess,
 }: {
   portfolios:         PortfolioMeta[]
   activePortfolioId:  number | null
+  loading:            boolean
   onRefreshSuccess:   (updated: PortfolioMeta) => void
 }) {
   const [selectedId,    setSelectedId]    = useState<number | null>(activePortfolioId)
@@ -237,6 +239,15 @@ function SourcesTab({
   const brokerConnection = portfolio?.source === 'broker'
     ? (Object.values(connections)[0] ?? null)
     : null
+
+  if (loading && portfolios.length === 0) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading…
+      </div>
+    )
+  }
 
   if (portfolios.length === 0) {
     return (
@@ -447,6 +458,7 @@ export default function PortfoliosPage(): React.ReactElement {
           <SourcesTab
             portfolios={portfolios}
             activePortfolioId={activePortfolioId}
+            loading={loading}
             onRefreshSuccess={(updated) => updatePortfolio(updated)}
           />
         )}

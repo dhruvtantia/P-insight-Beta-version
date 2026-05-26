@@ -89,7 +89,21 @@ class FileDataProvider(BaseDataProvider):
                     name=str(row["name"]).strip(),
                     quantity=float(row["quantity"]),
                     average_cost=float(row["average_cost"]),
-                    current_price=float(row.get("current_price", row["average_cost"])),
+                    current_price=(
+                        float(row["current_price"])
+                        if "current_price" in row and pd.notna(row["current_price"])
+                        else None
+                    ),
+                    price_status=(
+                        "uploaded_current_price"
+                        if "current_price" in row and pd.notna(row["current_price"])
+                        else "unknown"
+                    ),
+                    price_source=(
+                        "uploaded_csv"
+                        if "current_price" in row and pd.notna(row["current_price"])
+                        else None
+                    ),
                     sector=str(row.get("sector", "Unknown")).strip()
                     if "sector" in row
                     else None,
@@ -220,20 +234,56 @@ class FileDataProvider(BaseDataProvider):
         return []
 
     async def get_peers(self, ticker: str) -> list[str]:
+        discovery = await self.get_peer_discovery(ticker)
+        return discovery["tickers"]
+
+    async def get_peer_discovery(self, ticker: str) -> dict:
         """
-        Returns peer list from the shared static peer map in live_provider.
+        Return peer list plus provenance from the shared static peer map.
+
+        Uploaded mode intentionally does not call external peer discovery here;
+        fundamentals are still proxied to yfinance/FMP where available.
         Resolves bare tickers (e.g. "TCS" → "TCS.NS") automatically.
         """
         try:
             from app.data_providers.live_provider import _PEER_MAP, _resolve_ticker_variants
             if ticker in _PEER_MAP:
-                return _PEER_MAP[ticker]
+                return {
+                    "tickers": _PEER_MAP[ticker],
+                    "peer_source": "static_curated_map",
+                    "peer_source_label": "Static curated peer map",
+                    "peer_discovery_status": "found",
+                    "peer_discovery_reason": "Ticker matched the curated peer map.",
+                    "peer_universe_static": True,
+                }
             for variant in _resolve_ticker_variants(ticker):
                 if variant in _PEER_MAP:
-                    return _PEER_MAP[variant]
+                    return {
+                        "tickers": _PEER_MAP[variant],
+                        "peer_source": "static_curated_map",
+                        "peer_source_label": "Static curated peer map",
+                        "peer_discovery_status": "found",
+                        "peer_discovery_reason": f"Ticker resolved to {variant} in the curated peer map.",
+                        "peer_universe_static": True,
+                    }
         except Exception as exc:
             logger.debug("Peer lookup failed for %s: %s", ticker, exc)
-        return []
+            return {
+                "tickers": [],
+                "peer_source": "none",
+                "peer_source_label": "No peer universe found",
+                "peer_discovery_status": "error",
+                "peer_discovery_reason": str(exc),
+                "peer_universe_static": False,
+            }
+        return {
+            "tickers": [],
+            "peer_source": "none",
+            "peer_source_label": "No peer universe found",
+            "peer_discovery_status": "not_found",
+            "peer_discovery_reason": "No curated peer-map match for this ticker in uploaded mode.",
+            "peer_universe_static": False,
+        }
 
 
 # ─── Boot-time restore helper ─────────────────────────────────────────────────
@@ -260,6 +310,10 @@ def _restore_from_db_holdings(db_holdings: list) -> None:
                 asset_class=h.asset_class or "Equity",
                 currency=h.currency or "INR",
                 data_source="uploaded",
+                price_status=getattr(h, "price_status", None),
+                price_source=getattr(h, "price_source", None),
+                price_timestamp=getattr(h, "price_timestamp", None),
+                price_failure_reason=getattr(h, "price_failure_reason", None),
                 # Enrichment provenance (Phase 3 fields — None on older DB rows)
                 sector_status=getattr(h, "sector_status", None),
                 fundamentals_status=getattr(h, "fundamentals_status", None),

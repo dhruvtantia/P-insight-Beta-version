@@ -1,0 +1,61 @@
+End-to-End Workflow Audit
+Generated: 2026-05-24
+
+1. User uploads portfolio CSV
+- Does it work: Yes
+- Files: frontend/src/app/upload/page.tsx; frontend/src/components/upload/UploadDropzone.tsx; backend/app/api/v1/endpoints/upload.py
+- What breaks or is missing: The user-facing flow still reads like a mostly complete import even though enrichment continues after the request returns.
+- Exact fix needed: Update the upload success state to explicitly distinguish "base import complete" from "enrichment complete."
+
+2. System detects columns
+- Does it work: Yes
+- Files: backend/app/services/upload_parse_service.py; backend/app/ingestion/column_detector.py; frontend/src/components/upload/ColumnMapper.tsx
+- What breaks or is missing: Detection is heuristic and can still miss irregular broker export headers.
+- Exact fix needed: Add more broker/export-specific aliases and allow saving reusable import templates.
+
+3. User maps and validates columns if needed
+- Does it work: Yes
+- Files: frontend/src/components/upload/ColumnMapper.tsx; frontend/src/app/upload/page.tsx; backend/app/api/v1/endpoints/upload.py
+- What breaks or is missing: Mapping mistakes are mostly caught only when confirm runs; there is no saved mapping memory.
+- Exact fix needed: Add stronger pre-submit validation summaries and preset mappings for common upload formats.
+
+4. Backend ingests holdings
+- Does it work: Yes
+- Files: backend/app/services/upload_v2_service.py; backend/app/ingestion/normalizer.py; backend/app/services/portfolio_manager.py; backend/app/models/portfolio.py
+- What breaks or is missing: The active uploaded portfolio is global to the whole application, not user-scoped.
+- Exact fix needed: Introduce authentication and ownership so portfolios and active state are isolated per user.
+
+5. System normalizes symbols and names
+- Does it work: Mostly
+- Files: backend/app/ingestion/normalizer.py; backend/app/ingestion/sector_enrichment.py
+- What breaks or is missing: Bad or unsuffixed tickers can survive with partial metadata or ticker-only names.
+- Exact fix needed: Add stronger exchange-suffix inference, ISIN resolution, and a manual unresolved-symbol remediation step.
+
+6. System enriches missing fields such as sector, price, market value, returns, and fundamentals
+- Does it work: Mostly
+- Files: backend/app/services/upload_v2_service.py; backend/app/ingestion/sector_enrichment.py; backend/app/data_providers/live_provider.py; backend/app/analytics/quant_service.py
+- What breaks or is missing: Enrichment is async and provider-dependent; unknown sectors, unavailable fundamentals, and stale prices can remain while the portfolio is already marked usable.
+- Exact fix needed: Poll enrichment status after import, surface per-holding unresolved states, and gate advanced analytics trust messaging until critical enrichment is finished.
+
+7. Dashboard updates using uploaded portfolio
+- Does it work: Yes
+- Files: frontend/src/context/PortfolioContext.tsx; frontend/src/hooks/usePortfolio.ts; frontend/src/app/dashboard/page.tsx; backend/app/api/v1/endpoints/portfolio.py
+- What breaks or is missing: Supplementary commentary is loaded separately and can fail without changing the main page state.
+- Exact fix needed: Add a visible stale/degraded indicator for commentary and any non-core secondary modules.
+
+8. Risk, optimization, simulation, watchlist, peers, fundamentals, and news use the uploaded portfolio instead of mock data
+- Does it work: Mixed
+- Files: frontend/src/hooks/useQuantAnalytics.ts; frontend/src/hooks/useOptimization.ts; frontend/src/hooks/useSimulation.ts; frontend/src/hooks/useFundamentals.ts; frontend/src/hooks/usePeerComparison.ts; frontend/src/hooks/useNews.ts; backend/app/api/v1/endpoints/quant.py; backend/app/api/v1/endpoints/optimization.py; backend/app/api/v1/endpoints/analytics.py; backend/app/api/v1/endpoints/peers.py; backend/app/api/v1/endpoints/news.py
+- What breaks or is missing:
+  - Risk and optimization use uploaded holdings, but depend on good historical price coverage.
+  - Fundamentals use uploaded holdings, but can be incomplete.
+  - Peers use the uploaded selected ticker, but peer lists are mostly static.
+  - News uses the uploaded holdings context, but often returns empty when keys/providers are absent.
+  - Simulation uses the uploaded portfolio as a base, but is mostly client-side and not a persisted backend workflow.
+- Exact fix needed: Replace static peer discovery, implement durable news/event providers, add stronger symbol/history validation, and decide whether simulation is intentionally a sandbox or needs a persisted backend model.
+
+9. Snapshot and history workflows preserve evolving portfolio state
+- Does it work: Mostly
+- Files: backend/app/services/snapshot_service.py; backend/app/services/history_service.py; backend/app/api/v1/endpoints/history.py; backend/app/api/v1/endpoints/snapshots.py; frontend/src/app/changes/page.tsx
+- What breaks or is missing: Snapshot holdings and totals are real, but persisted snapshot risk metrics are empty and daily history is built asynchronously.
+- Exact fix needed: Persist real risk metrics into snapshots and expose history build failures more prominently in the UI.

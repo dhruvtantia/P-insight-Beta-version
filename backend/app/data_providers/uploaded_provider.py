@@ -37,7 +37,7 @@ class UploadedPortfolioProvider(BaseDataProvider):
     async def get_holdings(self) -> list[HoldingBase]:
         if self._db is None:
             logger.error("UploadedPortfolioProvider.get_holdings() called without a db session")
-            return []
+            raise RuntimeError("UploadedPortfolioProvider requires a database session")
 
         from app.models.portfolio import Portfolio
 
@@ -63,6 +63,12 @@ class UploadedPortfolioProvider(BaseDataProvider):
                 purchase_date=getattr(h, "purchase_date", None),
                 notes=getattr(h, "notes", None),
                 data_source="uploaded",
+                price_status=getattr(h, "price_status", None) or (
+                    "uploaded_current_price" if h.current_price is not None else "unknown"
+                ),
+                price_source=getattr(h, "price_source", None),
+                price_timestamp=getattr(h, "price_timestamp", None),
+                price_failure_reason=getattr(h, "price_failure_reason", None),
                 sector_status=getattr(h, "sector_status", None),
                 fundamentals_status=getattr(h, "fundamentals_status", None),
                 enrichment_status=getattr(h, "enrichment_status", None),
@@ -89,3 +95,6 @@ class UploadedPortfolioProvider(BaseDataProvider):
 
     async def get_peers(self, ticker: str) -> list[str]:
         return await self._market_proxy.get_peers(ticker)
+
+    async def get_peer_discovery(self, ticker: str) -> dict:
+        return await self._market_proxy.get_peer_discovery(ticker)
