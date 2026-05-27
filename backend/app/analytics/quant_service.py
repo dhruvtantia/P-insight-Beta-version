@@ -34,6 +34,8 @@ Live mode:  yfinance via LiveAPIProvider.get_price_history(), TTL-cached.
 
 import logging
 import asyncio
+import hashlib
+import json
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, timezone
@@ -52,7 +54,7 @@ RISK_FREE_RATE = 0.065
 TRADING_DAYS   = 252
 
 # ─── In-process result cache for quant computations ───────────────────────────
-# Key: "{mode}_{period}"  |  Value: result_dict
+# Key: "{mode}_{period}_{holdings_fingerprint}"  |  Value: result_dict
 MOCK_QUANT_TTL = 3_600.0 * 24   # mock data is deterministic — cache 24h
 LIVE_QUANT_TTL = 600.0           # live data — cache 10 minutes
 
@@ -73,24 +75,54 @@ def _cache_set(key: str, data: dict) -> None:
 
 
 # ─── Raw price history cache (Part 3 — avoids re-downloading on period switch) ─
-# Key: "{mode}"  |  Value: (raw_hists, ticker_status, failure_reasons)
+# Key: "{mode}_{tickers_fingerprint}"  |  Value: (raw_hists, ticker_status, failure_reasons)
 # Always populated with the widest available fetch (1y). Shorter periods are
 # derived by slicing this data — no extra network round-trips required.
 
-def _raw_cache_ttl(mode: str) -> float:
-    return MOCK_QUANT_TTL if mode == "mock" else LIVE_QUANT_TTL
+def _raw_cache_ttl(key: str) -> float:
+    return MOCK_QUANT_TTL if key.startswith("mock_") else LIVE_QUANT_TTL
 
 
 _RAW_HIST_CACHE = TimedMemoryCache(_raw_cache_ttl)
 
 
-def _raw_cache_get(mode: str) -> Optional[tuple[dict, dict, dict]]:
+def _raw_cache_get(key: str) -> Optional[tuple[dict, dict, dict]]:
     """Return (raw_hists, ticker_status, failure_reasons) if cache is fresh."""
-    return _RAW_HIST_CACHE.get(mode)
+    return _RAW_HIST_CACHE.get(key)
 
 
-def _raw_cache_set(mode: str, raw_hists: dict, ticker_status: dict, failure_reasons: dict) -> None:
-    _RAW_HIST_CACHE.set(mode, (raw_hists, ticker_status, failure_reasons))
+def _raw_cache_set(key: str, raw_hists: dict, ticker_status: dict, failure_reasons: dict) -> None:
+    _RAW_HIST_CACHE.set(key, (raw_hists, ticker_status, failure_reasons))
+
+
+def clear_quant_caches() -> None:
+    """Clear in-process quant caches after portfolio changes or in tests."""
+    _QUANT_CACHE.clear()
+    _RAW_HIST_CACHE.clear()
+
+
+def _fingerprint_payload(payload: object) -> str:
+    encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
+def _holdings_cache_key(mode: str, period: str, holdings: list) -> str:
+    payload = [
+        {
+            "ticker": h.ticker,
+            "quantity": h.quantity,
+            "average_cost": h.average_cost,
+            "current_price": h.current_price,
+            "price_status": getattr(h, "price_status", None),
+        }
+        for h in sorted(holdings, key=lambda item: item.ticker)
+    ]
+    return f"{mode}_{period}_{_fingerprint_payload(payload)}"
+
+
+def _history_cache_key(mode: str, holdings: list) -> str:
+    tickers = sorted({h.ticker for h in holdings})
+    return f"{mode}_{_fingerprint_payload(tickers)}"
 
 
 def _slice_histories_to_period(
@@ -162,7 +194,8 @@ class QuantAnalyticsService:
             so repeated reads don't accumulate stale age values in the stored entry.
         """
         self.period = period
-        cache_key   = f"{self.mode}_{period}"
+        holdings    = await self.provider.get_holdings()
+        cache_key   = _holdings_cache_key(self.mode, period, holdings)
         cached      = _QUANT_CACHE.get_with_age(cache_key)
 
         if cached is not None:
@@ -177,13 +210,12 @@ class QuantAnalyticsService:
             }
             return result
 
-        result = await self._compute(period)
+        result = await self._compute(period, holdings)
         _cache_set(cache_key, result)
         return result
 
-    async def _compute(self, period: str) -> dict:
+    async def _compute(self, period: str, holdings: list) -> dict:
         # 1. Fetch all price histories
-        holdings    = await self.provider.get_holdings()
         price_hists, ticker_status, failure_reasons = await self._fetch_all_histories(holdings, period)
 
         # 2. Build price matrix
@@ -198,6 +230,10 @@ class QuantAnalyticsService:
             return self._empty_result(
                 valid_tickers, invalid_tickers, ticker_status, failure_reasons,
                 reason="Insufficient price history (need ≥ 2 tickers)",
+                provider_mode=self.mode,
+                period=period,
+                portfolio_usable=False,
+                weighting_status="unavailable",
             )
 
         # 3. Portfolio weights (normalised to valid tickers)
@@ -219,6 +255,18 @@ class QuantAnalyticsService:
         w_sum = sum(weights.values())
         if w_sum > 0:
             weights = {t: w / w_sum for t, w in weights.items()}
+        else:
+            return self._empty_result(
+                valid_tickers,
+                invalid_tickers,
+                ticker_status,
+                failure_reasons,
+                reason="No usable portfolio weights (current prices unavailable or untrusted)",
+                provider_mode=self.mode,
+                period=period,
+                portfolio_usable=False,
+                weighting_status="unavailable",
+            )
 
         # 4. Portfolio daily return series
         portfolio_returns = ret_utils.portfolio_return_series(price_df, weights)
@@ -250,7 +298,7 @@ class QuantAnalyticsService:
             bench_metrics = {
                 "name":                  bench_data["name"],
                 "ticker":                bench_data["ticker"],
-                "annualized_return":     round(float((1 + b_ret.mean()) ** TRADING_DAYS - 1) * 100, 3),
+                "annualized_return":     round(ret_utils.annualised_return(b_ret) * 100, 3),
                 "annualized_volatility": round(float(b_ret.std() * np.sqrt(TRADING_DAYS)) * 100, 3),
                 "sharpe_ratio":          round(rsk.compute_risk_metrics(b_ret, risk_free_rate=RISK_FREE_RATE).sharpe_ratio or 0, 3),
                 "max_drawdown":          round(float(((1 + b_ret).cumprod() / (1 + b_ret).cumprod().cummax() - 1).min()) * 100, 3),
@@ -282,7 +330,7 @@ class QuantAnalyticsService:
         corr_result = corr.compute_correlation_matrix(price_df)
 
         # 13. Package result
-        date_range = {}
+        date_range = None
         if not p_ret.empty:
             date_range = {
                 "start": p_ret.index[0].strftime("%Y-%m-%d"),
@@ -325,7 +373,10 @@ class QuantAnalyticsService:
                 "benchmark_name":      bench_data["name"],
                 "benchmark_source":    bench_data["source"],
                 "benchmark_available": benchmark_ok,
+                "benchmark_error":     bench_data.get("error"),
                 "risk_free_rate":      RISK_FREE_RATE,
+                "methodology":         "daily_simple_returns_geometric_annualized",
+                "weighting_status":    "current_price",
                 # cached / cache_age_seconds are set in compute_all() on cache hit;
                 # freshly computed results always start as cached=False, age=None.
                 "cached":              False,
@@ -355,7 +406,7 @@ class QuantAnalyticsService:
         Return price histories for all holdings, sliced to the requested period.
 
         Part 3 cache strategy:
-          1. Check the raw history cache (keyed by mode only, not period).
+          1. Check the raw history cache (keyed by mode + ticker set, not period).
           2. On hit  → slice the cached 1y data to the requested period.
              This avoids a second yfinance round-trip just because the user
              switched from 1y to 3mo.
@@ -368,10 +419,11 @@ class QuantAnalyticsService:
           failure_reasons: {ticker: human-readable reason}  — only for failed tickers
         """
         # ── Check raw history cache first ─────────────────────────────────────
-        cached_raw = _raw_cache_get(self.mode)
+        raw_cache_key = _history_cache_key(self.mode, holdings)
+        cached_raw = _raw_cache_get(raw_cache_key)
         if cached_raw is not None:
             raw_hists, ticker_status, failure_reasons = cached_raw
-            logger.debug(f"Raw history cache hit: mode={self.mode}, slicing to {period}")
+            logger.debug(f"Raw history cache hit: key={raw_cache_key}, slicing to {period}")
             sliced = _slice_histories_to_period(raw_hists, period)
             return sliced, ticker_status, failure_reasons
 
@@ -426,7 +478,7 @@ class QuantAnalyticsService:
                 failure_reasons[ticker] = reason
 
         # Store the full 1y result in the raw cache
-        _raw_cache_set(self.mode, raw_hists, ticker_status, failure_reasons)
+        _raw_cache_set(raw_cache_key, raw_hists, ticker_status, failure_reasons)
 
         # Slice to the originally requested period before returning
         sliced = _slice_histories_to_period(raw_hists, period)
@@ -441,6 +493,10 @@ class QuantAnalyticsService:
         ticker_status:   dict[str, str],
         failure_reasons: dict[str, str] | None = None,
         reason:          str = "No data",
+        provider_mode:   str | None = None,
+        period:          str = "1y",
+        portfolio_usable: bool = False,
+        weighting_status: str = "unavailable",
     ) -> dict:
         excluded_tickers = invalid_tickers
         failure_reasons  = failure_reasons or {}
@@ -455,8 +511,8 @@ class QuantAnalyticsService:
             },
             "contributions": [],
             "meta": {
-                "provider_mode":       None,
-                "period":              "1y",
+                "provider_mode":       provider_mode,
+                "period":              period,
                 "valid_tickers":       valid_tickers,
                 "excluded_tickers":    excluded_tickers,
                 "invalid_tickers":     invalid_tickers,
@@ -467,12 +523,15 @@ class QuantAnalyticsService:
                 "benchmark_name":      "NIFTY 50",
                 "benchmark_source":    None,
                 "benchmark_available": False,
+                "benchmark_error":     None,
                 "risk_free_rate":      RISK_FREE_RATE,
+                "methodology":         "daily_simple_returns_geometric_annualized",
+                "weighting_status":    weighting_status,
                 "cached":              False,
                 "cache_age_seconds":   None,
                 # ── Integrity metadata ───────────────────────────────────────
                 "incomplete":          len(excluded_tickers) > 0,
-                "portfolio_usable":    False,
+                "portfolio_usable":    portfolio_usable,
                 "excluded_reason":     failure_reasons,
                 # Coverage — % of tickers with usable price history.
                 "coverage_pct":        round(

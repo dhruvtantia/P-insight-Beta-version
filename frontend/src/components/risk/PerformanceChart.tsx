@@ -43,11 +43,17 @@ function formatPct(v: number): string {
   return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
 }
 
-// Merge two series on shared dates
+type PerformancePoint = { date: string; portfolio: number; benchmark?: number | null }
+
+// Merge benchmark when available; otherwise keep portfolio-only performance.
 function mergeSeries(
   portfolio: TimeSeriesPoint[],
   benchmark: TimeSeriesPoint[],
-): Array<{ date: string; portfolio: number; benchmark: number }> {
+): PerformancePoint[] {
+  if (benchmark.length === 0) {
+    return portfolio.map((p) => ({ date: p.date, portfolio: p.value, benchmark: null }))
+  }
+
   const bMap = new Map(benchmark.map((p) => [p.date, p.value]))
   return portfolio
     .filter((p) => bMap.has(p.date))
@@ -59,7 +65,7 @@ function mergeSeries(
 }
 
 // Thin out data points so the chart renders cleanly (max ~120 points visible)
-function thin(data: ReturnType<typeof mergeSeries>, maxPoints = 120) {
+function thin(data: PerformancePoint[], maxPoints = 120) {
   if (data.length <= maxPoints) return data
   const step = Math.ceil(data.length / maxPoints)
   return data.filter((_, i) => i % step === 0 || i === data.length - 1)
@@ -148,7 +154,12 @@ export function PerformanceChart({
     : Array.from({ length: 8 }, (_, i) => Math.round((i / 7) * (merged.length - 1)))
   const tickDates = new Set(tickIndices.map((i) => merged[i]?.date).filter(Boolean))
 
-  const allValues = merged.flatMap((d) => [d.portfolio, d.benchmark])
+  const hasBenchmark = benchmark.length > 0 && merged.some((d) => d.benchmark !== null && d.benchmark !== undefined)
+  const allValues = merged.flatMap((d) => (
+    d.benchmark !== null && d.benchmark !== undefined
+      ? [d.portfolio, d.benchmark]
+      : [d.portfolio]
+  ))
   const minVal = Math.min(...allValues, 0)
   const maxVal = Math.max(...allValues, 0)
   const pad = Math.max(2, (maxVal - minVal) * 0.1)
@@ -162,7 +173,11 @@ export function PerformanceChart({
         <TrendingUp className="h-4 w-4 text-indigo-500" />
         <h3 className="text-sm font-semibold text-slate-800">Cumulative Performance</h3>
         <span className="ml-auto text-[11px] text-slate-400">
-          vs <span className="font-medium text-slate-600">{benchmarkName}</span>
+          {hasBenchmark ? (
+            <>vs <span className="font-medium text-slate-600">{benchmarkName}</span></>
+          ) : (
+            <span className="font-medium text-slate-600">Portfolio only</span>
+          )}
         </span>
       </div>
 
@@ -209,16 +224,18 @@ export function PerformanceChart({
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 0 }}
               />
-              <Line
-                type="monotone"
-                dataKey="benchmark"
-                name={benchmarkName}
-                stroke="#94a3b8"
-                strokeWidth={1.5}
-                strokeDasharray="4 2"
-                dot={false}
-                activeDot={{ r: 4, strokeWidth: 0 }}
-              />
+              {hasBenchmark && (
+                <Line
+                  type="monotone"
+                  dataKey="benchmark"
+                  name={benchmarkName}
+                  stroke="#94a3b8"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -227,6 +244,7 @@ export function PerformanceChart({
         {!loading && merged.length > 0 && (
           <p className="text-[10px] text-slate-400 mt-2">
             Cumulative return (%). Base = 0% at start of period. Portfolio weighted by holding values.
+            {!hasBenchmark && ' Benchmark unavailable.'}
           </p>
         )}
       </div>

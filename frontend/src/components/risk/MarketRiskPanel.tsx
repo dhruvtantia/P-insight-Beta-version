@@ -189,6 +189,9 @@ interface MarketRiskPanelProps {
   benchmark: BenchmarkMetrics | null
   loading:  boolean
   error?:   string | null
+  benchmarkAvailable?: boolean
+  benchmarkError?: string | null
+  riskFreeRate?: number | null
 }
 
 export function MarketRiskPanel({
@@ -196,6 +199,9 @@ export function MarketRiskPanel({
   benchmark,
   loading,
   error,
+  benchmarkAvailable = true,
+  benchmarkError = null,
+  riskFreeRate = 0.065,
 }: MarketRiskPanelProps) {
   if (error) {
     return (
@@ -220,6 +226,19 @@ export function MarketRiskPanel({
       </div>
 
       <div className="p-5 space-y-6">
+        {!loading && benchmarkAvailable === false && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-semibold text-amber-800">
+              Benchmark metrics unavailable
+            </p>
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              Portfolio-only metrics are shown. Beta, alpha, tracking error, information ratio,
+              and benchmark comparison require NIFTY 50 history.
+              {benchmarkError ? ` ${benchmarkError}` : ''}
+            </p>
+          </div>
+        )}
+
         {/* Metric tiles — 4-column grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {METRICS.map((cfg) => (
@@ -233,7 +252,7 @@ export function MarketRiskPanel({
         </div>
 
         {/* Benchmark comparison panel */}
-        {(benchmark || loading) && (
+        {((benchmark && benchmarkAvailable) || loading) && (
           <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
@@ -277,7 +296,7 @@ export function MarketRiskPanel({
         {/* Risk-free rate note */}
         <p className="text-[10px] text-slate-400 flex items-center gap-1">
           <Info className="h-3 w-3 shrink-0" />
-          Risk-free rate: 6.5% p.a. (Indian T-bill). Metrics computed from daily returns.
+          Risk-free rate: {(((riskFreeRate ?? 0.065) * 100).toFixed(1))}% p.a. Metrics computed from daily returns.
         </p>
       </div>
     </div>

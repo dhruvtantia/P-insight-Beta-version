@@ -316,6 +316,9 @@ export default function RiskPage() {
             benchmark={benchmark}
             loading={quantLoading}
             error={quantError}
+            benchmarkAvailable={quantData?.meta?.benchmark_available}
+            benchmarkError={quantData?.meta?.benchmark_error}
+            riskFreeRate={quantData?.meta?.risk_free_rate}
           />
 
           {/* ── 4. Performance + Drawdown charts ──────────────────────────── */}

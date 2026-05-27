@@ -20,7 +20,7 @@ from typing import Literal
 
 from app.core.dependencies import DataProvider
 from app.analytics.quant_service import QuantAnalyticsService
-from app.schemas.quant import QuantFullResponse
+from app.schemas.quant import QuantFullResponse, QuantMeta
 from app.services.feature_registry import feature_dependency, require_feature
 
 router = APIRouter(prefix="/quant", tags=["Quantitative Analytics"])
@@ -67,6 +67,7 @@ async def get_quant_full(
 @router.get(
     "/status",
     summary="Quantitative analytics status (meta only)",
+    response_model=QuantMeta,
     dependencies=[Depends(feature_dependency("risk_quant"))],
 )
 async def get_quant_status(
@@ -81,7 +82,7 @@ async def get_quant_status(
     require_feature("risk_quant")
     service = QuantAnalyticsService(provider)
     result  = await service.compute_all(period=period)
-    return result.get("meta", {})
+    return _to_response(result).meta
 
 
 # ─── Helper ───────────────────────────────────────────────────────────────────

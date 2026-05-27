@@ -851,7 +851,10 @@ export interface QuantMeta {
   benchmark_source:    string | null
   /** False when benchmark fetch failed in live mode — beta/alpha/IR will be null */
   benchmark_available: boolean
+  benchmark_error:     string | null
   risk_free_rate:      number
+  methodology:         string
+  weighting_status:    string
   cached:              boolean
   /** Seconds since the cached result was originally computed. null = freshly computed. */
   cache_age_seconds:   number | null

@@ -94,6 +94,22 @@ TRADING_DAYS = 252
 DEFAULT_RFR   = 0.065   # 6.5% annual — Indian T-bill approximation
 
 
+def _finite_or_none(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return float(value) if np.isfinite(value) else None
+
+
+def annualised_return(returns: pd.Series) -> float:
+    """Geometric annualised return from daily simple returns."""
+    if returns.empty or len(returns) < 2:
+        return 0.0
+    total = float((1 + returns).prod())
+    if total <= 0:
+        return -1.0
+    return float(total ** (TRADING_DAYS / len(returns)) - 1)
+
+
 def annualised_volatility(returns: pd.Series) -> float:
     """σ_annual = σ_daily × √252."""
     return float(returns.std() * np.sqrt(TRADING_DAYS))
@@ -130,14 +146,14 @@ def downside_deviation(returns: pd.Series, mar: float = 0.0) -> float:
 def tracking_error(
     portfolio_returns: pd.Series,
     benchmark_returns: pd.Series,
-) -> float:
+) -> float | None:
     """
     Tracking Error = annualised std dev of (portfolio − benchmark) return.
     Lower TE means portfolio moves closely with benchmark.
     """
     aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
     if len(aligned) < 10:
-        return 0.0
+        return None
     diff = aligned.iloc[:, 0] - aligned.iloc[:, 1]
     return float(diff.std() * np.sqrt(TRADING_DAYS))
 
@@ -145,14 +161,14 @@ def tracking_error(
 def information_ratio(
     portfolio_returns: pd.Series,
     benchmark_returns: pd.Series,
-) -> float:
+) -> float | None:
     """
     Information Ratio = (annual active return) / (tracking error).
     Positive IR means the portfolio outperformed on a risk-adjusted basis.
     """
     te = tracking_error(portfolio_returns, benchmark_returns)
-    if te == 0:
-        return 0.0
+    if te is None or te == 0:
+        return None
     aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
     diff = aligned.iloc[:, 0] - aligned.iloc[:, 1]
     annual_alpha = float(diff.mean() * TRADING_DAYS)
@@ -163,18 +179,20 @@ def jensens_alpha(
     portfolio_returns: pd.Series,
     benchmark_returns: pd.Series,
     risk_free_annual: float = DEFAULT_RFR,
-) -> float:
+) -> float | None:
     """
     Jensen's Alpha = annualised (portfolio excess return − beta × benchmark excess return).
     Positive alpha = portfolio generated returns above what CAPM would predict.
     """
     aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
     if len(aligned) < 30:
-        return 0.0
+        return None
     rf_daily = risk_free_annual / TRADING_DAYS
     p_ret, b_ret = aligned.iloc[:, 0], aligned.iloc[:, 1]
     cov_mat = np.cov(p_ret, b_ret)
-    beta = float(cov_mat[0, 1] / cov_mat[1, 1]) if cov_mat[1, 1] != 0 else 0.0
+    if cov_mat[1, 1] == 0:
+        return None
+    beta = float(cov_mat[0, 1] / cov_mat[1, 1])
     alpha_daily = float((p_ret - rf_daily).mean() - beta * (b_ret - rf_daily).mean())
     return float(alpha_daily * TRADING_DAYS)
 
@@ -213,14 +231,16 @@ def compute_full_risk_metrics(
     rf_daily        = risk_free_annual / TRADING_DAYS
     excess          = portfolio_returns - rf_daily
     sharpe          = float(excess.mean() / excess.std() * np.sqrt(TRADING_DAYS)) if excess.std() > 0 else 0.0
-    ann_ret         = float((1 + portfolio_returns.mean()) ** TRADING_DAYS - 1)
+    ann_ret         = annualised_return(portfolio_returns)
     var95           = var_parametric(portfolio_returns, 0.95)
     dd              = downside_deviation(portfolio_returns)
     sortino         = sortino_ratio(portfolio_returns, risk_free_annual=risk_free_annual)
 
     # Benchmark-relative metrics
     beta_val: float | None = None
-    te, ir, alpha_val = 0.0, 0.0, 0.0
+    te: float | None = None
+    ir: float | None = None
+    alpha_val: float | None = None
 
     if benchmark_returns is not None and len(benchmark_returns) >= 20:
         aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
@@ -241,9 +261,9 @@ def compute_full_risk_metrics(
         "downside_deviation":     round(dd * 100, 3),      # %
         "var_95":                 round(var95 * 100, 3),   # %
         "beta":                   round(beta_val, 3) if beta_val is not None else None,
-        "tracking_error":         round(te * 100, 3),      # %
-        "information_ratio":      round(ir, 3),
-        "alpha":                  round(alpha_val * 100, 3), # %
+        "tracking_error":         round(te * 100, 3) if te is not None else None, # %
+        "information_ratio":      round(ir, 3) if ir is not None else None,
+        "alpha":                  round(alpha_val * 100, 3) if alpha_val is not None else None, # %
     }
 
 
@@ -258,20 +278,29 @@ def compute_holding_stats(
     if ticker_returns.empty or len(ticker_returns) < 10:
         return {"ticker": ticker, "weight": round(weight * 100, 2), "error": "insufficient data"}
 
-    aligned = pd.concat([ticker_returns, benchmark_returns], axis=1).dropna()
-    p, b = aligned.iloc[:, 0], aligned.iloc[:, 1]
+    p = ticker_returns.dropna()
 
-    cov_mat = np.cov(p, b) if len(p) >= 10 else None
-    beta_val = float(cov_mat[0, 1] / cov_mat[1, 1]) if (cov_mat is not None and cov_mat[1, 1] != 0) else None
-    ann_ret = float((1 + p.mean()) ** TRADING_DAYS - 1)
+    beta_val = None
+    if benchmark_returns is not None and not benchmark_returns.empty:
+        aligned = pd.concat([ticker_returns, benchmark_returns], axis=1).dropna()
+        if len(aligned) >= 10:
+            t_aligned, b_aligned = aligned.iloc[:, 0], aligned.iloc[:, 1]
+            cov_mat = np.cov(t_aligned, b_aligned)
+            beta_val = (
+                float(cov_mat[0, 1] / cov_mat[1, 1])
+                if cov_mat[1, 1] != 0
+                else None
+            )
+
+    ann_ret = annualised_return(p)
     vol     = float(p.std() * np.sqrt(TRADING_DAYS))
 
     return {
         "ticker":             ticker,
         "weight":             round(weight * 100, 2),      # %
-        "annualized_return":  round(ann_ret * 100, 2),     # %
-        "volatility":         round(vol * 100, 2),         # %
-        "beta":               round(beta_val, 3) if beta_val is not None else None,
+        "annualized_return":  round(ann_ret * 100, 2) if _finite_or_none(ann_ret) is not None else None,
+        "volatility":         round(vol * 100, 2) if _finite_or_none(vol) is not None else None,
+        "beta":               round(beta_val, 3) if _finite_or_none(beta_val) is not None else None,
     }
 
 

@@ -106,7 +106,10 @@ class QuantMeta(BaseModel):
     benchmark_source:    Optional[str]             = None
     # False when benchmark fetch failed in live mode (beta/alpha/IR will be null)
     benchmark_available: bool                      = True
+    benchmark_error:     Optional[str]             = None
     risk_free_rate:      float                     = 0.065
+    methodology:         str                       = "daily_simple_returns_geometric_annualized"
+    weighting_status:    str                       = "current_price"
     cached:              bool                      = False
     # Seconds since the cached result was originally computed. None = freshly computed.
     cache_age_seconds:   Optional[float]           = None

@@ -25,10 +25,13 @@ def reset_database() -> Generator[None, None, None]:
     Base.metadata.create_all(bind=engine)
 
     import app.data_providers.file_provider as file_provider
+    from app.analytics.quant_service import clear_quant_caches
 
     file_provider._uploaded_holdings = []
+    clear_quant_caches()
     yield
     file_provider._uploaded_holdings = []
+    clear_quant_caches()
     Base.metadata.drop_all(bind=engine)
 
 
