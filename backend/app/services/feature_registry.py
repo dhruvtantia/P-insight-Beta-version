@@ -185,6 +185,42 @@ def get_feature_registry() -> FeatureRegistryResponse:
             frontend_owner_hook="useBrokerConnections",
             disable_behavior="Hide broker sync navigation and connection actions.",
         ),
+        _feature(
+            feature_id="ai_chat",
+            label="Standalone AI Chat",
+            route_prefix="/api/v1/ai-chat",
+            enabled=settings.FEATURE_AI_CHAT and settings.AI_CHAT_ENABLED,
+            disabled_reason=(
+                "Standalone AI chat is scaffolded and disabled; use the production "
+                "advisor surface instead."
+            ),
+            failure_behavior="Unavailable standalone chat must not affect advisor or portfolio workflows.",
+            frontend_owner_hook=None,
+            disable_behavior="Hide standalone AI chat routes and navigation.",
+        ),
+        _feature(
+            feature_id="screener",
+            label="Stock Screener",
+            route_prefix="/screener",
+            enabled=settings.FEATURE_SCREENER,
+            disabled_reason=(
+                "Stock screener is a placeholder and is disabled until backed by "
+                "production data and ranking logic."
+            ),
+            failure_behavior="Unavailable screener must not affect watchlist, market, or portfolio workflows.",
+            frontend_owner_hook=None,
+            disable_behavior="Hide screener routes and navigation.",
+        ),
+        _feature(
+            feature_id="legacy_frontier",
+            label="Legacy Frontier",
+            route_prefix="/api/v1/frontier",
+            enabled=settings.FEATURE_LEGACY_FRONTIER,
+            disabled_reason="Legacy frontier is deprecated; use /api/v1/optimization/full and /optimize instead.",
+            failure_behavior="Unavailable legacy frontier must not affect the production optimizer.",
+            frontend_owner_hook=None,
+            disable_behavior="Redirect public /frontier to /optimize and hide legacy route entry points.",
+        ),
     ]
 
     return FeatureRegistryResponse(features=features)

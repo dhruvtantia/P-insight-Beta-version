@@ -20,8 +20,7 @@ const MODE_COLORS: Record<DataMode, string> = {
 
 /**
  * DataModeToggle — the global data source switcher in the Topbar.
- * Uploaded and Live API are selectable. Broker Sync is Phase 3.
- * Mock mode has been removed.
+ * Uploaded and Live API are selectable. Mock mode has been removed.
  */
 export function DataModeToggle() {
   const { mode, setMode, allModes, currentConfig } = useDataMode()
@@ -117,7 +116,7 @@ export function DataModeToggle() {
 
           <div className="border-t border-slate-100 px-4 py-2">
             <p className="text-[10px] text-slate-400">
-              Live API uses Yahoo Finance (yfinance). Broker Sync coming in Phase 3.
+              Live API uses Yahoo Finance (yfinance).
             </p>
           </div>
         </div>

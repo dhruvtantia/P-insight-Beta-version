@@ -46,13 +46,7 @@ interface NavGroup {
 //  Secondary — useful but not the main workflow:
 //    Peers, News & Events, Watchlist, My Portfolio, Upload, Advisor
 //
-//  Hidden from nav — routes still work, navigate by URL:
-//    /screener   (Screener — BETA)
-//    /simulate   (Simulator — BETA)
-//    /optimize   (Optimizer — BETA)
-//    /brokers    (Broker Sync — scaffold)
-//    /sectors    (Sector Allocation — redundant with Dashboard)
-//    /frontier   (Efficient Frontier — scaffold)
+//  Hidden from nav: disabled placeholders, beta tools, and redundant routes.
 
 const NAV_GROUPS: NavGroup[] = [
   {

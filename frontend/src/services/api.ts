@@ -9,7 +9,7 @@
  *   2. Import and use it in the relevant hook or component
  */
 
-import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsResponse, EventsResponse, WatchlistItem, WatchlistItemInput, EfficientFrontierData, ChatMessage, UploadResponse, PeerComparisonData, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
+import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsResponse, EventsResponse, WatchlistItem, WatchlistItemInput, UploadResponse, PeerComparisonData, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
 import type { ApiFeatureRegistryResponse, ApiParseResponse, ApiRefreshResponse, ApiV2ConfirmResponse, ApiV2StatusResponse } from '@/generated/api-contracts'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -322,13 +322,6 @@ export const analyticsApi = {
     ),
 }
 
-// ─── Efficient Frontier API ───────────────────────────────────────────────────
-
-export const frontierApi = {
-  getFrontier: (mode: DataMode) =>
-    apiFetch<EfficientFrontierData>(withMode('/api/v1/frontier/', mode)),
-}
-
 // ─── Watchlist API ────────────────────────────────────────────────────────────
 
 export const watchlistApi = {
@@ -384,16 +377,6 @@ export const newsApi = {
     if (options?.eventType)       params.set('event_type', options.eventType)
     return apiFetch<EventsResponse>(`/api/v1/news/events?${params.toString()}`)
   },
-}
-
-// ─── AI Chat API ──────────────────────────────────────────────────────────────
-
-export const aiChatApi = {
-  sendMessage: (message: string, portfolioContext?: object) =>
-    apiFetch<{ reply: string; source: string; enabled: boolean }>('/api/v1/ai-chat/', {
-      method: 'POST',
-      body: JSON.stringify({ message, portfolio_context: portfolioContext }),
-    }),
 }
 
 // ─── Quantitative Analytics API ──────────────────────────────────────────────

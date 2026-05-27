@@ -14,7 +14,7 @@ from app.services.feature_registry import feature_dependency
 router = APIRouter(
     prefix="/ai-chat",
     tags=["AI Chat"],
-    dependencies=[Depends(feature_dependency("advisor"))],
+    dependencies=[Depends(feature_dependency("ai_chat"))],
 )
 
 

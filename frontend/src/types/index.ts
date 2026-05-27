@@ -128,6 +128,9 @@ export type FeatureId =
   | 'news'
   | 'advisor'
   | 'broker_sync'
+  | 'ai_chat'
+  | 'screener'
+  | 'legacy_frontier'
 
 export interface FeatureDependencyHealth {
   name: string
@@ -757,7 +760,7 @@ export interface EfficientFrontierData {
   max_sharpe_portfolio: FrontierPoint | null
 }
 
-// ─── AI Chat ─────────────────────────────────────────────────────────────────
+// ─── Standalone Chat ─────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -1177,7 +1180,7 @@ export interface PortfolioDelta {
   has_changes:           boolean
 }
 
-// ─── Broker Connectors (Broker Sync Phase) ───────────────────────────────────
+// ─── Broker Connectors ────────────────────────────────────────────────────────
 
 /** Sync / connection state for a broker-linked portfolio. */
 export type BrokerSyncState =

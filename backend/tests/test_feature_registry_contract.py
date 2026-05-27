@@ -34,6 +34,9 @@ def test_feature_registry_exposes_expected_contracts():
         "news",
         "advisor",
         "broker_sync",
+        "ai_chat",
+        "screener",
+        "legacy_frontier",
     }
 
     assert expected.issubset(by_id)
@@ -41,6 +44,10 @@ def test_feature_registry_exposes_expected_contracts():
     assert by_id["portfolio_core"].route_prefix == "/api/v1/portfolio"
     assert by_id["upload_import"].side_effects
     assert by_id["risk_quant"].frontend_owner_hook == "useQuantAnalytics"
+    assert by_id["broker_sync"].status == "disabled"
+    assert by_id["ai_chat"].status == "disabled"
+    assert by_id["screener"].status == "disabled"
+    assert by_id["legacy_frontier"].status == "disabled"
 
 
 def test_disabled_feature_returns_typed_boundary(monkeypatch):
@@ -107,3 +114,14 @@ def test_disabled_history_blocks_snapshot_routes(client, monkeypatch):
     response = client.get("/api/v1/portfolios/1/snapshots")
 
     _assert_typed_boundary(response, "history")
+
+
+def test_disabled_scaffold_surfaces_block_backend_routes(client):
+    ai_response = client.post(
+        "/api/v1/ai-chat/",
+        json={"message": "What changed?", "portfolio_context": {}},
+    )
+    _assert_typed_boundary(ai_response, "ai_chat")
+
+    frontier_response = client.get("/api/v1/frontier/?mode=uploaded")
+    _assert_typed_boundary(frontier_response, "legacy_frontier")

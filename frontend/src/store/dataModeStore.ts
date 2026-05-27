@@ -46,7 +46,7 @@ export const useDataModeStore = create<DataModeState>()(
         }
 
         if (mode === 'broker' && !state.isBrokerEnabled) {
-          console.warn('Broker Sync mode is not yet enabled.')
+          console.warn('Broker mode is not enabled.')
           return
         }
 
@@ -60,7 +60,7 @@ export const useDataModeStore = create<DataModeState>()(
       partialize: (state): PersistedDataModeState => ({ mode: state.mode }),
       merge: (persisted: unknown, current: DataModeState): DataModeState => {
         const stored = (persisted as Partial<PersistedDataModeState> | undefined)?.mode
-        const safeModes: DataMode[] = ['uploaded', 'live', 'broker']
+        const safeModes: DataMode[] = ['uploaded', 'live']
         return {
           ...current,
           mode: safeModes.includes(stored as DataMode) ? (stored as DataMode) : 'uploaded',

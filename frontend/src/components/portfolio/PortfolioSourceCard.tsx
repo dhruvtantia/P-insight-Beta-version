@@ -131,7 +131,7 @@ function SourceStatus({
           <p className="text-[10px] text-rose-600 bg-rose-50 rounded px-2 py-1">{brokerConnection.sync_error}</p>
         )}
         {!brokerConnection && (
-          <p className="text-[10px] text-slate-400">No broker connected. Use the Brokers page to connect.</p>
+          <p className="text-[10px] text-slate-400">Broker connection details are unavailable.</p>
         )}
       </div>
     )

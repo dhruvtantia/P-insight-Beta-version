@@ -26,14 +26,11 @@ import {
   GitCompare,
   List,
   Database,
-  Wifi,
-  ChevronRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { usePortfolios } from '@/hooks/usePortfolios'
 import { useSnapshots } from '@/hooks/useSnapshots'
-import { useBrokerConnections } from '@/hooks/useBrokerConnections'
 import { SnapshotSummaryCard } from '@/components/portfolio/SnapshotSummaryCard'
 import { SnapshotComparisonPanel } from '@/components/portfolio/SnapshotComparisonPanel'
 import { SourceBadge } from '@/components/portfolio/SourceBadge'
@@ -234,12 +231,6 @@ function SourcesTab({
   const displayId  = selectedId ?? activePortfolioId
   const portfolio  = portfolios.find((p) => p.id === displayId) ?? portfolios[0] ?? null
 
-  // Broker connection state for selected portfolio
-  const { connections } = useBrokerConnections(portfolio?.id ?? null)
-  const brokerConnection = portfolio?.source === 'broker'
-    ? (Object.values(connections)[0] ?? null)
-    : null
-
   if (loading && portfolios.length === 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
@@ -306,23 +297,8 @@ function SourcesTab({
           <>
             <PortfolioSourceCard
               portfolio={portfolio}
-              brokerConnection={brokerConnection}
               onRefresh={portfolio.is_refreshable ? () => setShowRefresh(true) : undefined}
             />
-
-            {/* Broker portfolio → quick link to Brokers page */}
-            {portfolio.source === 'broker' && (
-              <Link
-                href="/brokers"
-                className="flex items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Wifi className="h-4 w-4" />
-                  Manage broker connections
-                </div>
-                <ChevronRight className="h-4 w-4 text-indigo-400" />
-              </Link>
-            )}
 
             {showRefresh && portfolio.is_refreshable && (
               <PortfolioRefreshPanel

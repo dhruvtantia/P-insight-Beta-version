@@ -17,7 +17,7 @@ from app.services.feature_registry import feature_dependency
 router = APIRouter(
     prefix="/frontier",
     tags=["Efficient Frontier"],
-    dependencies=[Depends(feature_dependency("risk_quant"))],
+    dependencies=[Depends(feature_dependency("legacy_frontier"))],
 )
 
 

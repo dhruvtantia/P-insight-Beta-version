@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     FEATURE_NEWS:           bool = True
     FEATURE_ADVISOR:        bool = True
     FEATURE_BROKER_SYNC:    bool = False
+    FEATURE_AI_CHAT:        bool = False
+    FEATURE_SCREENER:       bool = False
+    FEATURE_LEGACY_FRONTIER: bool = False
 
     # ─── External API Keys (all optional) ────────────────────────────────────
     ALPHA_VANTAGE_API_KEY:          str = ""

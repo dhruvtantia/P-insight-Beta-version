@@ -1,4 +1,4 @@
-import { DataModeConfig } from '@/types'
+import type { DataModeConfig } from '@/types'
 
 // ─── Data Modes ───────────────────────────────────────────────────────────────
 
@@ -15,13 +15,6 @@ export const DATA_MODES: DataModeConfig[] = [
     description: 'Real-time market data via Yahoo Finance (yfinance)',
     enabled: true,
     badge: 'Beta',
-  },
-  {
-    value: 'broker',
-    label: 'Broker Sync',
-    description: 'Sync directly from Zerodha, Groww, or Fyers',
-    enabled: false,
-    badge: 'Phase 3',
   },
 ]
 
@@ -77,11 +70,9 @@ export const NAV_ITEMS = [
   { label: 'Holdings',         href: '/holdings',   icon: 'Briefcase'       },
   { label: 'Sector Allocation',href: '/sectors',    icon: 'PieChart'        },
   { label: 'Risk Metrics',     href: '/risk',       icon: 'Activity'        },
-  { label: 'Efficient Frontier',href: '/frontier',  icon: 'TrendingUp'      },
   { label: 'Watchlist',        href: '/watchlist',  icon: 'Star'            },
   { label: 'Peer Comparison',  href: '/peers',      icon: 'Users'           },
   { label: 'News & Events',    href: '/news',       icon: 'Newspaper'       },
-  { label: 'AI Chat',          href: '/ai-chat',    icon: 'Bot'             },
 ] as const
 
 // ─── API ──────────────────────────────────────────────────────────────────────
