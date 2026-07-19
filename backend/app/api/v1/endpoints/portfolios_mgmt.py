@@ -19,7 +19,7 @@ import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app.core.dependencies import DbSession
+from app.core.dependencies import DbSession, CurrentUserId
 from app.services.portfolio_manager import PortfolioManagerService
 from app.services.feature_registry import feature_dependency
 from app.services.upload_file_utils import UploadServiceError, load_dataframe_from_upload
@@ -43,16 +43,16 @@ router = APIRouter(
 # ─── List + get ───────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=PortfolioListResponse, summary="List all portfolios")
-async def list_portfolios(db: DbSession) -> PortfolioListResponse:
+async def list_portfolios(db: DbSession, user_id: CurrentUserId = None) -> PortfolioListResponse:
     """Return all saved portfolios and indicate which is currently active."""
-    svc = PortfolioManagerService(db)
+    svc = PortfolioManagerService(db, user_id=user_id)
     return svc.list_portfolios()
 
 
 @router.get("/active", response_model=PortfolioMeta, summary="Get active portfolio")
-async def get_active_portfolio(db: DbSession) -> PortfolioMeta:
+async def get_active_portfolio(db: DbSession, user_id: CurrentUserId = None) -> PortfolioMeta:
     """Return metadata for the currently active portfolio."""
-    svc = PortfolioManagerService(db)
+    svc = PortfolioManagerService(db, user_id=user_id)
     active = svc.get_active()
     if active is None:
         raise HTTPException(status_code=404, detail="No active portfolio found")
@@ -60,8 +60,8 @@ async def get_active_portfolio(db: DbSession) -> PortfolioMeta:
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioMeta, summary="Get a portfolio")
-async def get_portfolio(portfolio_id: int, db: DbSession) -> PortfolioMeta:
-    svc = PortfolioManagerService(db)
+async def get_portfolio(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> PortfolioMeta:
+    svc = PortfolioManagerService(db, user_id=user_id)
     p   = svc.get_by_id(portfolio_id)
     if p is None:
         raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
@@ -71,9 +71,9 @@ async def get_portfolio(portfolio_id: int, db: DbSession) -> PortfolioMeta:
 # ─── Create ───────────────────────────────────────────────────────────────────
 
 @router.post("/", response_model=PortfolioMeta, summary="Create a manual portfolio")
-async def create_portfolio(body: PortfolioCreateRequest, db: DbSession) -> PortfolioMeta:
+async def create_portfolio(body: PortfolioCreateRequest, db: DbSession, user_id: CurrentUserId = None) -> PortfolioMeta:
     """Create a new empty portfolio with a given name."""
-    svc = PortfolioManagerService(db)
+    svc = PortfolioManagerService(db, user_id=user_id)
     p   = svc.create_manual(name=body.name, description=body.description)
     return svc._to_meta(p)
 
@@ -81,9 +81,9 @@ async def create_portfolio(body: PortfolioCreateRequest, db: DbSession) -> Portf
 # ─── Activate ─────────────────────────────────────────────────────────────────
 
 @router.post("/{portfolio_id}/activate", response_model=ActivateResponse, summary="Activate a portfolio")
-async def activate_portfolio(portfolio_id: int, db: DbSession) -> ActivateResponse:
+async def activate_portfolio(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> ActivateResponse:
     """Set the specified portfolio as active, deactivating all others."""
-    svc = PortfolioManagerService(db)
+    svc = PortfolioManagerService(db, user_id=user_id)
     try:
         return svc.activate(portfolio_id)
     except ValueError as exc:
@@ -101,6 +101,7 @@ async def activate_portfolio(portfolio_id: int, db: DbSession) -> ActivateRespon
 async def refresh_portfolio(
     portfolio_id: int,
     db: DbSession,
+    user_id: CurrentUserId = None,
     file: UploadFile = File(...),
     column_mapping: str = Form(..., description="JSON: canonical_field → original_column_name"),
 ) -> RefreshResponse:
@@ -134,7 +135,7 @@ async def refresh_portfolio(
         raise HTTPException(status_code=422, detail="No valid rows could be parsed.")
 
     filename = file.filename or "upload"
-    svc = PortfolioManagerService(db)
+    svc = PortfolioManagerService(db, user_id=user_id)
 
     try:
         p, pre_snap_id, post_snap_id = svc.refresh_portfolio(portfolio_id, holdings, filename)
@@ -160,9 +161,9 @@ async def refresh_portfolio(
 
 @router.patch("/{portfolio_id}/rename", response_model=PortfolioMeta, summary="Rename a portfolio")
 async def rename_portfolio(
-    portfolio_id: int, body: PortfolioRenameRequest, db: DbSession
+    portfolio_id: int, body: PortfolioRenameRequest, db: DbSession, user_id: CurrentUserId = None
 ) -> PortfolioMeta:
-    svc  = PortfolioManagerService(db)
+    svc  = PortfolioManagerService(db, user_id=user_id)
     meta = svc.rename(portfolio_id, body.name)
     if meta is None:
         raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
@@ -170,8 +171,8 @@ async def rename_portfolio(
 
 
 @router.delete("/{portfolio_id}", response_model=DeleteResponse, summary="Delete a portfolio")
-async def delete_portfolio(portfolio_id: int, db: DbSession) -> DeleteResponse:
-    svc = PortfolioManagerService(db)
+async def delete_portfolio(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> DeleteResponse:
+    svc = PortfolioManagerService(db, user_id=user_id)
     result = svc.delete(portfolio_id)
     if not result.success:
         raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")

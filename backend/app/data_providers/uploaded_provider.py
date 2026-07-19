@@ -21,9 +21,16 @@ logger = logging.getLogger(__name__)
 class UploadedPortfolioProvider(BaseDataProvider):
     """Read DB-stored holdings for a selected or active uploaded portfolio."""
 
-    def __init__(self, db: Optional[Session] = None, portfolio_id: Optional[int] = None):
+    def __init__(
+        self,
+        db: Optional[Session] = None,
+        portfolio_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+    ):
         self._db = db
         self._portfolio_id = portfolio_id
+        # Tenancy scope. None → legacy global active portfolio (AUTH_ENABLED off).
+        self._user_id = user_id
         self._market_proxy = FileDataProvider()
 
     @property
@@ -42,6 +49,8 @@ class UploadedPortfolioProvider(BaseDataProvider):
         from app.models.portfolio import Portfolio
 
         query = self._db.query(Portfolio)
+        if self._user_id is not None:
+            query = query.filter(Portfolio.user_id == self._user_id)
         if self._portfolio_id is not None:
             active = query.filter(Portfolio.id == self._portfolio_id).first()
         else:

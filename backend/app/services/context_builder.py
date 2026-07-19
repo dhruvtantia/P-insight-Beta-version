@@ -145,9 +145,10 @@ class PortfolioContextBuilder:
         ctx = PortfolioContextBuilder(db).build(portfolio_id)
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
-        self.portfolio_reader = PortfolioReadService(db)
+        self.user_id = user_id
+        self.portfolio_reader = PortfolioReadService(db, user_id=user_id)
         self.snapshot_reader = SnapshotReadService(db)
 
     # ── Public entry point ────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.db.database        import get_db
+from app.core.auth          import get_current_user_id
 from sqlalchemy.orm         import Session
 
 from app.schemas.advisor    import (
@@ -68,6 +69,7 @@ def get_advisor_status():
 def ask_advisor(
     req: AdvisorQueryRequest,
     db:  Session = Depends(get_db),
+    user_id: int | None = Depends(get_current_user_id),
 ):
     """
     Main entry point for AI-powered portfolio advisory.
@@ -80,7 +82,7 @@ def ask_advisor(
     locally and display its response instead.
     """
     try:
-        svc      = AIAdvisorService(db)
+        svc      = AIAdvisorService(db, user_id=user_id)
         response = svc.ask(req)
         return response
     except Exception as e:
@@ -107,6 +109,7 @@ def ask_advisor(
 def get_portfolio_context(
     portfolio_id: int,
     db: Session = Depends(get_db),
+    user_id: int | None = Depends(get_current_user_id),
 ):
     """
     Returns the clean JSON context object that the AI advisor uses.
@@ -114,7 +117,7 @@ def get_portfolio_context(
     what data is being provided to the LLM.
     """
     try:
-        svc     = AIAdvisorService(db)
+        svc     = AIAdvisorService(db, user_id=user_id)
         payload = svc.build_context_payload(portfolio_id)
         return payload
     except ValueError as e:

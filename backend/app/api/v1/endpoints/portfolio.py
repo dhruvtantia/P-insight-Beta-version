@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 
-from app.core.dependencies import DbSession, DataProvider
+from app.core.dependencies import DbSession, DataProvider, CurrentUserId
 from app.services.portfolio_service import PortfolioService
 from app.services.feature_registry import feature_dependency
 from app.data_providers.file_provider import FileDataProvider
@@ -33,7 +33,7 @@ UPLOADS_PATH = Path(__file__).parent.parent.parent.parent.parent / "uploads"
     summary="Get bundled portfolio intelligence",
     dependencies=[Depends(feature_dependency("portfolio_core"))],
 )
-async def get_portfolio_full(db: DbSession, provider: DataProvider):
+async def get_portfolio_full(db: DbSession, provider: DataProvider, user_id: CurrentUserId = None):
     """
     Bundled endpoint — returns holdings (with pre-computed metrics), summary,
     and sector allocation in a single response.
@@ -44,7 +44,7 @@ async def get_portfolio_full(db: DbSession, provider: DataProvider):
     Replaces three separate calls to /portfolio/, /portfolio/summary, and
     /portfolio/sectors.  Old endpoints remain available for backward compatibility.
     """
-    service = PortfolioService(db, provider)
+    service = PortfolioService(db, provider, user_id=user_id)
     return await service.get_full()
 
 
@@ -54,9 +54,9 @@ async def get_portfolio_full(db: DbSession, provider: DataProvider):
     summary="Get all holdings",
     dependencies=[Depends(feature_dependency("portfolio_core"))],
 )
-async def get_holdings(db: DbSession, provider: DataProvider):
+async def get_holdings(db: DbSession, provider: DataProvider, user_id: CurrentUserId = None):
     """Return all portfolio holdings from the active data source."""
-    service = PortfolioService(db, provider)
+    service = PortfolioService(db, provider, user_id=user_id)
     return await service.get_holdings()
 
 
@@ -66,9 +66,9 @@ async def get_holdings(db: DbSession, provider: DataProvider):
     summary="Get portfolio KPI summary",
     dependencies=[Depends(feature_dependency("portfolio_core"))],
 )
-async def get_summary(db: DbSession, provider: DataProvider):
+async def get_summary(db: DbSession, provider: DataProvider, user_id: CurrentUserId = None):
     """Return high-level portfolio metrics: total value, P&L, sector concentration."""
-    service = PortfolioService(db, provider)
+    service = PortfolioService(db, provider, user_id=user_id)
     return await service.get_summary()
 
 
@@ -78,9 +78,9 @@ async def get_summary(db: DbSession, provider: DataProvider):
     summary="Get sector allocation",
     dependencies=[Depends(feature_dependency("portfolio_core"))],
 )
-async def get_sector_allocation(db: DbSession, provider: DataProvider):
+async def get_sector_allocation(db: DbSession, provider: DataProvider, user_id: CurrentUserId = None):
     """Return portfolio allocation broken down by sector."""
-    service = PortfolioService(db, provider)
+    service = PortfolioService(db, provider, user_id=user_id)
     return await service.get_sector_allocation()
 
 
@@ -93,7 +93,7 @@ async def get_sector_allocation(db: DbSession, provider: DataProvider):
         Depends(feature_dependency("upload_import")),
     ],
 )
-async def upload_portfolio(db: DbSession, file: UploadFile = File(...)):
+async def upload_portfolio(db: DbSession, user_id: CurrentUserId = None, file: UploadFile = File(...)):
     """
     Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
 
@@ -130,7 +130,7 @@ async def upload_portfolio(db: DbSession, file: UploadFile = File(...)):
 
     try:
         from app.services.portfolio_manager import PortfolioManagerService
-        PortfolioManagerService(db).save_uploaded_portfolio(holdings, filename=file.filename or "upload")
+        PortfolioManagerService(db, user_id=user_id).save_uploaded_portfolio(holdings, filename=file.filename or "upload")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not persist upload: {exc}")
 

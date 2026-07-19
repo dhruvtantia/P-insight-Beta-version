@@ -20,26 +20,40 @@ from app.schemas.portfolio import PortfolioCreate, HoldingCreate
 class PortfolioRepository:
     """Handles all database operations for Portfolio and Holding models."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
+        # Tenancy scope. None → legacy global behavior (AUTH_ENABLED off).
+        self.user_id = user_id
+
+    def _scope(self, query):
+        if self.user_id is not None:
+            return query.filter(Portfolio.user_id == self.user_id)
+        return query
 
     # ─── Portfolio CRUD ───────────────────────────────────────────────────────
 
     def get_by_id(self, portfolio_id: int) -> Optional[Portfolio]:
-        return self.db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+        return (
+            self._scope(self.db.query(Portfolio))
+            .filter(Portfolio.id == portfolio_id)
+            .first()
+        )
 
     def get_all(self) -> list[Portfolio]:
-        return self.db.query(Portfolio).all()
+        return self._scope(self.db.query(Portfolio)).all()
 
     def get_latest(self) -> Optional[Portfolio]:
         return (
-            self.db.query(Portfolio)
+            self._scope(self.db.query(Portfolio))
             .order_by(Portfolio.updated_at.desc())
             .first()
         )
 
     def create(self, data: PortfolioCreate) -> Portfolio:
-        portfolio = Portfolio(**data.model_dump())
+        payload = data.model_dump()
+        # Stamp ownership on create when scoped; harmless (None) in legacy mode.
+        payload.setdefault("user_id", self.user_id)
+        portfolio = Portfolio(**payload)
         self.db.add(portfolio)
         self.db.commit()
         self.db.refresh(portfolio)
@@ -90,16 +104,31 @@ class PortfolioRepository:
 
 
 class WatchlistRepository:
-    """Handles all database operations for the Watchlist model. (Phase 2 scaffold)"""
+    """Handles all database operations for the Watchlist model."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
+        # Tenancy scope. None → legacy global watchlist (AUTH_ENABLED off).
+        self.user_id = user_id
+
+    def _scope(self, query):
+        if self.user_id is not None:
+            return query.filter(Watchlist.user_id == self.user_id)
+        return query
 
     def get_all(self) -> list[Watchlist]:
-        return self.db.query(Watchlist).order_by(Watchlist.added_at.desc()).all()
+        return (
+            self._scope(self.db.query(Watchlist))
+            .order_by(Watchlist.added_at.desc())
+            .all()
+        )
 
     def get_by_ticker(self, ticker: str) -> Optional[Watchlist]:
-        return self.db.query(Watchlist).filter(Watchlist.ticker == ticker).first()
+        return (
+            self._scope(self.db.query(Watchlist))
+            .filter(Watchlist.ticker == ticker)
+            .first()
+        )
 
     def add(
         self,
@@ -111,6 +140,7 @@ class WatchlistRepository:
         notes:        Optional[str]   = None,
     ) -> Watchlist:
         item = Watchlist(
+            user_id=self.user_id,
             ticker=ticker,
             name=name,
             tag=tag,

@@ -303,10 +303,11 @@ class AIAdvisorService:
         response = svc.ask(req)   # AdvisorQueryRequest
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db      = db
-        self.builder = PortfolioContextBuilder(db)
-        self.portfolio_reader = PortfolioReadService(db)
+        self.user_id = user_id
+        self.builder = PortfolioContextBuilder(db, user_id=user_id)
+        self.portfolio_reader = PortfolioReadService(db, user_id=user_id)
 
     # ── Resolve portfolio_id ─────────────────────────────────────────────────
 

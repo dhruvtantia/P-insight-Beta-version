@@ -38,8 +38,10 @@ logger = logging.getLogger(__name__)
 
 class BrokerService:
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
+        # Tenancy scope. None → legacy global behavior (AUTH_ENABLED off).
+        self.user_id = user_id
 
     # ─── List available connectors ─────────────────────────────────────────────
 
@@ -109,6 +111,7 @@ class BrokerService:
         now = datetime.now(timezone.utc)
         if row is None:
             row = BrokerConnection(
+                user_id          = self.user_id,
                 portfolio_id     = portfolio_id,
                 broker_name      = req.broker_name,
                 connection_state = "pending",
@@ -206,7 +209,7 @@ class BrokerService:
             sync_result = connector.sync_holdings(config)
 
             # Persist holdings via refresh_portfolio (pre/post snapshots)
-            mgr = PortfolioManagerService(self.db)
+            mgr = PortfolioManagerService(self.db, user_id=self.user_id)
             _p, pre_id, post_id = mgr.refresh_portfolio(
                 portfolio_id = portfolio_id,
                 holdings     = sync_result.holdings,
@@ -279,11 +282,17 @@ class BrokerService:
     # ─── Internal ─────────────────────────────────────────────────────────────
 
     def _get_row(self, portfolio_id: int) -> Optional[BrokerConnection]:
+        q = self.db.query(BrokerConnection)
+        if self.user_id is not None:
+            q = q.filter(BrokerConnection.user_id == self.user_id)
         return (
-            self.db.query(BrokerConnection)
+            q
             .filter(BrokerConnection.portfolio_id == portfolio_id)
             .first()
         )
 
     def _get_portfolio(self, portfolio_id: int) -> Optional[Portfolio]:
-        return self.db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+        q = self.db.query(Portfolio)
+        if self.user_id is not None:
+            q = q.filter(Portfolio.user_id == self.user_id)
+        return q.filter(Portfolio.id == portfolio_id).first()

@@ -5,7 +5,7 @@ The single source of truth for what needs hardening before public launch. Seeded
 
 **Legend:** ✅ done · 🟡 in progress · ⬜ not started · ⏸️ deliberately deferred
 
-Last updated: **2026-07-19 (Phase 1 in progress — backend identity foundation landed)**
+Last updated: **2026-07-19 (Phase 1 — backend tenancy landed & proven; frontend + a few read-paths remain)**
 
 ---
 
@@ -19,7 +19,7 @@ Last updated: **2026-07-19 (Phase 1 in progress — backend identity foundation 
 | Alembic migrations | ✅ | `backend/alembic/` wired to app settings + `Base.metadata`; initial migration reproduces all 8 tables on empty DB | 0 |
 | PostgreSQL as prod DB | 🟡 | Migration is dialect-agnostic; `docker-compose.dev.yml` provides Postgres; real prod DB pending hosting choice | 0→7 |
 | CI pipeline | ✅ | `.github/workflows/ci.yml`: ruff + pytest + alembic-on-Postgres + FE build/type-check | 0 |
-| **Auth + tenancy** | 🟡 | Backend identity foundation landed (Supabase JWT dep `app.core.auth`, `users` table, `user_id` FKs + migration, flag-gated by `AUTH_ENABLED`, 8 tests). **Remaining:** scope queries per-user, per-user active portfolio, global auth gate, frontend Supabase integration | 1 |
+| **Auth + tenancy** | 🟡 | Identity foundation + **per-user scoping done & proven**: portfolios, watchlist, brokers, upload-V2, advisor, and provider reads all scoped by `user_id`; global auth gate on `/api/v1`; per-user active portfolio; 3 isolation tests (two users can't see/mutate each other's data, 401 unauth). **Remaining:** per-ID scoping on snapshots/history/news + legacy upload-confirm (currently protected by the global 401 gate but not per-user filtered), and the **frontend Supabase integration** (needs a real Supabase project) | 1 |
 | Durable background jobs | ⬜ | FastAPI `BackgroundTasks` non-durable; history-build status in-memory (lost on restart) | 3 |
 | Shared cache (Redis) | ⬜ | `_PRICE_CACHE`/`_FUND_CACHE`/quant caches are in-process module dicts, not multi-worker safe | 3 |
 | Provider retry/fallback | ⬜ | yfinance is a single point of failure across 7 features | 3 |
@@ -36,7 +36,7 @@ Last updated: **2026-07-19 (Phase 1 in progress — backend identity foundation 
 |---|---|---|---|---|
 | 1 | App Shell & Navigation | ✅ | Solid; hides disabled features via registry | — |
 | 2 | Feature Registry | ✅ | Solid; add auth dependency to the gate stack | 1 |
-| 3 | Portfolio Core | 🟡 | Works; **not tenant-safe** (global active portfolio) | 1 |
+| 3 | Portfolio Core | 🟡 | Now **tenant-scoped** (per-user active portfolio via `PortfolioReadService`/provider `user_id`); frontend auth wiring remains | 1 |
 | 4 | Upload & Import | 🟡 | Two divergent confirm paths (legacy vs V2); non-durable enrichment | 2,3 |
 | 5 | Portfolio Management & Refresh | 🟡 | Works; no user scoping | 1 |
 | 6 | Dashboard | 🟡 | Add data-quality banner (live/uploaded/fallback/failed price counts) | 3 |

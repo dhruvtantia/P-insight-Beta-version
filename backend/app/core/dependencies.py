@@ -7,9 +7,10 @@ Add new shared dependencies here (auth, rate limiting, etc.) without touching ro
 
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Optional
 
 from app.db.database import get_db
+from app.core.auth import get_current_user_id
 from app.data_providers.base import BaseDataProvider
 from app.data_providers.uploaded_provider import UploadedPortfolioProvider
 from app.data_providers.live_provider import LiveAPIProvider
@@ -21,6 +22,13 @@ from app.data_providers.broker_provider import BrokerSyncProvider
 DbSession = Annotated[Session, Depends(get_db)]
 
 
+# ─── Current User (tenancy) ───────────────────────────────────────────────────
+# Resolves to the authenticated user's internal id, or None in legacy mode
+# (AUTH_ENABLED off). Endpoints pass this into services so all portfolio /
+# watchlist / broker reads and writes are scoped to the current user.
+CurrentUserId = Annotated[Optional[int], Depends(get_current_user_id)]
+
+
 # ─── Data Provider Factory ────────────────────────────────────────────────────
 
 # "mock" mode is intentionally removed — mock data is disabled in this build.
@@ -29,8 +37,9 @@ DataMode = Literal["uploaded", "live", "broker"]
 
 
 def get_data_provider(
-    db:   Annotated[Session, Depends(get_db)],
-    mode: DataMode = Query(default="uploaded", description="Data source mode"),
+    db:      Annotated[Session, Depends(get_db)],
+    user_id: Annotated[Optional[int], Depends(get_current_user_id)] = None,
+    mode:    DataMode = Query(default="uploaded", description="Data source mode"),
 ) -> BaseDataProvider:
     """
     Returns the appropriate data provider based on the requested mode.
@@ -53,8 +62,8 @@ def get_data_provider(
         )
 
     providers: dict[str, BaseDataProvider] = {
-        "uploaded": UploadedPortfolioProvider(db=db),
-        "live":     LiveAPIProvider(db=db),   # db-backed live holdings
+        "uploaded": UploadedPortfolioProvider(db=db, user_id=user_id),
+        "live":     LiveAPIProvider(db=db, user_id=user_id),   # db-backed live holdings
         "broker":   BrokerSyncProvider(),
     }
 

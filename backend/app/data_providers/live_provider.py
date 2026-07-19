@@ -624,12 +624,14 @@ class LiveAPIProvider(BaseDataProvider):
     rather than silently substituting mock data.
     """
 
-    def __init__(self, db: Optional[Session] = None):
+    def __init__(self, db: Optional[Session] = None, user_id: Optional[int] = None):
         """
         db: SQLAlchemy Session for loading active portfolio holdings.
             If not provided, get_holdings() will return an empty list with a warning.
+        user_id: tenancy scope. None → legacy global active portfolio.
         """
         self._db = db
+        self._user_id = user_id
 
     @property
     def mode_name(self) -> str:
@@ -658,8 +660,11 @@ class LiveAPIProvider(BaseDataProvider):
         # 1. Load active portfolio from DB
         from app.models.portfolio import Portfolio, Holding as HoldingORM
 
+        _active_q = self._db.query(Portfolio)
+        if self._user_id is not None:
+            _active_q = _active_q.filter(Portfolio.user_id == self._user_id)
         active = (
-            self._db.query(Portfolio)
+            _active_q
             .filter(Portfolio.is_active == True)  # noqa: E712
             .first()
         )

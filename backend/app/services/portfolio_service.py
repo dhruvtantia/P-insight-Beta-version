@@ -34,15 +34,25 @@ class PortfolioReadService:
     reimplementing summary, sector allocation, or concentration-risk math.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
-        self.repo = PortfolioRepository(db)
+        # Tenancy scope. None → legacy single-user (global) behavior, used when
+        # AUTH_ENABLED is off. An int → all reads are restricted to that user's
+        # portfolios, so no user can see another user's data.
+        self.user_id = user_id
+        self.repo = PortfolioRepository(db, user_id=user_id)
 
     # ── Portfolio identity and holdings reads ────────────────────────────────
 
+    def _scope(self, query):
+        """Restrict a Portfolio query to the current tenant when scoped."""
+        if self.user_id is not None:
+            return query.filter(PortfolioORM.user_id == self.user_id)
+        return query
+
     def get_active_portfolio(self) -> Optional[PortfolioORM]:
         return (
-            self.db.query(PortfolioORM)
+            self._scope(self.db.query(PortfolioORM))
             .filter(PortfolioORM.is_active == True)  # noqa: E712
             .first()
         )
@@ -52,17 +62,21 @@ class PortfolioReadService:
         if active:
             return active
         return (
-            self.db.query(PortfolioORM)
+            self._scope(self.db.query(PortfolioORM))
             .order_by(PortfolioORM.updated_at.desc())
             .first()
         )
 
     def get_portfolio(self, portfolio_id: int) -> Optional[PortfolioORM]:
-        return self.db.query(PortfolioORM).filter(PortfolioORM.id == portfolio_id).first()
+        return (
+            self._scope(self.db.query(PortfolioORM))
+            .filter(PortfolioORM.id == portfolio_id)
+            .first()
+        )
 
     def get_active_portfolio_identity(self) -> tuple[Optional[int], Optional[str]]:
         active = (
-            self.db.query(PortfolioORM)
+            self._scope(self.db.query(PortfolioORM))
             .filter(PortfolioORM.is_active == True)  # noqa: E712
             .with_entities(PortfolioORM.id, PortfolioORM.name)
             .first()
@@ -349,10 +363,11 @@ class PortfolioReadService:
 
 class PortfolioService:
 
-    def __init__(self, db: Session, provider: BaseDataProvider):
+    def __init__(self, db: Session, provider: BaseDataProvider, user_id: Optional[int] = None):
         self.db = db
         self.provider = provider
-        self.reader = PortfolioReadService(db)
+        self.user_id = user_id
+        self.reader = PortfolioReadService(db, user_id=user_id)
         self.repo = self.reader.repo
 
     async def get_holdings(self) -> list[dict]:

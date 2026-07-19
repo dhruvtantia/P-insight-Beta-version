@@ -31,7 +31,7 @@ from fastapi import (
     UploadFile,
 )
 
-from app.core.dependencies import DbSession
+from app.core.dependencies import DbSession, CurrentUserId
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.schemas.upload import ConfirmResponse, ParseResponse
 from app.schemas.upload_v2 import V2ConfirmResponse, V2StatusResponse
@@ -158,6 +158,7 @@ async def get_upload_status(
 )
 async def confirm_upload_v2(
     background_tasks: BackgroundTasks,
+    user_id: CurrentUserId = None,
     file: UploadFile = File(...),
     column_mapping: str = Form(
         ..., description="JSON object: canonical_field → original_column_name"
@@ -184,6 +185,7 @@ async def confirm_upload_v2(
             background_tasks=background_tasks,
             uploads_path=UPLOADS_PATH,
             enrichment_task=run_background_enrichment,
+            user_id=user_id,
         )
     except UploadServiceError as exc:
         _raise_upload_error(exc)

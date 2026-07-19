@@ -31,15 +31,23 @@ logger = logging.getLogger(__name__)
 
 class PortfolioManagerService:
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db   = db
-        self.repo = PortfolioRepository(db)
+        # Tenancy scope. None → legacy global behavior (AUTH_ENABLED off).
+        self.user_id = user_id
+        self.repo = PortfolioRepository(db, user_id=user_id)
+
+    def _scope(self, query):
+        """Restrict a Portfolio query to the current tenant when scoped."""
+        if self.user_id is not None:
+            return query.filter(Portfolio.user_id == self.user_id)
+        return query
 
     # ─── Listing ──────────────────────────────────────────────────────────────
 
     def list_portfolios(self) -> PortfolioListResponse:
         all_p = (
-            self.db.query(Portfolio)
+            self._scope(self.db.query(Portfolio))
             .order_by(Portfolio.updated_at.desc())
             .all()
         )
@@ -51,13 +59,17 @@ class PortfolioManagerService:
 
     def get_active(self) -> Optional[Portfolio]:
         return (
-            self.db.query(Portfolio)
+            self._scope(self.db.query(Portfolio))
             .filter(Portfolio.is_active.is_(True))
             .first()
         )
 
     def get_by_id(self, portfolio_id: int) -> Optional[Portfolio]:
-        return self.db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+        return (
+            self._scope(self.db.query(Portfolio))
+            .filter(Portfolio.id == portfolio_id)
+            .first()
+        )
 
     # ─── Activation ───────────────────────────────────────────────────────────
 
@@ -68,7 +80,8 @@ class PortfolioManagerService:
             raise ValueError(f"Portfolio {portfolio_id} not found")
 
         prev_active = self.get_active()
-        self.db.query(Portfolio).update({Portfolio.is_active: False})
+        # Only deactivate THIS tenant's portfolios — never touch other users'.
+        self._scope(self.db.query(Portfolio)).update({Portfolio.is_active: False})
         target.is_active = True
         target.updated_at = datetime.now(timezone.utc)
         self.db.commit()
@@ -106,7 +119,7 @@ class PortfolioManagerService:
 
         if was_active:
             latest = (
-                self.db.query(Portfolio)
+                self._scope(self.db.query(Portfolio))
                 .order_by(Portfolio.updated_at.desc())
                 .first()
             )
@@ -136,7 +149,8 @@ class PortfolioManagerService:
         now = datetime.now(timezone.utc)
         portfolio_name = name or f"Upload — {filename}"
 
-        self.db.query(Portfolio).update({Portfolio.is_active: False})
+        # Deactivate only this tenant's other portfolios.
+        self._scope(self.db.query(Portfolio)).update({Portfolio.is_active: False})
 
         meta = json.dumps({
             "filename":    filename,
@@ -145,6 +159,7 @@ class PortfolioManagerService:
         })
 
         p = Portfolio(
+            user_id=self.user_id,
             name=portfolio_name,
             source="uploaded",
             is_active=True,
@@ -380,6 +395,7 @@ class PortfolioManagerService:
     def create_manual(self, name: str, description: Optional[str] = None) -> Portfolio:
         """Create an empty manual portfolio (no holdings yet)."""
         p = Portfolio(
+            user_id=self.user_id,
             name=name,
             source="manual",
             is_active=False,

@@ -18,7 +18,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.dependencies import DbSession
+from app.core.dependencies import DbSession, CurrentUserId
 from app.services.broker_service import BrokerService
 from app.services.feature_registry import feature_dependency
 from app.schemas.broker import (
@@ -46,13 +46,13 @@ router = APIRouter(
     response_model=BrokerListResponse,
     summary="List all available broker connectors",
 )
-async def list_brokers(db: DbSession) -> BrokerListResponse:
+async def list_brokers(db: DbSession, user_id: CurrentUserId = None) -> BrokerListResponse:
     """
     Returns static metadata for all registered broker connectors.
     Includes both configured (ready to use) and scaffolded (not yet implemented) connectors.
     The `is_implemented` field tells the UI which connectors are active vs. coming soon.
     """
-    svc = BrokerService(db)
+    svc = BrokerService(db, user_id=user_id)
     return svc.list_available()
 
 
@@ -63,12 +63,12 @@ async def list_brokers(db: DbSession) -> BrokerListResponse:
     response_model=BrokerConnectionMeta,
     summary="Get broker connection state for a portfolio",
 )
-async def get_connection(portfolio_id: int, db: DbSession) -> BrokerConnectionMeta:
+async def get_connection(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> BrokerConnectionMeta:
     """
     Returns the current broker connection state for a given portfolio.
     If no connection exists, returns `connection_state: "disconnected"`.
     """
-    svc = BrokerService(db)
+    svc = BrokerService(db, user_id=user_id)
     return svc.get_connection(portfolio_id)
 
 
@@ -83,6 +83,7 @@ async def connect_broker(
     portfolio_id: int,
     body: ConnectRequest,
     db: DbSession,
+    user_id: CurrentUserId = None,
 ) -> ConnectResponse:
     """
     Initiate a broker connection for a portfolio.
@@ -97,7 +98,7 @@ async def connect_broker(
     API keys and tokens must be passed via environment variables until
     secure credential storage is implemented.
     """
-    svc = BrokerService(db)
+    svc = BrokerService(db, user_id=user_id)
     try:
         return svc.connect(portfolio_id, body)
     except ValueError as exc:
@@ -114,7 +115,7 @@ async def connect_broker(
     response_model=SyncResponse,
     summary="Sync holdings from a broker into a portfolio",
 )
-async def sync_broker(portfolio_id: int, db: DbSession) -> SyncResponse:
+async def sync_broker(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> SyncResponse:
     """
     Pull current holdings from the connected broker and replace
     the portfolio's holdings (with pre/post snapshots for history).
@@ -122,7 +123,7 @@ async def sync_broker(portfolio_id: int, db: DbSession) -> SyncResponse:
     Returns HTTP 501 with `scaffolded: true` for unimplemented connectors.
     Returns HTTP 400 if no connection exists or state is not connected.
     """
-    svc = BrokerService(db)
+    svc = BrokerService(db, user_id=user_id)
     try:
         return svc.sync(portfolio_id)
     except ValueError as exc:
@@ -139,9 +140,9 @@ async def sync_broker(portfolio_id: int, db: DbSession) -> SyncResponse:
     response_model=DisconnectResponse,
     summary="Disconnect a broker from a portfolio",
 )
-async def disconnect_broker(portfolio_id: int, db: DbSession) -> DisconnectResponse:
+async def disconnect_broker(portfolio_id: int, db: DbSession, user_id: CurrentUserId = None) -> DisconnectResponse:
     """Remove the broker connection for a portfolio."""
-    svc = BrokerService(db)
+    svc = BrokerService(db, user_id=user_id)
     try:
         return svc.disconnect(portfolio_id)
     except ValueError as exc:

@@ -210,18 +210,20 @@ def persist_base_portfolio(
     holdings: list[HoldingBase],
     filename: str,
     db,                   # sqlalchemy Session
+    user_id: Optional[int] = None,
 ) -> int:
     """
     Persist the base portfolio (no enrichment data) as a single transaction.
     Returns the new portfolio_id.
 
     Uses PortfolioManagerService.save_uploaded_portfolio() so the logic is
-    identical to the existing path — no duplication.
+    identical to the existing path — no duplication. `user_id` stamps ownership
+    (None in legacy single-user mode).
     """
     from app.services.portfolio_manager import PortfolioManagerService
     from app.services.snapshot_service import SnapshotService
 
-    mgr = PortfolioManagerService(db)
+    mgr = PortfolioManagerService(db, user_id=user_id)
     portfolio = mgr.save_uploaded_portfolio(holdings, filename=filename)
 
     # Auto-snapshot on upload
@@ -498,6 +500,7 @@ async def confirm_upload_v2_file(
     background_tasks: BackgroundTasks,
     uploads_path: Path = UPLOADS_PATH,
     enrichment_task=run_background_enrichment,
+    user_id: Optional[int] = None,
 ) -> V2ConfirmResponse:
     """
     Confirm a V2 upload from raw file bytes.
@@ -524,7 +527,7 @@ async def confirm_upload_v2_file(
         )
 
     resolved_filename = upload_filename(filename)
-    portfolio_id = _persist_v2_base_portfolio(accepted, resolved_filename)
+    portfolio_id = _persist_v2_base_portfolio(accepted, resolved_filename, user_id=user_id)
 
     from app.db.database import SessionLocal
     from app.services.post_upload_workflow import PostUploadWorkflow, UploadCompleted
@@ -577,13 +580,15 @@ def _parse_v2_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:
     return col_map
 
 
-def _persist_v2_base_portfolio(accepted: list[HoldingBase], filename: str) -> int:
+def _persist_v2_base_portfolio(
+    accepted: list[HoldingBase], filename: str, user_id: Optional[int] = None
+) -> int:
     try:
         from app.db.database import SessionLocal
 
         db = SessionLocal()
         try:
-            return persist_base_portfolio(accepted, filename, db)
+            return persist_base_portfolio(accepted, filename, db, user_id=user_id)
         finally:
             db.close()
     except Exception as exc:

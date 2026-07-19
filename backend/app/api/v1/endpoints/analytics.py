@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from app.core.dependencies import DbSession, DataProvider
+from app.core.dependencies import DbSession, DataProvider, CurrentUserId
 from app.services.portfolio_service import PortfolioService
 from app.services.fundamentals_view_service import (
     compute_weighted_metrics,
@@ -226,13 +226,13 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
     summary="Get AI-style portfolio commentary",
     dependencies=[Depends(feature_dependency("portfolio_core"))],
 )
-async def get_commentary(db: DbSession, provider: DataProvider):
+async def get_commentary(db: DbSession, provider: DataProvider, user_id: CurrentUserId = None):
     """
     Return rule-based portfolio insights and commentary.
     Phase 1: Derived from summary and sector data.
     Phase 2: Fed as context to AI Chat module.
     """
-    service = PortfolioService(db, provider)
+    service = PortfolioService(db, provider, user_id=user_id)
     summary = await service.get_summary()
     sectors = await service.get_sector_allocation()
     insights = generate_commentary(summary=summary, sectors=sectors)
