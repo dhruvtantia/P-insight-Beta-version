@@ -202,8 +202,8 @@ def test_snapshot_capture_uses_explicit_cost_basis_fallback_for_untrusted_prices
     )
     db_session.commit()
 
-    snapshot = SnapshotService(db_session).capture(portfolio.id, label="Fallback Test")
-    by_ticker = {row.ticker: row for row in snapshot.holdings}
+    snap = SnapshotService(db_session).capture(portfolio.id, label="Fallback Test")
+    by_ticker = {row.ticker: row for row in snap.holdings}
 
     assert by_ticker["TRUSTED"].market_value == 150
     assert by_ticker["FAILED"].market_value == 100

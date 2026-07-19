@@ -5,7 +5,13 @@ Creates all tables on application startup.
 Also runs lightweight column migrations for additive schema changes
 so existing SQLite databases are upgraded automatically.
 
-For Phase 2+, replace the ALTER TABLE block with Alembic migrations.
+Migration policy (Phase 0 hardening):
+  - Alembic is now the CANONICAL migration mechanism for staging/production
+    (see backend/alembic/). Run `alembic upgrade head` against PostgreSQL.
+  - The create_all + _COLUMN_MIGRATIONS block below is retained only as the
+    zero-config bootstrap for local development and the test suite (which
+    builds its schema via Base.metadata.create_all in tests/conftest.py).
+    It is a no-op on fresh, Alembic-managed databases.
 """
 
 import logging

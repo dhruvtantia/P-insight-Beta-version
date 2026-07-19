@@ -1,0 +1,48 @@
+# Local development services for P-Insight production hardening.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Then point the backend at Postgres and Redis via backend/.env:
+#   DATABASE_URL=postgresql+psycopg2://p_insight:p_insight@localhost:5432/p_insight
+#   REDIS_URL=redis://localhost:6379/0
+# and run migrations:
+#   cd backend && python -m alembic upgrade head
+#
+# Postgres backs the multi-user schema (Phase 1) and Redis backs the shared
+# enrichment/quant cache + durable job queue (Phase 3). Neither is required for
+# the SQLite-based local/test flow.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: p_insight_postgres
+    environment:
+      POSTGRES_USER: p_insight
+      POSTGRES_PASSWORD: p_insight
+      POSTGRES_DB: p_insight
+    ports:
+      - "5432:5432"
+    volumes:
+      - p_insight_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U p_insight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: p_insight_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - p_insight_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  p_insight_pgdata:
+  p_insight_redisdata:

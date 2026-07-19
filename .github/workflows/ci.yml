@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, production-hardening]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest + alembic)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # requirements-lock.txt is the reproducible install source
+          # (local Poetry is unusable on this project's Homebrew Python).
+          pip install -r requirements-lock.txt
+          pip install ruff pytest pytest-asyncio
+
+      - name: Ruff
+        run: ruff check app tests
+
+      - name: Pytest (SQLite)
+        run: python -m pytest tests -q
+
+      - name: Alembic upgrade head reproduces schema (PostgreSQL)
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/p_insight_ci
+        run: python -m alembic upgrade head
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: p_insight_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+  frontend:
+    name: Frontend (type-check + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Type-check
+        run: npm run type-check
