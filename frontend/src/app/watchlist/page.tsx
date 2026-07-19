@@ -32,7 +32,8 @@ import { EmptyWatchlistState }                     from '@/components/watchlist/
 import { WatchlistTagBadge }                       from '@/components/watchlist/WatchlistTagBadge'
 import { QuickActionBar }                          from '@/components/ui/QuickActionBar'
 import { SECTOR_COLORS, DEFAULT_SECTOR_COLOR }     from '@/constants'
-import type { WatchlistItemInput, WatchlistItem, WatchlistTag } from '@/types'
+import type { Holding, WatchlistItemInput, WatchlistItem, WatchlistTag } from '@/types'
+import type { WatchlistQuoteHealth }               from '@/hooks/useWatchlistPrices'
 import { cn }                                      from '@/lib/utils'
 
 export default function WatchlistPage() {
@@ -49,7 +50,20 @@ export default function WatchlistPage() {
 
   // Lift prices to page level so both table + detail panel share them
   const tickers = useMemo(() => items.map((i) => i.ticker), [items])
-  const { prices: livePrices, lastFetchAt, yfinanceAvailable } = useWatchlistPrices(tickers)
+  const {
+    prices: livePrices,
+    loading: quoteLoading,
+    error: quoteError,
+    missingTickers,
+    statusByTicker,
+    priceTimestamps,
+    lastFetchAt,
+    yfinanceAvailable,
+    quoteHealth,
+    isDegraded,
+    isUnavailable,
+    refetch: refetchPrices,
+  } = useWatchlistPrices(tickers)
 
   const [submitting,     setSubmitting]  = useState(false)
   const [formError,      setFormError]   = useState<string | null>(null)
@@ -102,9 +116,38 @@ export default function WatchlistPage() {
     await updateItem(ticker, updates)
   }, [updateItem])
 
+  const handleRefresh = useCallback(() => {
+    refetch()
+    refetchPrices()
+  }, [refetch, refetchPrices])
+
   function scrollToForm() {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  const quoteWarning = useMemo(() => {
+    if (items.length === 0 || quoteHealth === 'idle' || quoteHealth === 'loading' || quoteHealth === 'ready') return null
+    if (quoteHealth === 'failed') {
+      return {
+        title: 'Live watchlist prices could not be refreshed.',
+        body: lastFetchAt
+          ? `Showing stale prices from ${lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}. Watchlist edits still work.`
+          : 'Current prices are unavailable right now. Watchlist edits still work.',
+      }
+    }
+    if (quoteHealth === 'unavailable') {
+      return {
+        title: 'Live quote provider is unavailable.',
+        body: 'Current prices are unavailable because the backend quote provider is not available.',
+      }
+    }
+    return {
+      title: 'Some watchlist prices are unavailable.',
+      body: missingTickers.length > 0
+        ? `Missing quotes: ${missingTickers.join(', ')}.`
+        : 'One or more tickers returned degraded quote status.',
+    }
+  }, [items.length, lastFetchAt, missingTickers, quoteHealth])
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -131,13 +174,13 @@ export default function WatchlistPage() {
         </div>
 
         <button
-          onClick={refetch}
-          disabled={loading}
+          onClick={handleRefresh}
+          disabled={loading || quoteLoading}
           className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white
                      px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50
                      disabled:opacity-40 transition-colors shrink-0"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          <RefreshCw className={cn('h-3.5 w-3.5', (loading || quoteLoading) && 'animate-spin')} />
           Refresh
         </button>
       </div>
@@ -193,6 +236,28 @@ export default function WatchlistPage() {
         />
       </div>
 
+      {quoteWarning && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-800">{quoteWarning.title}</p>
+              <p className="text-xs text-amber-700 mt-0.5">{quoteWarning.body}</p>
+              {quoteError && (
+                <p className="text-[11px] text-amber-600 mt-1 truncate" title={quoteError}>{quoteError}</p>
+              )}
+              <button
+                onClick={refetchPrices}
+                disabled={quoteLoading}
+                className="mt-2 text-xs font-medium text-amber-800 hover:text-amber-950 underline disabled:opacity-50"
+              >
+                Retry prices
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 3. Table or empty state ─────────────────────────────────────────── */}
       {loading ? (
         <LoadingSkeleton />
@@ -206,6 +271,13 @@ export default function WatchlistPage() {
           onRemove={handleRemove}
           removing={removingTicker}
           livePrices={livePrices}
+          quoteLoading={quoteLoading}
+          quoteHealth={quoteHealth}
+          isDegraded={isDegraded}
+          isUnavailable={isUnavailable}
+          missingTickers={missingTickers}
+          statusByTicker={statusByTicker}
+          priceTimestamps={priceTimestamps}
           lastFetchAt={lastFetchAt}
           yfinanceAvailable={yfinanceAvailable}
           onSelect={handleSelect}
@@ -219,6 +291,10 @@ export default function WatchlistPage() {
           <WatchlistDetailPanel
             item={selectedItem}
             livePrice={livePrices[selectedItem.ticker]}
+            livePriceStatus={statusByTicker[selectedItem.ticker]}
+            quoteLoading={quoteLoading}
+            quoteHealth={quoteHealth}
+            lastFetchAt={lastFetchAt}
             yfinanceAvailable={yfinanceAvailable}
             onClose={() => setSelected(null)}
             onUpdate={handleUpdate}
@@ -238,6 +314,10 @@ type UpdatePayload = Partial<Pick<WatchlistItemInput, 'name' | 'tag' | 'sector' 
 interface DetailPanelProps {
   item:              WatchlistItem
   livePrice?:        number
+  livePriceStatus?:  Holding['price_status']
+  quoteLoading:      boolean
+  quoteHealth:       WatchlistQuoteHealth
+  lastFetchAt:       Date | null
   yfinanceAvailable: boolean
   onClose:           () => void
   onUpdate:          (ticker: string, updates: UpdatePayload) => Promise<void>
@@ -245,11 +325,33 @@ interface DetailPanelProps {
 
 const TAG_OPTIONS: WatchlistTag[] = ['General', 'High Conviction', 'Speculative', 'Income', 'Defensive', 'Research']
 
-function WatchlistDetailPanel({ item, livePrice, yfinanceAvailable, onClose, onUpdate }: DetailPanelProps) {
+function quoteStatusLabel(status: Holding['price_status'] | undefined, fallback: string) {
+  if (status === 'missing') return 'Missing'
+  if (status === 'provider_failed') return 'Failed'
+  if (status === 'stale') return 'Stale'
+  if (status === 'pending') return 'Pending'
+  return fallback
+}
+
+function WatchlistDetailPanel({
+  item,
+  livePrice,
+  livePriceStatus,
+  quoteLoading,
+  quoteHealth,
+  lastFetchAt,
+  yfinanceAvailable,
+  onClose,
+  onUpdate,
+}: DetailPanelProps) {
   const router      = useRouter()
   const sectorColor = SECTOR_COLORS[item.sector ?? ''] ?? DEFAULT_SECTOR_COLOR
   const suffix      = item.ticker.match(/\.(NS|BSE|BO)$/i)?.[0] ?? ''
   const shortTicker = item.ticker.replace(/\.(NS|BSE|BO)$/i, '')
+  const hasLivePrice = livePrice !== undefined && quoteHealth !== 'failed' && (
+    livePriceStatus === 'live' || (livePriceStatus === undefined && quoteHealth === 'ready')
+  )
+  const hasStalePrice = livePrice !== undefined && quoteHealth === 'failed'
 
   // ── Edit mode state ───────────────────────────────────────────────────────
   const [editing,   setEditing]   = useState(false)
@@ -354,22 +456,38 @@ function WatchlistDetailPanel({ item, livePrice, yfinanceAvailable, onClose, onU
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1">
             <TrendingUp className="h-3 w-3" /> Current Price
           </p>
-          {!yfinanceAvailable ? (
+          {!yfinanceAvailable || quoteHealth === 'unavailable' ? (
             <>
               <p className="text-xl font-bold text-slate-300">—</p>
-              <p className="text-[10px] text-slate-400">yfinance unavailable</p>
+              <p className="text-[10px] text-amber-600">Quote provider unavailable</p>
             </>
-          ) : livePrice !== undefined ? (
+          ) : hasLivePrice ? (
             <>
               <p className="text-xl font-bold text-emerald-700 tabular-nums">
                 ₹{livePrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-[10px] text-slate-400">Last close · live data</p>
             </>
-          ) : (
+          ) : hasStalePrice ? (
+            <>
+              <p className="text-xl font-bold text-amber-700 tabular-nums">
+                ₹{livePrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-[10px] text-amber-600">
+                Stale{lastFetchAt ? ` · ${lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''}
+              </p>
+            </>
+          ) : quoteLoading ? (
             <>
               <p className="text-sm text-slate-400 italic">Loading…</p>
               <p className="text-[10px] text-slate-400">Fetching…</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-amber-700">
+                {quoteStatusLabel(livePriceStatus, 'Unavailable')}
+              </p>
+              <p className="text-[10px] text-amber-600">Current quote unavailable</p>
             </>
           )}
         </div>
@@ -396,7 +514,7 @@ function WatchlistDetailPanel({ item, livePrice, yfinanceAvailable, onClose, onU
               <p className="text-xl font-bold text-slate-700 tabular-nums">
                 ₹{item.target_price.toLocaleString('en-IN')}
               </p>
-              {livePrice !== undefined && livePrice > 0 && item.target_price > 0 && (
+              {hasLivePrice && livePrice > 0 && item.target_price > 0 && (
                 <p className={cn(
                   'text-[11px] font-semibold',
                   livePrice < item.target_price ? 'text-emerald-600' : 'text-red-500',

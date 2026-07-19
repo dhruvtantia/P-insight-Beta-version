@@ -23,7 +23,8 @@ import { Trash2, ChevronUp, ChevronDown, ChevronsUpDown, GitFork, Clock } from '
 import { WatchlistTagBadge }                      from './WatchlistTagBadge'
 import { SECTOR_COLORS, DEFAULT_SECTOR_COLOR }    from '@/constants'
 import { cn }                                     from '@/lib/utils'
-import type { WatchlistItem }                     from '@/types'
+import type { Holding, WatchlistItem }            from '@/types'
+import type { WatchlistQuoteHealth }              from '@/hooks/useWatchlistPrices'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,21 @@ function relativeDate(iso: string): string {
 
 type SortKey = 'ticker' | 'tag' | 'added_at' | 'sector' | 'target_price' | 'live_price'
 
+function priceStatusLabel(status: Holding['price_status'] | undefined, fallback = 'Unavailable') {
+  if (status === 'missing') return 'Missing'
+  if (status === 'provider_failed') return 'Failed'
+  if (status === 'stale') return 'Stale'
+  if (status === 'pending') return 'Pending'
+  if (status === 'unknown') return 'Unknown'
+  return fallback
+}
+
+function priceStatusClass(status: Holding['price_status'] | undefined) {
+  if (status === 'provider_failed') return 'border-red-200 bg-red-50 text-red-700'
+  if (status === 'missing') return 'border-amber-200 bg-amber-50 text-amber-700'
+  return 'border-slate-200 bg-slate-50 text-slate-500'
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -47,6 +63,13 @@ interface Props {
   removing?:          string | null
   /** Live price map — lifted from page so detail panel can share the same data */
   livePrices:         Record<string, number>
+  quoteLoading:       boolean
+  quoteHealth:        WatchlistQuoteHealth
+  isDegraded:         boolean
+  isUnavailable:      boolean
+  missingTickers:     string[]
+  statusByTicker:     Record<string, Holding['price_status']>
+  priceTimestamps:    Record<string, string>
   lastFetchAt:        Date | null
   yfinanceAvailable:  boolean
   /** Called when the user clicks a row — parent should update its selectedTicker */
@@ -60,6 +83,13 @@ export function WatchlistTable({
   onRemove,
   removing,
   livePrices,
+  quoteLoading,
+  quoteHealth,
+  isDegraded,
+  isUnavailable,
+  missingTickers,
+  statusByTicker,
+  priceTimestamps,
   lastFetchAt,
   yfinanceAvailable,
   onSelect,
@@ -79,6 +109,23 @@ export function WatchlistTable({
     }
   }
 
+  function getTickerPrice(ticker: string) {
+    return livePrices[ticker] ?? livePrices[ticker.toUpperCase()]
+  }
+
+  function getTickerStatus(ticker: string) {
+    return statusByTicker[ticker] ?? statusByTicker[ticker.toUpperCase()]
+  }
+
+  function sortableLivePrice(ticker: string) {
+    const price = getTickerPrice(ticker)
+    const status = getTickerStatus(ticker)
+    const isLive = price !== undefined && quoteHealth !== 'failed' && (
+      status === 'live' || (status === undefined && quoteHealth === 'ready')
+    )
+    return isLive ? price : -Infinity
+  }
+
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
       let cmp = 0
@@ -87,10 +134,10 @@ export function WatchlistTable({
       if (sortKey === 'added_at')     cmp = new Date(a.added_at).getTime() - new Date(b.added_at).getTime()
       if (sortKey === 'sector')       cmp = (a.sector ?? '').localeCompare(b.sector ?? '')
       if (sortKey === 'target_price') cmp = (a.target_price ?? -Infinity) - (b.target_price ?? -Infinity)
-      if (sortKey === 'live_price')   cmp = (livePrices[a.ticker] ?? -Infinity) - (livePrices[b.ticker] ?? -Infinity)
+      if (sortKey === 'live_price')   cmp = sortableLivePrice(a.ticker) - sortableLivePrice(b.ticker)
       return sortAsc ? cmp : -cmp
     })
-  }, [items, sortKey, sortAsc, livePrices])
+  }, [items, sortKey, sortAsc, livePrices, quoteHealth, statusByTicker])
 
   function handleDeleteClick(e: React.MouseEvent, ticker: string) {
     e.stopPropagation()   // prevent row-selection click
@@ -124,10 +171,13 @@ export function WatchlistTable({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {lastFetchAt && yfinanceAvailable && (
-            <div className="hidden sm:flex items-center gap-1 text-[10px] text-slate-400">
+          {lastFetchAt && (
+            <div className={cn(
+              'hidden sm:flex items-center gap-1 text-[10px]',
+              isDegraded ? 'text-amber-600' : 'text-slate-400',
+            )}>
               <Clock className="h-3 w-3" />
-              <span>Prices {lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>{quoteHealth === 'failed' ? 'Stale prices' : 'Prices'} {lastFetchAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           )}
           <p className="text-[11px] text-slate-400 hidden sm:block">Click headers to sort</p>
@@ -210,16 +260,47 @@ export function WatchlistTable({
                   {/* Live Price */}
                   <td className="px-4 py-3 text-right tabular-nums text-xs">
                     {(() => {
-                      const lp = livePrices[item.ticker]
-                      if (!yfinanceAvailable) return (
-                        <span className="text-slate-300" title="yfinance unavailable">—</span>
+                      const ticker = item.ticker.toUpperCase()
+                      const lp = getTickerPrice(item.ticker)
+                      const status = getTickerStatus(item.ticker)
+                      const timestamp = priceTimestamps[item.ticker] ?? priceTimestamps[ticker]
+                      const isMissing = missingTickers.includes(ticker)
+                      const isLivePrice = lp !== undefined && quoteHealth !== 'failed' && (
+                        status === 'live' || (status === undefined && quoteHealth === 'ready')
                       )
-                      if (lp !== undefined) return (
-                        <span className="font-semibold text-emerald-700">
+
+                      if (!yfinanceAvailable || quoteHealth === 'unavailable') return (
+                        <span className="inline-flex rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title="Live quote provider unavailable">
+                          Unavailable
+                        </span>
+                      )
+                      if (isLivePrice) return (
+                        <span
+                          className="font-semibold text-emerald-700"
+                          title={timestamp ? `Live quote fetched ${new Date(timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Live quote'}
+                        >
                           ₹{lp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )
-                      return <span className="text-slate-300 text-[10px] italic">Loading…</span>
+                      if (lp !== undefined && quoteHealth === 'failed') return (
+                        <span className="inline-flex flex-col items-end leading-tight" title="Quote refresh failed; showing last successful price">
+                          <span className="font-semibold text-amber-700">
+                            ₹{lp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-[9px] font-semibold uppercase text-amber-600">Stale</span>
+                        </span>
+                      )
+                      if (quoteLoading && quoteHealth === 'loading') {
+                        return <span className="text-slate-300 text-[10px] italic">Loading…</span>
+                      }
+                      return (
+                        <span className={cn(
+                          'inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold',
+                          priceStatusClass(status),
+                        )}>
+                          {priceStatusLabel(status, isMissing ? 'Missing' : isUnavailable ? 'Failed' : 'Unavailable')}
+                        </span>
+                      )
                     })()}
                   </td>
 
