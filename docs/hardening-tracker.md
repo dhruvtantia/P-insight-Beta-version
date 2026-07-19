@@ -5,7 +5,7 @@ The single source of truth for what needs hardening before public launch. Seeded
 
 **Legend:** ✅ done · 🟡 in progress · ⬜ not started · ⏸️ deliberately deferred
 
-Last updated: **2026-07-19 (end of Phase 0)**
+Last updated: **2026-07-19 (Phase 1 in progress — backend identity foundation landed)**
 
 ---
 
@@ -19,7 +19,7 @@ Last updated: **2026-07-19 (end of Phase 0)**
 | Alembic migrations | ✅ | `backend/alembic/` wired to app settings + `Base.metadata`; initial migration reproduces all 8 tables on empty DB | 0 |
 | PostgreSQL as prod DB | 🟡 | Migration is dialect-agnostic; `docker-compose.dev.yml` provides Postgres; real prod DB pending hosting choice | 0→7 |
 | CI pipeline | ✅ | `.github/workflows/ci.yml`: ruff + pytest + alembic-on-Postgres + FE build/type-check | 0 |
-| **Auth + tenancy** | ⬜ | **#1 blocker.** No auth anywhere; no `user_id` on any table; global active-portfolio + global watchlist | 1 |
+| **Auth + tenancy** | 🟡 | Backend identity foundation landed (Supabase JWT dep `app.core.auth`, `users` table, `user_id` FKs + migration, flag-gated by `AUTH_ENABLED`, 8 tests). **Remaining:** scope queries per-user, per-user active portfolio, global auth gate, frontend Supabase integration | 1 |
 | Durable background jobs | ⬜ | FastAPI `BackgroundTasks` non-durable; history-build status in-memory (lost on restart) | 3 |
 | Shared cache (Redis) | ⬜ | `_PRICE_CACHE`/`_FUND_CACHE`/quant caches are in-process module dicts, not multi-worker safe | 3 |
 | Provider retry/fallback | ⬜ | yfinance is a single point of failure across 7 features | 3 |

@@ -20,6 +20,7 @@ from sqlalchemy import text
 from app.db.database import engine, Base
 
 # Import all models so SQLAlchemy registers them before create_all
+from app.models import user              # noqa: F401  ← tenancy owner
 from app.models import portfolio         # noqa: F401
 from app.models import snapshot          # noqa: F401
 from app.models import broker_connection # noqa: F401

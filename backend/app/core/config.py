@@ -51,6 +51,26 @@ class Settings(BaseSettings):
     #   Then run: alembic upgrade head
     DATABASE_URL: str = "sqlite:///./p_insight.db"
 
+    # ─── Authentication & Tenancy (Supabase Auth) ───────────────────────────
+    # AUTH_ENABLED gates the whole tenancy layer. When False (local/dev/test
+    # default), the app runs in legacy single-user mode: no token is required
+    # and all data is global. When True, every /api/v1 route requires a valid
+    # Supabase JWT and all portfolio/watchlist/broker data is scoped to the
+    # authenticated user. Set True + provide the Supabase values in production.
+    AUTH_ENABLED: bool = False
+
+    # Supabase project reference — used to build the JWKS/issuer URLs and shown
+    # to the frontend as NEXT_PUBLIC_SUPABASE_URL.
+    SUPABASE_URL: str = ""
+
+    # HS256 verification secret (Supabase project "JWT Secret"). This is the
+    # simplest server-side verification path and is what Supabase uses by
+    # default. Keep it secret; never expose to the frontend.
+    SUPABASE_JWT_SECRET: str = ""
+
+    # Expected `aud` claim on Supabase access tokens (default "authenticated").
+    SUPABASE_JWT_AUD: str = "authenticated"
+
     # ─── Data Mode ───────────────────────────────────────────────────────────
     # Stored as a plain str so that a stale .env value (e.g. "mock") never causes
     # a pydantic ValidationError that crashes the entire backend on startup.

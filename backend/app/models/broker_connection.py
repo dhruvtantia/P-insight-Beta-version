@@ -27,6 +27,8 @@ class BrokerConnection(Base):
     __tablename__ = "broker_connections"
 
     id               = Column(Integer,      primary_key=True, index=True)
+    # Tenancy owner (denormalized from the portfolio for direct scoping).
+    user_id          = Column(Integer,      ForeignKey("users.id"), nullable=True, index=True)
     portfolio_id     = Column(Integer,      ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
     broker_name      = Column(String(50),   nullable=False)          # "zerodha" | "ibkr"
     connection_state = Column(String(20),   nullable=False, default="disconnected")

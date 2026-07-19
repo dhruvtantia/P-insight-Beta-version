@@ -62,6 +62,7 @@ pydantic==2.12.5
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
 Pygments==2.20.0
+PyJWT==2.13.0
 pyproject_hooks==1.2.0
 pytest==7.4.4
 pytest-asyncio==0.21.2

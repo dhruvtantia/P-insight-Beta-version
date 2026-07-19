@@ -6,7 +6,9 @@ Schemas (Pydantic) in schemas/portfolio.py define the API request/response shape
 Keep models and schemas separate — they serve different purposes.
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import (
+    Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
@@ -17,6 +19,10 @@ class Portfolio(Base):
     __tablename__ = "portfolios"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Tenancy owner — nullable during the single-user→multi-user transition
+    # (legacy rows have no owner). Enforced non-null for new rows when
+    # AUTH_ENABLED. See app.core.auth and PortfolioReadService scoping.
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String(100), nullable=False, default="My Portfolio")
     source = Column(String(20), nullable=False, default="mock")
     # source values: "mock" | "uploaded" | "manual" | "live" | "broker"
@@ -128,9 +134,15 @@ class Watchlist(Base):
       target_price — optional user-entered price reference (not a live quote)
     """
     __tablename__ = "watchlist"
+    # Per-user uniqueness: the same ticker may appear once per user, instead of
+    # once globally. Legacy rows (user_id NULL) are treated as a single tenant.
+    __table_args__ = (
+        UniqueConstraint("user_id", "ticker", name="uq_watchlist_user_ticker"),
+    )
 
     id           = Column(Integer,     primary_key=True, index=True)
-    ticker       = Column(String(20),  nullable=False, unique=True, index=True)
+    user_id      = Column(Integer,     ForeignKey("users.id"), nullable=True, index=True)
+    ticker       = Column(String(20),  nullable=False, index=True)
     name         = Column(String(150), nullable=True)
     tag          = Column(String(50),  nullable=True, default="General")
     sector       = Column(String(100), nullable=True)
