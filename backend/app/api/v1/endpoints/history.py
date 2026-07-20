@@ -40,7 +40,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.core.dependencies import DbSession
+from app.core.dependencies import DbSession, CurrentUserId, assert_portfolio_owned
 from app.services.feature_registry import require_feature
 from app.services.price_enrichment_service import canonical_price_status, has_trusted_current_price
 
@@ -49,7 +49,20 @@ def _require_history_feature():
     require_feature("history")
 
 
-router = APIRouter(tags=["History"], dependencies=[Depends(_require_history_feature)])
+def _verify_history_portfolio_ownership(
+    portfolio_id: int, db: DbSession, user_id: CurrentUserId = None
+):
+    """Every history route is portfolio-keyed; enforce tenant ownership once here."""
+    assert_portfolio_owned(db, user_id, portfolio_id)
+
+
+router = APIRouter(
+    tags=["History"],
+    dependencies=[
+        Depends(_require_history_feature),
+        Depends(_verify_history_portfolio_ownership),
+    ],
+)
 
 CANONICAL_HISTORY_STATES = {"building", "complete", "failed", "not_started"}
 

@@ -29,6 +29,26 @@ DbSession = Annotated[Session, Depends(get_db)]
 CurrentUserId = Annotated[Optional[int], Depends(get_current_user_id)]
 
 
+# ─── Ownership guard (tenancy) ────────────────────────────────────────────────
+
+def assert_portfolio_owned(
+    db: Session, user_id: Optional[int], portfolio_id: int
+) -> None:
+    """
+    Raise 404 if the scoped user does not own `portfolio_id`.
+
+    No-op in legacy mode (user_id None). Used by ID-addressed routes
+    (snapshots, history) that don't go through the data-provider scoping, so a
+    logged-in user can't reach another user's data by guessing an id.
+    """
+    if user_id is None:
+        return
+    from app.services.portfolio_service import PortfolioReadService
+
+    if PortfolioReadService(db, user_id=user_id).get_portfolio(portfolio_id) is None:
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found")
+
+
 # ─── Data Provider Factory ────────────────────────────────────────────────────
 
 # "mock" mode is intentionally removed — mock data is disabled in this build.

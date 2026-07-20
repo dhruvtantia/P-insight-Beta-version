@@ -98,3 +98,31 @@ def test_watchlist_is_isolated_between_users(client):
     # Bob deleting "his" TCS must not remove Alice's TCS.
     assert client.delete("/api/v1/watchlist/TCS", headers=bob).status_code == 200
     assert {i["ticker"] for i in client.get("/api/v1/watchlist/", headers=alice).json()} == {"TCS", "INFY"}
+
+
+def test_snapshots_and_history_are_isolated(client):
+    alice = _tok("alice")
+    bob = _tok("bob")
+
+    # Alice creates a portfolio and a snapshot of it.
+    alice_pid = client.post(
+        "/api/v1/portfolios/", json={"name": "Alice Fund"}, headers=alice
+    ).json()["id"]
+    snap = client.post(f"/api/v1/portfolios/{alice_pid}/snapshot", headers=alice)
+    assert snap.status_code == 200, snap.text
+    snap_id = snap.json()["id"]
+
+    # Bob must not touch Alice's portfolio-keyed snapshot routes.
+    assert client.get(f"/api/v1/portfolios/{alice_pid}/snapshots", headers=bob).status_code == 404
+    assert client.post(f"/api/v1/portfolios/{alice_pid}/snapshot", headers=bob).status_code == 404
+    # ...nor her snapshot-id-keyed routes.
+    assert client.get(f"/api/v1/snapshots/{snap_id}", headers=bob).status_code == 404
+    assert client.delete(f"/api/v1/snapshots/{snap_id}", headers=bob).status_code == 404
+
+    # Alice retains access to her own.
+    assert client.get(f"/api/v1/portfolios/{alice_pid}/snapshots", headers=alice).status_code == 200
+    assert client.get(f"/api/v1/snapshots/{snap_id}", headers=alice).status_code == 200
+
+    # History is portfolio-keyed and guarded at the router level.
+    assert client.get(f"/api/v1/history/{alice_pid}/status", headers=bob).status_code == 404
+    assert client.get(f"/api/v1/history/{alice_pid}/status", headers=alice).status_code == 200
