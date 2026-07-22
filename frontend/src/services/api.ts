@@ -12,8 +12,18 @@
 import type { DataMode, PortfolioSummary, Holding, SectorAllocation, PortfolioFullResponse, RiskMetrics, FinancialRatio, FinancialRatiosResponse, PortfolioInsight, NewsResponse, EventsResponse, WatchlistItem, WatchlistItemInput, UploadResponse, PeerComparisonData, NewsEventType, LiveQuotesResponse, LiveProviderStatus, IndicesResponse, QuantFullResponse, OptimizationFullResponse, PortfolioMeta, PortfolioListResponse, SnapshotSummary, SnapshotDetail, PortfolioDelta, BrokerListResponse, BrokerConnection, BrokerConnectResponse, BrokerSyncResponse, AdvisorStatus, AIAdvisorResponse, AdvisorQueryRequest, PortfolioContextPayload, ConversationTurn, PortfolioHistoryResponse, BenchmarkPoint, HoldingsStatusResponse, HistoryBuildStatusResponse, SincePurchaseResponse, MarketOverviewResponse, FeatureId, FeatureRegistryResponse } from '@/types'
 import type { ApiFeatureRegistryResponse, ApiParseResponse, ApiRefreshResponse, ApiV2ConfirmResponse, ApiV2StatusResponse } from '@/generated/api-contracts'
 
+import { getAccessToken } from '@/lib/supabaseClient'
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const MARKET_OVERVIEW_CLIENT_CACHE_MS = 5_000
+
+// Attaches the current Supabase access token, if any. Returns {} in
+// placeholder/legacy mode (no session) — the backend's AUTH_ENABLED=False
+// default accepts unauthenticated requests, so this never blocks local dev.
+async function buildAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getAccessToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 // ─── Typed API Error ──────────────────────────────────────────────────────────
 // Distinguishes error categories so the UI can show specific messages
@@ -92,8 +102,9 @@ async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> 
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
 
   try {
+    const authHeaders = await buildAuthHeaders()
     const response = await fetch(`${BASE_URL}${endpoint}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       ...options,
       signal: controller.signal,
     })
@@ -148,8 +159,10 @@ async function formFetch<T>(endpoint: string, formData: FormData): Promise<T> {
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
 
   try {
+    const authHeaders = await buildAuthHeaders()
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
+      headers: authHeaders,
       body: formData,
       signal: controller.signal,
     })

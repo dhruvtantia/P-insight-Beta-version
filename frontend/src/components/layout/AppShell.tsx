@@ -1,13 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { usePathname }        from 'next/navigation'
 import { Sidebar }            from './Sidebar'
 import { Topbar }             from './Topbar'
 import { PortfolioProvider }  from '@/context/PortfolioContext'
+import { AuthProvider }       from '@/context/AuthContext'
 
 interface AppShellProps {
   children: React.ReactNode
 }
+
+// Routes that render without the sidebar/topbar chrome — a logged-out
+// visitor shouldn't see the app shell before they've authenticated.
+const CHROMELESS_ROUTES = ['/login', '/signup']
 
 const SIDEBAR_DEFAULT  = 240   // px  (== w-60)
 const SIDEBAR_MIN      = 180   // px
@@ -27,6 +33,9 @@ const STORAGE_KEY      = 'p-insight-sidebar-width'
  * drag closure without stale-closure issues.
  */
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname()
+  const isChromeless = CHROMELESS_ROUTES.some((route) => pathname?.startsWith(route))
+
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
   const [isDragging,   setIsDragging]   = useState(false)
   const dragStartX    = useRef(0)
@@ -91,42 +100,55 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [isDragging])   // ← only [isDragging], not [isDragging, sidebarWidth]
 
+  // Login/signup render without the sidebar/topbar chrome — still inside
+  // AuthProvider (they need it), but not PortfolioProvider (nothing to
+  // fetch before a user is logged in).
+  if (isChromeless) {
+    return (
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+    )
+  }
+
   return (
-    <div className={`min-h-screen bg-slate-50 ${isDragging ? 'select-none cursor-col-resize' : ''}`}>
-      {/* Sidebar — width controlled by state */}
-      <Sidebar width={sidebarWidth} />
+    <AuthProvider>
+      <div className={`min-h-screen bg-slate-50 ${isDragging ? 'select-none cursor-col-resize' : ''}`}>
+        {/* Sidebar — width controlled by state */}
+        <Sidebar width={sidebarWidth} />
 
-      {/* Drag handle — sits on the right edge of the sidebar */}
-      <div
-        onMouseDown={startDrag}
-        style={{ left: sidebarWidth - 3 }}
-        className={`
-          fixed top-0 z-40 h-screen w-1.5 cursor-col-resize
-          transition-colors duration-150
-          ${isDragging
-            ? 'bg-indigo-400/60'
-            : 'bg-transparent hover:bg-indigo-300/40'}
-        `}
-        title="Drag to resize sidebar"
-      />
+        {/* Drag handle — sits on the right edge of the sidebar */}
+        <div
+          onMouseDown={startDrag}
+          style={{ left: sidebarWidth - 3 }}
+          className={`
+            fixed top-0 z-40 h-screen w-1.5 cursor-col-resize
+            transition-colors duration-150
+            ${isDragging
+              ? 'bg-indigo-400/60'
+              : 'bg-transparent hover:bg-indigo-300/40'}
+          `}
+          title="Drag to resize sidebar"
+        />
 
-      {/* Content area — left padding tracks sidebar width dynamically */}
-      <div style={{ paddingLeft: sidebarWidth }}>
-        <Topbar sidebarWidth={sidebarWidth} />
-        <main className="pt-[76px] min-h-screen">
-          <div className="p-6">
-            {/*
-              PortfolioProvider mounts here — one level below the chrome (Sidebar,
-              Topbar) so layout renders immediately while portfolio data loads.
-              All pages consume portfolio data via usePortfolio() without triggering
-              independent fetches.
-            */}
-            <PortfolioProvider>
-              {children}
-            </PortfolioProvider>
-          </div>
-        </main>
+        {/* Content area — left padding tracks sidebar width dynamically */}
+        <div style={{ paddingLeft: sidebarWidth }}>
+          <Topbar sidebarWidth={sidebarWidth} />
+          <main className="pt-[76px] min-h-screen">
+            <div className="p-6">
+              {/*
+                PortfolioProvider mounts here — one level below the chrome (Sidebar,
+                Topbar) so layout renders immediately while portfolio data loads.
+                All pages consume portfolio data via usePortfolio() without triggering
+                independent fetches.
+              */}
+              <PortfolioProvider>
+                {children}
+              </PortfolioProvider>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthProvider>
   )
 }

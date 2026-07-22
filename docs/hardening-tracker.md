@@ -50,7 +50,7 @@ Last updated: **2026-07-19 (Phase 1 — backend tenancy landed & proven; fronten
 | 14 | History, Changes, Snapshots | 🟡 | In-memory build status; snapshots don't persist risk metrics | 3,5 |
 | 15 | Market Overview | 🟡 | Single provider; beta placeholder cards; needs last-known-good cache | 3,5 |
 | 16 | News & Corporate Events | 🟡 | Provider-key dependent; empty state reads like "no news"; add `not_configured` | 5 |
-| 17 | Watchlist | 🟡 | **Global** (unique ticker, no user); live-quote errors swallowed (WIP committed) | 1,5 |
+| 17 | Watchlist | 🟡 | Per-user now (model has `user_id` + `UniqueConstraint("user_id","ticker")` — this row was stale, corrected 2026-07-21); live-quote errors swallowed (WIP committed) | 1,5 |
 | 18 | AI Advisor & NL Q&A | 🟡 | **anthropic now installed** → wire real Claude; consolidate FE/BE fallback split | 4 |
 | 19 | Action Center & Recommendations | 🟡 | Rule-based; logic split FE/BE | 4,5 |
 | 20 | Broker Sync | ⬜ | Scaffold; holdings-write path already wired; needs AA connector + encrypted token storage | 6 |
