@@ -40,6 +40,9 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
     # Final Hardening — Source lifecycle
     ("portfolios", "last_synced_at",  "DATETIME",    "NULL"),
     ("portfolios", "source_metadata", "TEXT",        "NULL"),
+    # Phase 1b — tenancy: per-user scoping (nullable; legacy rows stay unscoped)
+    ("portfolios", "user_id",         "INTEGER",     "NULL"),
+    ("watchlist",  "user_id",         "INTEGER",     "NULL"),
     # Broker Sync Phase — broker_connections table is auto-created by create_all;
     # these are extra columns if the table already exists from an older version.
     ("broker_connections", "portfolio_id",     "INTEGER",    "NULL"),
@@ -49,6 +52,7 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
     ("broker_connections", "last_sync_at",     "DATETIME",   "NULL"),
     ("broker_connections", "sync_error",       "TEXT",       "NULL"),
     ("broker_connections", "config_json",      "TEXT",       "NULL"),
+    ("broker_connections", "user_id",          "INTEGER",    "NULL"),
     # Extended holding fields + enrichment metadata
     ("holdings", "industry",           "VARCHAR(150)", "NULL"),
     ("holdings", "purchase_date",      "VARCHAR(20)",  "NULL"),

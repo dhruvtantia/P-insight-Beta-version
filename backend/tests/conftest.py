@@ -10,6 +10,7 @@ _DB_PATH = os.path.join(tempfile.gettempdir(), f"p_insight_test_{uuid.uuid4().he
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
 os.environ.setdefault("DOCS_ENABLED", "false")
 os.environ.setdefault("DEFAULT_DATA_MODE", "uploaded")
+os.environ.setdefault("AUTH_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

@@ -5,7 +5,7 @@ The single source of truth for what needs hardening before public launch. Seeded
 
 **Legend:** ✅ done · 🟡 in progress · ⬜ not started · ⏸️ deliberately deferred
 
-Last updated: **2026-07-19 (Phase 1 — backend tenancy landed & proven; frontend + a few read-paths remain)**
+Last updated: **2026-07-24 (Phase 1 — auth + tenancy fully proven end-to-end: real Supabase project, ES256/JWKS verification, two-account isolation confirmed at UI/API/DB layers. Stage 0 foundation complete.)**
 
 ---
 
@@ -19,7 +19,7 @@ Last updated: **2026-07-19 (Phase 1 — backend tenancy landed & proven; fronten
 | Alembic migrations | ✅ | `backend/alembic/` wired to app settings + `Base.metadata`; initial migration reproduces all 8 tables on empty DB | 0 |
 | PostgreSQL as prod DB | 🟡 | Migration is dialect-agnostic; `docker-compose.dev.yml` provides Postgres; real prod DB pending hosting choice | 0→7 |
 | CI pipeline | ✅ | `.github/workflows/ci.yml`: ruff + pytest + alembic-on-Postgres + FE build/type-check | 0 |
-| **Auth + tenancy** | 🟡 | Identity foundation + **per-user scoping done & proven**: portfolios, watchlist, brokers, upload-V2, advisor, provider reads, **snapshots, and history** all scoped by `user_id` (via `assert_portfolio_owned`); global auth gate on `/api/v1`; per-user active portfolio; 4 isolation tests. **Remaining (backend):** news feed + legacy upload-confirm ownership (both behind the global 401 gate today). **Remaining (needs you):** the **frontend Supabase integration** (login/session/token) — requires a real Supabase project | 1 |
+| **Auth + tenancy** | ✅ | Identity foundation + **per-user scoping done & proven**: portfolios, watchlist, brokers, upload-V2, advisor, provider reads, snapshots, and history all scoped by `user_id`. **Live end-to-end since 2026-07-24**: real Supabase project (`sfabbkdwezgmxpkbpdjw`), `AUTH_ENABLED=true`. Backend verifies both HS256 (legacy secret) and ES256/RS256 via JWKS (`app/core/auth.py`) — real Supabase projects issue ES256 by default, verified against this exact project. Frontend has working signup/login/logout (`Topbar.tsx` user menu added — previously missing). Two-account isolation proven at UI, API (401 unauth / 200 scoped), and DB layers; 76/76 backend tests passing. **Remaining (backend, lower priority):** news feed + legacy upload-confirm ownership still behind the global 401 gate rather than individually scoped. **Remaining (pre-launch, tracked in `MASTER_ACTION_PLAN.md` Stage 2):** re-enable Supabase's "Confirm email" setting, currently off for test convenience. | 1 |
 | Durable background jobs | ⬜ | FastAPI `BackgroundTasks` non-durable; history-build status in-memory (lost on restart) | 3 |
 | Shared cache (Redis) | ⬜ | `_PRICE_CACHE`/`_FUND_CACHE`/quant caches are in-process module dicts, not multi-worker safe | 3 |
 | Provider retry/fallback | ⬜ | yfinance is a single point of failure across 7 features | 3 |
@@ -82,7 +82,7 @@ The 13 concrete gaps found in the ingestion/enrichment trace. Each becomes a val
 ## Phase gates
 
 - **Phase 0** ✅ — clean baseline, deps, Alembic reproduces schema, CI, this tracker. (Tests green: 64 passed.)
-- **Phase 1** ⬜ — every route user-scoped; two users fully isolated; no global state.
+- **Phase 1** 🟡 — two users fully isolated, proven live end-to-end (2026-07-24: real Supabase project, UI + API + DB verification). Not yet ✅ only because news feed + legacy upload-confirm ownership are still behind the global 401 gate rather than individually `user_id`-scoped like everything else.
 - **Phase 2** ⬜ — one confirm path; torture-CSV classified deterministically; no silent bad data.
 - **Phase 3** ⬜ — enrichment survives restart; provider outages visible; dashboard data-quality banner.
 - **Phase 4** ⬜ — optimizer reports SLSQP; advisor calls Claude with clean fallback.
