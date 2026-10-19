@@ -1,5 +1,12 @@
 # P-Insight — Master Action Plan (Consistency, Hardening, Modularity, Monetization)
 
+> Historical planning snapshot. The July completion statements below describe
+> limited checks at that time, not current production readiness. B00 restores
+> the existing foundation work and adds asymmetric-auth regression tests only;
+> remaining security, ingestion, reliability and release gates are still open.
+> Recheck current repository state before following old synchronization or
+> cleanup instructions. Never remove another process's Git lock speculatively.
+
 **Date:** 2026-07-21
 **Baseline:** `production-hardening` branch — confirmed the most advanced/functional code, verified directly against the repo (not from the stale audit).
 **Companion documents:** `docs/hardening-tracker.md` (your own living phase tracker — keep using it, this plan slots into it) and `P-Insight_Production_Roadmap.md` (monetization detail).
@@ -57,26 +64,39 @@ I fetched every branch and diffed each one against `main` to see what's actually
 
 Everything in this stage is cross-cutting infrastructure, not a feature. It has to land first because every module below assumes it's already there. Run these four in order, each as its own session, each fully verified before the next starts.
 
-### 0.1 — GitHub alignment
+### 0.1 — GitHub alignment ✅ DONE (2026-07-22)
 **Objective:** GitHub's `main` matches your real, working codebase instead of a 2-month-old snapshot.
 **Dependencies:** None.
-**Work:** The terminal commands from earlier in this document, run by you on your own Mac (push access isn't available from this sandbox).
-**Verification test:** `github.com/dhruvtantia/P-insight-Beta-version` shows the commit "Phase 1b: scope snapshots & history per-user" as the tip of `main`.
+**Work:** Cleared a stale empty `.git/index.lock`, committed the Supabase scaffolding + docs that were sitting uncommitted (`95222f6`, "Phase 1c: frontend Supabase auth scaffolding"), fast-forwarded local `main` to `production-hardening`, pushed — clean fast-forward, no force needed since `origin/main` was already an ancestor.
+**Verification test:** ✅ `github.com/dhruvtantia/P-insight-Beta-version` `main` tip is now `95222f6`.
 
-### 0.2 — Supabase-ready scaffolding (done, placeholder mode) → real project swap-in (pending)
+### 0.2 — Supabase-ready scaffolding ✅ DONE (2026-07-22)
 **Objective:** Decoupled on purpose, per your call: the *code* for Supabase auth doesn't need to wait on a live account, only the actual live testing does.
-**Status: scaffolding built.** `frontend/src/lib/supabaseClient.ts`, `frontend/src/context/AuthContext.tsx`, `/login` and `/signup` pages, and `services/api.ts` attaching the access token on every request are all written and wired into `AppShell.tsx`. `backend/app/core/auth.py` already had `AUTH_ENABLED=False` legacy-mode support built in from Phase 1a — that's exactly the placeholder mode this scaffolding runs in until a real project exists. `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_URL`/`SUPABASE_JWT_SECRET` are blank placeholders in both `.env` files right now — the login/signup pages render and compile, but show "not configured yet" instead of calling a fake project.
-**Not yet verified:** `npm install` (needed for the new `@supabase/supabase-js` dependency) didn't complete in this sandbox — the environment's network proxy timed out repeatedly on both npm and pnpm. Run `npm install && npm run type-check && npm run build` yourself once you pick this back up; that's the real verification step, not something I could confirm from here.
-**Remaining work (do this once you're ready to go live, not before):** create the real Supabase project, fill in the four env values, flip `AUTH_ENABLED=true` when you want the tenancy gate enforced.
-**Verification test (once live):** Sign up as a new test user, log out, log back in, confirm the dashboard shows only that user's data. Create a second test account and confirm it starts empty.
+**Status: scaffolding built and verified.** `frontend/src/lib/supabaseClient.ts`, `frontend/src/context/AuthContext.tsx`, `/login` and `/signup` pages, and `services/api.ts` attaching the access token on every request are all written and wired into `AppShell.tsx`. `backend/app/core/auth.py` already had `AUTH_ENABLED=False` legacy-mode support built in from Phase 1a.
+**Verified:** `pnpm install --no-frozen-lockfile`, `pnpm run type-check` clean, `pnpm run build` clean.
+**Housekeeping note:** four stray 0-byte `_tmp_*` files/dirs are sitting untracked in the repo root and `frontend/` — harmless, left alone pending your call on whether to delete them.
 
-### 0.4 — Foundation smoke test (the actual "ready to work" gate)
+### 0.3 — Real Supabase project ✅ DONE (2026-07-24)
+**Objective:** Swap placeholder env values for a real, live Supabase project.
+**Work:** Provisioned project `sfabbkdwezgmxpkbpdjw`, filled all four env values (`SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET`) in `backend/.env` and `frontend/.env.local`, flipped `AUTH_ENABLED=true`.
+**Two real bugs found and fixed along the way (not just config):**
+1. **ES256 vs HS256** — this project (like all new Supabase projects) signs session tokens with asymmetric JWT signing keys (ES256), not the legacy HS256 shared secret. The dashboard confirms this migration is one-way — there's no toggle back to HS256 signing. `backend/app/core/auth.py` only verified HS256. Added JWKS-based verification (`_get_jwks_client` + `PyJWKClient`, dispatching on the token's own `alg` header) with HS256 kept as a fallback for older projects. Required adding the `cryptography` package (`pyproject.toml`, `requirements-lock.txt`).
+2. **Stale dev SQLite schema** — `backend/p_insight.db` predated the Phase 1b tenancy migration and was missing `user_id` on `portfolios`/`watchlist`/`broker_connections`, causing a 500 on the first real authenticated request. Added those three columns to `_COLUMN_MIGRATIONS` in `backend/app/db/init_db.py` (the local-dev auto-migrate path; Alembic remains canonical for staging/prod).
+**Also found:** no sign-out control existed anywhere in the frontend — the topbar avatar was a hardcoded "DT" placeholder not wired to anything. Added a real user menu to `frontend/src/components/layout/Topbar.tsx` (shows the logged-in email, working "Log out" calling `signOut()`).
+**Verified:** backend test suite 76/76 passing throughout; frontend type-check clean; real signup → real login → ES256 token → JWKS verification → per-user scoped API response, all confirmed end-to-end via live browser + direct curl checks.
+**Launch-blocking note:** `Authentication → Sign In / Providers → Email → "Confirm email"` was turned off in the Supabase dashboard to allow scripted two-account testing without email round-trips. Must be turned back on before real launch — tracked below in Stage 2.
+
+### 0.4 — Foundation smoke test ✅ DONE (2026-07-24)
 **Objective:** Confirm the whole foundation holds together before a single feature module is touched.
 **Dependencies:** 0.1–0.3.
-**Work:** No new code — just a scripted manual pass: two accounts, both logged in, both uploading different portfolios, confirming zero data bleed, confirming the existing 64+ backend tests and frontend build still pass.
-**Verification test:** A one-page checklist (I'll write this out when we get there) that you can run yourself in under ten minutes, without reading code, that either passes clean or tells you exactly what broke.
+**Work:** Two real accounts (`+testA`, `+testB` via Gmail alias) driven through the actual browser UI — signed up, logged in, each uploaded a distinct portfolio (User A: RELIANCE + TCS, ₹47,500; User B: HDFCBANK + ITC, ₹50,500), logged out, switched accounts, confirmed zero bleed both directions.
+**Verified at three layers:**
+- UI: User B's dashboard showed "No portfolio uploaded yet" before their own upload (proof A's data wasn't visible), and User A's dashboard was unchanged after B's entire session.
+- API: unauthenticated request to a protected route → `401`; authenticated request → `200` with correctly scoped, empty-then-populated data.
+- Database: direct query confirmed `portfolios.user_id` correctly attributes each upload to its owning user, with pre-existing legacy `user_id=NULL` rows correctly excluded from both scoped views.
+- Backend test suite: 76/76 passing.
 
-**Nothing in Stage 1 below starts until 0.4 passes.** This is the line between "bootstrap" and "feature work" you asked for.
+**Stage 0 is now fully complete. Stage 1 module work can begin.**
 
 ---
 
@@ -128,7 +148,7 @@ Test: a real broker account connects and holdings land in the DB correctly.
 
 **Objective:** Live, secure, monitored, and actually on GitHub too.
 **Dependencies:** Stage 0 fully done; Stage 1 items 1–6 done (7 and 8 can be consciously deferred past launch if you decide they're not worth it yet — that's a real option, not a failure).
-**Work:** Dockerfiles, hosting, HTTPS, Sentry/monitoring, `/debug` gated, secrets out of `.env`, frontend E2E suite (signup → upload → dashboard → billing), final security review.
+**Work:** Dockerfiles, hosting, HTTPS, Sentry/monitoring, `/debug` gated, secrets out of `.env`, frontend E2E suite (signup → upload → dashboard → billing), final security review. **Launch-blocking Supabase setting to revert:** `Authentication → Sign In / Providers → Email → "Confirm email"` was turned **off** during Stage 0.4 to allow scripted two-account testing without email confirmation round-trips — turn it back **on** before going live, or anyone can sign up with an unverified email.
 **Verification test:** From your phone, on cellular data, sign up as a new user, upload a real portfolio, subscribe, and see it work — no terminal required.
 
 ---
@@ -137,8 +157,4 @@ Test: a real broker account connects and holdings land in the DB correctly.
 
 One module, one session, one set of files. If a session for the Upload module starts touching billing code, or a Monetization session starts "helpfully" fixing ingestion bugs, stop it — that's exactly the cross-contamination that causes regressions you won't catch. Your own tracker's phase discipline is good; what was missing was the explicit foundation/feature-module split and the monetization lane, both written down above now.
 
-**Next micro-prompt to run (Stage 0.1 — do this one first, it's yours to run, not mine):**
-
-> Push `production-hardening`'s work to GitHub as `main`, per the commands at the top of this document.
-
-**Stage 0.2's scaffolding is already built** (see above) — the next actual session on this front is: `npm install`, `npm run type-check`, `npm run build`, confirm clean, then provision a real Supabase project and fill in the four env values when you're ready to go live.
+**Stage 0 (0.1–0.4) is fully done and verified (2026-07-24)** — see status above. Next up is **Stage 1, module 1: Upload & Ingestion** — the highest-priority module since everything downstream depends on it.

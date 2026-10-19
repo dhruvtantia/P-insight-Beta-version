@@ -1,10 +1,12 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { RefreshCw, LogOut } from 'lucide-react'
 import { DataModeToggle } from '@/components/common/DataModeToggle'
 import { PortfolioSwitcher } from '@/components/portfolio/PortfolioSwitcher'
 import { IndexTicker } from '@/components/layout/IndexTicker'
+import { useAuth } from '@/context/AuthContext'
 
 // Map route paths to human-readable page titles
 const PAGE_TITLES: Record<string, string> = {
@@ -35,7 +37,28 @@ interface TopbarProps {
 
 export function Topbar({ onRefresh, sidebarWidth = 240 }: TopbarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, configured, signOut } = useAuth()
   const title = PAGE_TITLES[pathname] ?? 'P-Insight'
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  async function handleSignOut() {
+    await signOut()
+    setMenuOpen(false)
+    router.push('/login')
+  }
+
+  const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : '?'
 
   return (
     <header
@@ -74,10 +97,34 @@ export function Topbar({ onRefresh, sidebarWidth = 240 }: TopbarProps) {
           </button>
         )}
 
-        {/* User Avatar (placeholder) */}
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold select-none">
-          DT
-        </div>
+        {/* User menu */}
+        {configured && (
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold select-none hover:bg-indigo-200 transition-colors"
+              title={user?.email ?? undefined}
+            >
+              {initials}
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-10 z-30 w-56 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                {user?.email && (
+                  <div className="truncate border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                    {user.email}
+                  </div>
+                )}
+                <button
+                  onClick={handleSignOut}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   )

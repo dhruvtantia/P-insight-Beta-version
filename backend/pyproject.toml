@@ -23,8 +23,10 @@ openpyxl = "^3.1.2"
 alembic = "^1.13.0"
 psycopg2-binary = "^2.9.0"
 
-# Auth & tenancy (Phase 1) — verifies Supabase HS256 access tokens.
+# Auth & tenancy (Phase 1) — verifies Supabase access tokens (HS256 legacy
+# secret or ES256/RS256 via JWKS for projects on the newer signing keys).
 pyjwt = ">=2.8,<3"
+cryptography = ">=42.0"
 
 # Market data
 yfinance = "^0.2.50"
