@@ -60,3 +60,6 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 *.iml
+
+# Local-only audit evidence. Publish reviewed public summaries separately.
+/docs/production-audit-2026-09-29/

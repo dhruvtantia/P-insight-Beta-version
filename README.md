@@ -4,6 +4,11 @@ P-Insight is a self-hosted portfolio analytics system designed for retail equity
 
 It transforms a simple portfolio upload into a complete analytical stack — covering performance, risk, fundamentals, and (future) AI-driven decision support.
 
+**Development status:** not approved for production launch. Follow the
+[execution plan](docs/EXECUTION_PLAN.md), [checkpoint and work queue](docs/EXECUTION_STATUS.md),
+and [release decisions and acceptance gates](docs/PRODUCTION_READINESS.md).
+Earlier roadmap descriptions are not proof that a feature is production-ready.
+
 ---
 
 ## 📌 Overview
@@ -71,7 +76,7 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 - Zustand state management  
 
 ### Backend
-- FastAPI (Python 3.11+)  
+- FastAPI (Python 3.12 CI target; runtime reproducibility tracked in B06)
 - SQLAlchemy + SQLite  
 - Modular services and analytics engine  
 
@@ -88,7 +93,7 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 - Risk metrics (volatility, beta, drawdown)  
 - Correlation analysis  
 - Benchmark comparison  
-- Optimization (PyPortfolioOpt)  
+- Optimization (SciPy; constraints and fallback behavior being hardened)
 
 ---
 
@@ -127,7 +132,8 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 cd backend
 poetry install --no-root
 poetry env activate
-uvicorn main:app --reload --port 8000'''
+uvicorn main:app --reload --port 8000
+```
 
 ### Author
 Dhruv Tantia
