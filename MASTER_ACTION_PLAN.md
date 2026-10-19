@@ -1,5 +1,12 @@
 # P-Insight — Master Action Plan (Consistency, Hardening, Modularity, Monetization)
 
+> Historical planning snapshot. The July completion statements below describe
+> limited checks at that time, not current production readiness. B00 restores
+> the existing foundation work and adds asymmetric-auth regression tests only;
+> remaining security, ingestion, reliability and release gates are still open.
+> Recheck current repository state before following old synchronization or
+> cleanup instructions. Never remove another process's Git lock speculatively.
+
 **Date:** 2026-07-21
 **Baseline:** `production-hardening` branch — confirmed the most advanced/functional code, verified directly against the repo (not from the stale audit).
 **Companion documents:** `docs/hardening-tracker.md` (your own living phase tracker — keep using it, this plan slots into it) and `P-Insight_Production_Roadmap.md` (monetization detail).

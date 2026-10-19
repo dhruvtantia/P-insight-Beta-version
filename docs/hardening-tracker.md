@@ -1,5 +1,10 @@
 # P-Insight Hardening Tracker
 
+> Historical tracker: earlier green checks are not a current launch approval.
+> B00 restores the existing foundation and verifies asymmetric authentication;
+> it does not establish complete tenant isolation, durable imports or production
+> operations. Revalidate each acceptance gate against the current code and CI.
+
 The single source of truth for what needs hardening before public launch. Seeded from
 `AUDIT_REPORT.md` (2026-07-17) and the Phase-0 code exploration. Updated at the end of every phase.
 
