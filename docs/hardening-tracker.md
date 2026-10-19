@@ -1,5 +1,10 @@
 # P-Insight Hardening Tracker
 
+> Superseded as the live tracker. Use [EXECUTION_STATUS](EXECUTION_STATUS.md)
+> and its linked GitHub delivery issues. [EXECUTION_PLAN](EXECUTION_PLAN.md)
+> defines batch order and acceptance. Historical checks below are not current
+> completion or launch evidence.
+
 > Historical tracker: earlier green checks are not a current launch approval.
 > B00 restores the existing foundation and verifies asymmetric authentication;
 > it does not establish complete tenant isolation, durable imports or production

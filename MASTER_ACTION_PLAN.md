@@ -1,5 +1,10 @@
 # P-Insight — Master Action Plan (Consistency, Hardening, Modularity, Monetization)
 
+> Superseded as the live operating plan. Use [EXECUTION_PLAN](docs/EXECUTION_PLAN.md)
+> for current batch order and [EXECUTION_STATUS](docs/EXECUTION_STATUS.md) for
+> accepted evidence and the linked delivery queue. The historical text below is
+> retained for context; it must not override current scope or acceptance gates.
+
 > Historical planning snapshot. The July completion statements below describe
 > limited checks at that time, not current production readiness. B00 restores
 > the existing foundation work and adds asymmetric-auth regression tests only;
