@@ -116,6 +116,7 @@ async def confirm_upload(
 )
 async def get_upload_status(
     db: DbSession,
+    user_id: CurrentUserId,
     portfolio_id: int = Query(..., description="ID of the portfolio to check"),
 ) -> V2StatusResponse:
     """
@@ -126,14 +127,14 @@ async def get_upload_status(
     Poll after POST /upload/v2/confirm to track background enrichment progress.
     """
     try:
-        return JobStatusService(db).get_upload_enrichment_status(portfolio_id)
+        return JobStatusService(db).get_upload_enrichment_status(portfolio_id, user_id=user_id)
     except JobStatusNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Could not read enrichment status: {exc}",
-        )
+            detail="Could not read enrichment status",
+        ) from exc
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -196,7 +197,9 @@ async def confirm_upload_v2(
     response_model=V2StatusResponse,
     summary="[V2] Poll enrichment status for an uploaded portfolio",
 )
-async def get_upload_status_v2(portfolio_id: int, db: DbSession) -> V2StatusResponse:
+async def get_upload_status_v2(
+    portfolio_id: int, db: DbSession, user_id: CurrentUserId
+) -> V2StatusResponse:
     """
     Returns current per-holding enrichment state from the DB.
 
@@ -206,11 +209,11 @@ async def get_upload_status_v2(portfolio_id: int, db: DbSession) -> V2StatusResp
     yfinance response times.
     """
     try:
-        return JobStatusService(db).get_upload_enrichment_status(portfolio_id)
+        return JobStatusService(db).get_upload_enrichment_status(portfolio_id, user_id=user_id)
     except JobStatusNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Could not read enrichment status: {exc}",
-        )
+            detail="Could not read enrichment status",
+        ) from exc
