@@ -15,9 +15,11 @@ This records accepted development evidence, not production certification. The SH
 
 ## Current Delivery Record
 
-**B01 publication and acceptance:** [issue #4](https://github.com/dhruvtantia/P-insight-Beta-version/issues/4). That issue records the actual documentation PR, exact-head CI, review, final merge and reconciliation evidence when available. Its live state is authoritative; this versioned entry point does not pretend to know its own future merge SHA.
+**B01 accepted:** [issue #4](https://github.com/dhruvtantia/P-insight-Beta-version/issues/4), [PR #11](https://github.com/dhruvtantia/P-insight-Beta-version/pull/11), merged at historical anchor `ab06e960df7ca9a6c69851e32493626df4961636`. Exact-head and post-merge CI passed, and local main/development baseline were safely reconciled. The issue owns detailed acceptance evidence.
 
-**Next implementation batch:** [B02, issue #5](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5), after B01 acceptance. B02 has not been implemented by the operating-plan publication.
+**Later scope decision:** on 2026-10-19 the owner answered **"Full roadmap required at launch"**. [Decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12) owns this follow-up's PR/CI and reconciliation evidence. B01 remains accepted; the former proposed beta scope is superseded. See the [required-feature manifest](PRODUCTION_READINESS.md#required-feature-manifest).
+
+**Next implementation batch:** [B02, issue #5](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5). It has not been implemented by either documentation publication. Safety remains first; B25 is required before B24, not a post-launch extension.
 
 ## Near-Term Queue
 
@@ -43,19 +45,20 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | M4 financial correctness | B15-B17 provider/quality/numerical acceptance remains |
 | M5 browser experience | B18-B20 session, UI and integration acceptance remains |
 | M6 operations | B21-B23 deploy/email/alerts/restore/customer/capacity gates remain |
-| M7 release/expansion | B24 launch decision and B25 extension gates remain |
+| M7 full-roadmap launch | B25 required-feature acceptance must precede B24 full-product rehearsal and launch decision; both remain |
 
-## Open Decisions
+## Scope and Open Decisions
 
 | Decision | State | Before it is needed |
 |---|---|---|
-| First-release audience and geography/assets | OPEN; invite-only uploaded INR equity/ETF beta is proposed | Product scope and public claims |
-| AI/news/events/billing/brokers/screener inclusion | OPEN; no silent inclusion or exclusion | Affected feature specification or purchase |
+| First-launch feature breadth | APPROVED: full roadmap, including public signup and required integrations; decision #12 | Fulfill manifest before B24; no silent deferrals |
+| Markets/assets/currencies and real-time/advanced specifications | OPEN; includes defining README US expansion and real-time analytics promises | Instrument/feed/methodology contracts and full-scope estimate |
+| AI/news/events/billing/brokers/screener implementation choices | OPEN; inclusion is required, provider/pricing/permissions details are not selected | Affected specification, integration or purchase |
 | Data contracts/rights, region and budget | OPEN | Production provider/hosting commitment |
 | Retention, export/delete, support and disclosures | OPEN | Customer lifecycle and release acceptance |
 | Required-check/review enforcement and deployment linkage | VERIFY in B06/B21 | Relying on server enforcement or production promotion |
 
-Open commercial decisions do not prevent the next code-only safety batch. Owner consent to continue engineering is not approval of an assumed release scope or vendor purchase.
+Open specification and commercial decisions do not prevent the next code-only safety batch. Required features with unresolved specifications remain launch blockers, not exclusions. Scope approval is not vendor-purchase or go-live approval. Re-estimate the full roadmap after specification and provider eligibility; do not reuse a beta-only delivery estimate.
 
 ## Delivery Evidence Required Each Time
 
@@ -65,4 +68,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B01 issue #4 first. If acceptance is complete, start B02 issue #5 on a verified current main; implement only that slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat B00 or start a broad import rewrite.
+Read accepted B01 issue #4 and later scope decision #12, then start B02 issue #5 on a verified current main; implement only that slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat B00/B01 or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts.
