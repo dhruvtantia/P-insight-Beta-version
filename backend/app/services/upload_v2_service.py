@@ -265,7 +265,7 @@ async def pre_warm_uploaded_quant_cache(
             return
 
         await pre_warm_cache(
-            UploadedPortfolioProvider(db=db, portfolio_id=portfolio_id),
+            UploadedPortfolioProvider(db=db, portfolio_id=portfolio_id, user_id=portfolio.user_id),
             period,
         )
     except Exception as exc:

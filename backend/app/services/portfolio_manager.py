@@ -17,6 +17,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services.computation_cache import invalidate_private_computations
 from app.models.portfolio import Portfolio, Holding
 from app.repositories.portfolio_repository import PortfolioRepository
 from app.schemas.portfolio import HoldingBase
@@ -86,6 +87,7 @@ class PortfolioManagerService:
         target.is_active = True
         target.updated_at = datetime.now(timezone.utc)
         self.db.commit()
+        invalidate_private_computations()
 
         return ActivateResponse(
             success=True,
@@ -103,6 +105,7 @@ class PortfolioManagerService:
         p.name = name.strip()
         p.updated_at = datetime.now(timezone.utc)
         self.db.commit()
+        invalidate_private_computations()
         self.db.refresh(p)
         return self._to_meta(p)
 
@@ -128,6 +131,7 @@ class PortfolioManagerService:
                 latest.is_active = True
                 self.db.commit()
 
+        invalidate_private_computations()
         return DeleteResponse(
             success=True,
             deleted_id=portfolio_id,
@@ -212,6 +216,7 @@ class PortfolioManagerService:
         ]
         self.db.add_all(db_holdings)
         self.db.commit()
+        invalidate_private_computations()
         self.db.refresh(p)
 
         logger.info(
@@ -305,6 +310,7 @@ class PortfolioManagerService:
         p.source_metadata  = meta
         p.updated_at       = now
         self.db.commit()
+        invalidate_private_computations()
         self.db.refresh(p)
 
         # 4. Post-refresh snapshot
@@ -389,6 +395,7 @@ class PortfolioManagerService:
 
         if updated:
             self.db.commit()
+            invalidate_private_computations()
             logger.info(
                 "Patched %d/%d holdings with enrichment data (portfolio_id=%s)",
                 updated, len(records), portfolio_id,
@@ -408,6 +415,7 @@ class PortfolioManagerService:
         )
         self.db.add(p)
         self.db.commit()
+        invalidate_private_computations()
         self.db.refresh(p)
         return p
 

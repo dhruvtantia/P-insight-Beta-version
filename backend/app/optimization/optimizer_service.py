@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import logging
 import asyncio
-import time as _time
+from copy import deepcopy
+from dataclasses import asdict
 from typing import Optional
 
 import numpy as np
@@ -46,33 +47,33 @@ from app.optimization.objectives import (
     sharpe_ratio,
 )
 from app.services.price_enrichment_service import valuation_price_and_fallback
+from app.services.cache_service import TimedMemoryCache
+from app.services.computation_cache import (
+    computation_generation, invalidate_private_computations,
+    private_computation_key, provider_computation_scope,
+)
 
 logger = logging.getLogger(__name__)
 
 RISK_FREE_RATE = 0.065
 
 # ── In-process result cache ────────────────────────────────────────────────────
-_OPT_CACHE: dict[str, tuple[dict, float]] = {}
 MOCK_OPT_TTL = 3_600.0 * 24   # mock is deterministic — cache 24h
 LIVE_OPT_TTL = 600.0           # live — cache 10min
+_OPT_CACHE = TimedMemoryCache(lambda key: MOCK_OPT_TTL if key.startswith("mock_") else LIVE_OPT_TTL)
 
 
 def _cache_get(key: str) -> Optional[dict]:
-    entry = _OPT_CACHE.get(key)
-    if not entry:
-        return None
-    ttl = MOCK_OPT_TTL if key.startswith("mock_") else LIVE_OPT_TTL
-    if (_time.time() - entry[1]) < ttl:
-        return entry[0]
-    return None
+    return deepcopy(_OPT_CACHE.get(key))
 
 
 def _cache_set(key: str, data: dict) -> None:
-    _OPT_CACHE[key] = (data, _time.time())
+    _OPT_CACHE.set(key, deepcopy(data))
 
 
 def invalidate_cache() -> None:
     """Call this whenever holdings change (e.g. after upload)."""
+    invalidate_private_computations()
     _OPT_CACHE.clear()
 
 
@@ -103,27 +104,42 @@ class OptimizerService:
     ) -> dict:
         """
         Main entry point — returns a JSON-serializable dict.
-        Caches results to avoid repeated price fetches.
+        Cache solves only after resolving identity and the actual input snapshot.
         """
-        cache_key = f"{self.mode}_{period}_{expected_returns_method}_{covariance_method}"
-        cached    = _cache_get(cache_key)
-        if cached:
-            logger.debug(f"Optimizer cache hit: {cache_key}")
-            return {**cached, "meta": {**cached["meta"], "cached": True}}
-
-        if constraints is None:
-            constraints = self.DEFAULT_CONSTRAINTS
-
+        generation = computation_generation()
+        constraints = deepcopy(constraints if constraints is not None else self.DEFAULT_CONSTRAINTS)
         try:
+            holdings = deepcopy(await self.provider.get_holdings())
+            scope = provider_computation_scope(self.provider)
+            histories, ticker_status = await self._fetch_all_histories(holdings, period)
+            cache_key = private_computation_key(
+                "optimizer", self.provider, scope, holdings, generation,
+                period=period, expected_returns_method=expected_returns_method,
+                covariance_method=covariance_method, n_frontier_points=n_frontier_points,
+                constraints=asdict(constraints), risk_free_rate=RISK_FREE_RATE,
+                histories=histories, ticker_status=ticker_status,
+            )
+            cached = _cache_get(cache_key) if cache_key is not None else None
+            if cached is not None:
+                cached["meta"]["cached"] = True
+                return cached
+
             result = await self._compute(
                 period, expected_returns_method, covariance_method,
                 n_frontier_points, constraints,
+                holdings=holdings, history_snapshot=(histories, ticker_status),
             )
         except Exception as exc:
             logger.exception(f"Optimizer failed: {exc}")
-            result = self._error_result(str(exc))
+            return self._error_result(str(exc))
 
-        _cache_set(cache_key, result)
+        if (
+            cache_key is not None and generation == computation_generation()
+            and not result.get("meta", {}).get("error")
+            and len(histories) == len({holding.ticker for holding in holdings})
+            and histories and all(source != "unavailable" for source in ticker_status.values())
+        ):
+            _cache_set(cache_key, result)
         return result
 
     # ── Internal computation ───────────────────────────────────────────────────
@@ -135,15 +151,17 @@ class OptimizerService:
         cov_method: str,
         n_frontier: int,
         constraints: OptimizationConstraints,
+        *,
+        holdings: list,
+        history_snapshot: tuple[dict, dict],
     ) -> dict:
 
-        # 1. Fetch holdings
-        holdings = await self.provider.get_holdings()
+        # Use the same holdings/history snapshot that identified the cache entry.
         if not holdings:
             return self._error_result("No holdings available")
 
         # 2. Fetch price histories concurrently
-        price_hists, ticker_status = await self._fetch_all_histories(holdings, period)
+        price_hists, ticker_status = history_snapshot
 
         # 3. Build aligned price matrix
         price_df = build_price_matrix(price_hists)

@@ -632,6 +632,11 @@ class LiveAPIProvider(BaseDataProvider):
         """
         self._db = db
         self._user_id = user_id
+        self._computation_scope = None
+
+    @property
+    def computation_cache_scope(self):
+        return self._computation_scope
 
     @property
     def mode_name(self) -> str:
@@ -653,6 +658,7 @@ class LiveAPIProvider(BaseDataProvider):
           "db_only"     — yfinance unavailable, using DB-stored current_price
           "unavailable" — yfinance unavailable and no DB price stored
         """
+        self._computation_scope = None
         if self._db is None:
             logger.error("LiveAPIProvider.get_holdings() called without a db session")
             return []
@@ -666,6 +672,7 @@ class LiveAPIProvider(BaseDataProvider):
         active = (
             _active_q
             .filter(Portfolio.is_active == True)  # noqa: E712
+            .populate_existing()
             .first()
         )
         if active is None:
@@ -673,6 +680,9 @@ class LiveAPIProvider(BaseDataProvider):
             logger.warning("LiveAPIProvider: no active portfolio found in DB")
             return []
 
+        from app.services.computation_cache import PortfolioComputationScope
+
+        self._computation_scope = PortfolioComputationScope.from_portfolio(self._user_id, active)
         db_holdings: list[HoldingORM] = active.holdings
 
         if not db_holdings:

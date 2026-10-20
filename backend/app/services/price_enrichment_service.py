@@ -153,3 +153,6 @@ def persist_price_outcomes(
         holding.price_failure_reason = failure_reason
 
     db.commit()
+    from app.services.computation_cache import invalidate_private_computations
+
+    invalidate_private_computations()

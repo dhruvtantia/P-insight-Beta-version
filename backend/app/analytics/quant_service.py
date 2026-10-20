@@ -34,8 +34,7 @@ Live mode:  yfinance via LiveAPIProvider.get_price_history(), TTL-cached.
 
 import logging
 import asyncio
-import hashlib
-import json
+from copy import deepcopy
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, timezone
@@ -47,6 +46,10 @@ from app.analytics import risk as rsk
 from app.analytics import benchmark as bm
 from app.analytics import correlation as corr
 from app.services.cache_service import TimedMemoryCache
+from app.services.computation_cache import (
+    computation_generation, invalidate_private_computations,
+    private_computation_key, provider_computation_scope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ RISK_FREE_RATE = 0.065
 TRADING_DAYS   = 252
 
 # ─── In-process result cache for quant computations ───────────────────────────
-# Key: "{mode}_{period}_{holdings_fingerprint}"  |  Value: result_dict
+# Keys include owner, portfolio/revision surrogate, holdings and actual input data.
 MOCK_QUANT_TTL = 3_600.0 * 24   # mock data is deterministic — cache 24h
 LIVE_QUANT_TTL = 600.0           # live data — cache 10 minutes
 
@@ -66,16 +69,12 @@ def _quant_cache_ttl(key: str) -> float:
 _QUANT_CACHE = TimedMemoryCache(_quant_cache_ttl)
 
 
-def _cache_get(key: str) -> Optional[dict]:
-    return _QUANT_CACHE.get(key)
-
-
 def _cache_set(key: str, data: dict) -> None:
-    _QUANT_CACHE.set(key, data)
+    _QUANT_CACHE.set(key, deepcopy(data))
 
 
 # ─── Raw price history cache (Part 3 — avoids re-downloading on period switch) ─
-# Key: "{mode}_{tickers_fingerprint}"  |  Value: (raw_hists, ticker_status, failure_reasons)
+# Scoped snapshot key; value: (raw_hists, ticker_status, failure_reasons).
 # Always populated with the widest available fetch (1y). Shorter periods are
 # derived by slicing this data — no extra network round-trips required.
 
@@ -88,41 +87,18 @@ _RAW_HIST_CACHE = TimedMemoryCache(_raw_cache_ttl)
 
 def _raw_cache_get(key: str) -> Optional[tuple[dict, dict, dict]]:
     """Return (raw_hists, ticker_status, failure_reasons) if cache is fresh."""
-    return _RAW_HIST_CACHE.get(key)
+    return deepcopy(_RAW_HIST_CACHE.get(key))
 
 
 def _raw_cache_set(key: str, raw_hists: dict, ticker_status: dict, failure_reasons: dict) -> None:
-    _RAW_HIST_CACHE.set(key, (raw_hists, ticker_status, failure_reasons))
+    _RAW_HIST_CACHE.set(key, deepcopy((raw_hists, ticker_status, failure_reasons)))
 
 
 def clear_quant_caches() -> None:
     """Clear in-process quant caches after portfolio changes or in tests."""
+    invalidate_private_computations()
     _QUANT_CACHE.clear()
     _RAW_HIST_CACHE.clear()
-
-
-def _fingerprint_payload(payload: object) -> str:
-    encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()[:16]
-
-
-def _holdings_cache_key(mode: str, period: str, holdings: list) -> str:
-    payload = [
-        {
-            "ticker": h.ticker,
-            "quantity": h.quantity,
-            "average_cost": h.average_cost,
-            "current_price": h.current_price,
-            "price_status": getattr(h, "price_status", None),
-        }
-        for h in sorted(holdings, key=lambda item: item.ticker)
-    ]
-    return f"{mode}_{period}_{_fingerprint_payload(payload)}"
-
-
-def _history_cache_key(mode: str, holdings: list) -> str:
-    tickers = sorted({h.ticker for h in holdings})
-    return f"{mode}_{_fingerprint_payload(tickers)}"
 
 
 def _slice_histories_to_period(
@@ -180,29 +156,44 @@ class QuantAnalyticsService:
     def __init__(self, provider: BaseDataProvider):
         self.provider = provider
         self.mode     = provider.mode_name
-        self.period   = "1y"
 
     async def compute_all(self, period: str = "1y") -> dict:
         """
         Main entry point. Returns a comprehensive dict with all quant analytics.
         Results are cached to avoid repeated expensive fetches.
 
-        Cache behaviour (Phase 3 fix):
-          - On a cache hit, meta.cached is set to True and meta.cache_age_seconds
-            is populated with the seconds elapsed since the result was stored.
-          - The cached dict itself is NOT mutated — a shallow copy of meta is made
-            so repeated reads don't accumulate stale age values in the stored entry.
+        Resolve current holdings, scope, history vintage and benchmark before cache lookup.
+        Returned nested objects never alias stored private results.
         """
-        self.period = period
-        holdings    = await self.provider.get_holdings()
-        cache_key   = _holdings_cache_key(self.mode, period, holdings)
-        cached      = _QUANT_CACHE.get_with_age(cache_key)
+        generation = computation_generation()
+        holdings = deepcopy(await self.provider.get_holdings())
+        scope = provider_computation_scope(self.provider)
+        history_snapshot = await self._fetch_all_histories(
+            holdings, period, scope=scope, generation=generation,
+        )
+        histories, ticker_status, failures = history_snapshot
+        has_weights = any(
+            holding.ticker in histories and holding.current_price is not None
+            and holding.quantity * holding.current_price > 0
+            and holding.price_status in {"live", "uploaded_current_price"}
+            for holding in holdings
+        )
+        benchmark = (
+            deepcopy(bm.get_benchmark(self.mode, period))
+            if len(histories) >= 2 and has_weights else None
+        )
+        cache_key = private_computation_key(
+            "quant", self.provider, scope, holdings, generation,
+            period=period, histories=histories, ticker_status=ticker_status, failures=failures,
+            benchmark=benchmark, risk_free_rate=RISK_FREE_RATE, trading_days=TRADING_DAYS,
+            methodology="daily_simple_returns_geometric_annualized",
+        )
+        cached = _QUANT_CACHE.get_with_age(cache_key) if cache_key is not None else None
 
         if cached is not None:
             stored_result, age = cached
             logger.debug(f"Quant cache hit: {cache_key} (age={age:.0f}s)")
-            # Return a view with accurate cache metadata — shallow-copy meta only.
-            result = dict(stored_result)
+            result = deepcopy(stored_result)
             result["meta"] = {
                 **stored_result["meta"],
                 "cached":            True,
@@ -210,13 +201,22 @@ class QuantAnalyticsService:
             }
             return result
 
-        result = await self._compute(period, holdings)
-        _cache_set(cache_key, result)
+        result = await self._compute(
+            period, holdings, history_snapshot=history_snapshot, benchmark_data=benchmark,
+        )
+        meta = result.get("meta", {})
+        if (
+            cache_key is not None and generation == computation_generation()
+            and meta.get("portfolio_usable") and meta.get("benchmark_available")
+            and not meta.get("error") and not meta.get("incomplete")
+            and all(source != "unavailable" for source in ticker_status.values())
+        ):
+            _cache_set(cache_key, result)
         return result
 
-    async def _compute(self, period: str, holdings: list) -> dict:
+    async def _compute(self, period: str, holdings: list, *, history_snapshot, benchmark_data) -> dict:
         # 1. Fetch all price histories
-        price_hists, ticker_status, failure_reasons = await self._fetch_all_histories(holdings, period)
+        price_hists, ticker_status, failure_reasons = history_snapshot
 
         # 2. Build price matrix
         price_df = ret_utils.build_price_matrix(price_hists)
@@ -272,7 +272,9 @@ class QuantAnalyticsService:
         portfolio_returns = ret_utils.portfolio_return_series(price_df, weights)
 
         # 5. Benchmark — handle unavailable gracefully
-        bench_data        = bm.get_benchmark(self.mode, period)
+        bench_data = (
+            benchmark_data if benchmark_data is not None else bm.get_benchmark(self.mode, period)
+        )
         benchmark_ok      = bench_data.get("source") not in ("unavailable",) and bool(bench_data.get("data"))
 
         bench_df = ret_utils.build_price_matrix({
@@ -401,12 +403,15 @@ class QuantAnalyticsService:
         self,
         holdings: list,
         period: str,
+        *,
+        scope=None,
+        generation=None,
     ) -> tuple[dict[str, list[dict]], dict[str, str], dict[str, str]]:
         """
         Return price histories for all holdings, sliced to the requested period.
 
         Part 3 cache strategy:
-          1. Check the raw history cache (keyed by mode + ticker set, not period).
+          1. Check raw history for the same owner/portfolio/holdings snapshot.
           2. On hit  → slice the cached 1y data to the requested period.
              This avoids a second yfinance round-trip just because the user
              switched from 1y to 3mo.
@@ -419,8 +424,10 @@ class QuantAnalyticsService:
           failure_reasons: {ticker: human-readable reason}  — only for failed tickers
         """
         # ── Check raw history cache first ─────────────────────────────────────
-        raw_cache_key = _history_cache_key(self.mode, holdings)
-        cached_raw = _raw_cache_get(raw_cache_key)
+        raw_cache_key = private_computation_key(
+            "quant-history", self.provider, scope, holdings, generation, fetch_period="1y",
+        )
+        cached_raw = _raw_cache_get(raw_cache_key) if raw_cache_key is not None else None
         if cached_raw is not None:
             raw_hists, ticker_status, failure_reasons = cached_raw
             logger.debug(f"Raw history cache hit: key={raw_cache_key}, slicing to {period}")
@@ -478,7 +485,12 @@ class QuantAnalyticsService:
                 failure_reasons[ticker] = reason
 
         # Store the full 1y result in the raw cache
-        _raw_cache_set(raw_cache_key, raw_hists, ticker_status, failure_reasons)
+        if (
+            raw_cache_key is not None and generation == computation_generation()
+            and raw_hists and not failure_reasons
+            and all(source != "unavailable" for source in ticker_status.values())
+        ):
+            _raw_cache_set(raw_cache_key, raw_hists, ticker_status, failure_reasons)
 
         # Slice to the originally requested period before returning
         sliced = _slice_histories_to_period(raw_hists, period)

@@ -10,15 +10,20 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import time
+from threading import Lock
 from typing import Any, Callable, Optional
 
 
 class TimedMemoryCache:
     """Small TTL cache for process-local computed values."""
 
-    def __init__(self, ttl_for_key: Callable[[str], float]) -> None:
+    def __init__(self, ttl_for_key: Callable[[str], float], *, max_entries: int = 256) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be positive")
         self._ttl_for_key = ttl_for_key
+        self._max_entries = max_entries
         self._entries: dict[str, tuple[Any, float]] = {}
+        self._lock = Lock()
 
     def get(self, key: str) -> Optional[Any]:
         entry = self.get_with_age(key)
@@ -28,23 +33,29 @@ class TimedMemoryCache:
         return value
 
     def get_with_age(self, key: str) -> Optional[tuple[Any, float]]:
-        entry = self._entries.get(key)
-        if entry is None:
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+
+            value, stored_at = entry
+            age = time.monotonic() - stored_at
+            if age < self._ttl_for_key(key):
+                return value, age
+
+            self._entries.pop(key, None)
             return None
 
-        value, stored_at = entry
-        age = time.time() - stored_at
-        if age < self._ttl_for_key(key):
-            return value, age
-
-        self._entries.pop(key, None)
-        return None
-
     def set(self, key: str, value: Any) -> None:
-        self._entries[key] = (value, time.time())
+        with self._lock:
+            self._entries.pop(key, None)
+            self._entries[key] = (value, time.monotonic())
+            while len(self._entries) > self._max_entries:
+                self._entries.pop(next(iter(self._entries)))
 
     def clear(self) -> None:
-        self._entries.clear()
+        with self._lock:
+            self._entries.clear()
 
 
 class HistoryBuildStatusStore:
