@@ -1,6 +1,6 @@
 # P-Insight: Execution Checkpoint
 
-Updated: 2026-10-19. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
+Updated: 2026-10-20. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
 
 ## Accepted Baseline
 
@@ -19,18 +19,21 @@ This records accepted development evidence, not production certification. The SH
 
 **Later scope decision:** on 2026-10-19 the owner answered **"Full roadmap required at launch"**. [Decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12) owns this follow-up's PR/CI and reconciliation evidence. B01 remains accepted; the former proposed beta scope is superseded. See the [required-feature manifest](PRODUCTION_READINESS.md#required-feature-manifest).
 
-**Next implementation batch:** [B02, issue #5](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5). It has not been implemented by either documentation publication. Safety remains first; B25 is required before B24, not a post-launch extension.
+**B02 implementation and acceptance record:** [issue #5](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5) owns the reviewed PR, exact-head/post-merge CI and safe reconciliation evidence once available. Both upload-progress routes now pass explicit owner context into the shared status service, which reuses the scoped portfolio repository before reading progress details. Public response shapes are unchanged; unexpected errors no longer include internal exception text. Explicit auth-disabled local compatibility remains, not an approved production configuration.
+
+Local isolated-source verification: 29 new synthetic access-contract cases; 50 focused upload/access/auth tests and all 120 backend tests passed. Ruff and diff checks passed. Local tests do not substitute for the issue's final review/CI/merge evidence, live service checks or the remaining security batches.
+
+**Next implementation batch after B02 acceptance:** [B03, issue #6](https://github.com/dhruvtantia/P-insight-Beta-version/issues/6), supported import-command consistency. Check B02's live delivery record before advancing. Safety remains first; B25 is required before B24, not a post-launch extension. Full-roadmap scope and modular UI/backend ownership are unchanged.
 
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B02: import-progress access contracts](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5) | Synthetic multi-user progress/read/error contracts |
-| 2 | [B03: supported import-command consistency](https://github.com/dhruvtantia/P-insight-Beta-version/issues/6) | Required owner context and creation/activation invariants |
-| 3 | [B04: revision-aware analytics cache contracts](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7) | Full computation identity and invalidation |
-| 4 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | Validated environment, configuration and diagnostic boundaries |
-| 5 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
-| 6 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
+| 1 | [B03: supported import-command consistency](https://github.com/dhruvtantia/P-insight-Beta-version/issues/6) | After B02 acceptance: required owner context and creation/activation invariants |
+| 2 | [B04: revision-aware analytics cache contracts](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7) | Full computation identity and invalidation |
+| 3 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | Validated environment, configuration and diagnostic boundaries |
+| 4 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
+| 5 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
 
@@ -39,7 +42,7 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | Milestone | Current evidence / gate |
 |---|---|
 | M0 baseline/tracking | B00 accepted; B01 publication acceptance is recorded in issue #4 |
-| M1 safe foundation | B02-B07 delivery issues above; not established by B00's narrow auth tests |
+| M1 safe foundation | B02 delivery evidence in issue #5; B03-B07 remain. Neither B00 nor the progress-read slice establishes full private-operation isolation |
 | M2 data contracts | B08/B09 ownership/revision/API/database gates remain |
 | M3 import/enrichment | B10-B14 durable lifecycle and recovery gates remain |
 | M4 financial correctness | B15-B17 provider/quality/numerical acceptance remains |
@@ -68,4 +71,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read accepted B01 issue #4 and later scope decision #12, then start B02 issue #5 on a verified current main; implement only that slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat B00/B01 or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts.
+Read B02 issue #5 and scope decision #12. If B02 acceptance is complete, start B03 issue #6 on a verified current main; otherwise finish B02 acceptance first. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat accepted baseline work or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts.
