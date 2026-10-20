@@ -16,6 +16,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.portfolio import Portfolio, Holding
 from app.repositories.portfolio_repository import PortfolioRepository
 from app.schemas.portfolio import HoldingBase
@@ -143,9 +144,13 @@ class PortfolioManagerService:
     ) -> Portfolio:
         """
         Persist a confirmed upload as a Portfolio + holdings in the DB.
-        Sets is_active=True and deactivates all others.
+        Sets is_active=True and deactivates only this owner's other portfolios.
+        Unscoped compatibility behavior is allowed only when authentication is disabled.
         Returns the created Portfolio ORM object.
         """
+        if settings.AUTH_ENABLED and self.user_id is None:
+            raise ValueError("Authenticated owner context is required for uploads")
+
         now = datetime.now(timezone.utc)
         portfolio_name = name or f"Upload — {filename}"
 

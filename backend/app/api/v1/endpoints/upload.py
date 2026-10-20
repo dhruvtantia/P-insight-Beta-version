@@ -75,6 +75,7 @@ async def parse_upload(file: UploadFile = File(...)) -> ParseResponse:
 @router.post("/confirm", response_model=ConfirmResponse, summary="Import portfolio from upload")
 async def confirm_upload(
     background_tasks: BackgroundTasks,
+    user_id: CurrentUserId,
     file: UploadFile = File(...),
     column_mapping: str = Form(..., description="JSON object: canonical_field → original_column_name"),
 ) -> ConfirmResponse:
@@ -94,6 +95,7 @@ async def confirm_upload(
             content=await file.read(),
             column_mapping=column_mapping,
             background_tasks=background_tasks,
+            user_id=user_id,
             uploads_path=UPLOADS_PATH,
         )
     except UploadServiceError as exc:
@@ -159,7 +161,7 @@ async def get_upload_status(
 )
 async def confirm_upload_v2(
     background_tasks: BackgroundTasks,
-    user_id: CurrentUserId = None,
+    user_id: CurrentUserId,
     file: UploadFile = File(...),
     column_mapping: str = Form(
         ..., description="JSON object: canonical_field → original_column_name"

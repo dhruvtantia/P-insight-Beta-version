@@ -93,7 +93,7 @@ async def get_sector_allocation(db: DbSession, provider: DataProvider, user_id: 
         Depends(feature_dependency("upload_import")),
     ],
 )
-async def upload_portfolio(db: DbSession, user_id: CurrentUserId = None, file: UploadFile = File(...)):
+async def upload_portfolio(db: DbSession, user_id: CurrentUserId, file: UploadFile = File(...)):
     """
     Upload an Excel (.xlsx) or CSV (.csv) portfolio file.
 

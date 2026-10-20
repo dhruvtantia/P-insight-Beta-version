@@ -10,7 +10,7 @@ Pipeline stages:
      Uses the same normaliser helpers as the existing path.
      Adds a new tier: valid_with_warning — accepted but flagged.
 
-  2. persist_base_portfolio(accepted, filename, db)
+  2. persist_base_portfolio(accepted, filename, db, user_id=user_id)
        → portfolio_id: int
      Single session, single commit.  All holdings enter the DB with
      enrichment_status="pending".
@@ -210,7 +210,8 @@ def persist_base_portfolio(
     holdings: list[HoldingBase],
     filename: str,
     db,                   # sqlalchemy Session
-    user_id: Optional[int] = None,
+    *,
+    user_id: Optional[int],
 ) -> int:
     """
     Persist the base portfolio (no enrichment data) as a single transaction.
@@ -498,9 +499,9 @@ async def confirm_upload_v2_file(
     content: bytes,
     column_mapping: str,
     background_tasks: BackgroundTasks,
+    user_id: Optional[int],
     uploads_path: Path = UPLOADS_PATH,
     enrichment_task=run_background_enrichment,
-    user_id: Optional[int] = None,
 ) -> V2ConfirmResponse:
     """
     Confirm a V2 upload from raw file bytes.
@@ -581,7 +582,7 @@ def _parse_v2_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:
 
 
 def _persist_v2_base_portfolio(
-    accepted: list[HoldingBase], filename: str, user_id: Optional[int] = None
+    accepted: list[HoldingBase], filename: str, *, user_id: Optional[int]
 ) -> int:
     try:
         from app.db.database import SessionLocal

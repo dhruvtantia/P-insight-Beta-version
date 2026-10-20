@@ -58,6 +58,7 @@ async def confirm_legacy_upload(
     content: bytes,
     column_mapping: str,
     background_tasks: BackgroundTasks,
+    user_id: Optional[int],
     uploads_path: Path = UPLOADS_PATH,
 ) -> ConfirmResponse:
     col_map = _parse_legacy_column_mapping(column_mapping)
@@ -77,7 +78,7 @@ async def confirm_legacy_upload(
         )
 
     resolved_filename = upload_filename(filename)
-    portfolio_id = _persist_legacy_base_portfolio(holdings, resolved_filename)
+    portfolio_id = _persist_legacy_base_portfolio(holdings, resolved_filename, user_id=user_id)
 
     holdings, enrich_records, enriched_count, enrichment_note = await asyncio.to_thread(
         enrich_holdings, holdings
@@ -129,7 +130,7 @@ async def confirm_legacy_upload(
     )
 
 
-def _persist_legacy_base_portfolio(holdings, filename: str) -> int:
+def _persist_legacy_base_portfolio(holdings, filename: str, *, user_id: Optional[int]) -> int:
     try:
         from app.db.database import SessionLocal
         from app.services.portfolio_manager import PortfolioManagerService
@@ -137,7 +138,7 @@ def _persist_legacy_base_portfolio(holdings, filename: str) -> int:
 
         db_session = SessionLocal()
         try:
-            manager = PortfolioManagerService(db_session)
+            manager = PortfolioManagerService(db_session, user_id=user_id)
             portfolio = manager.save_uploaded_portfolio(holdings, filename=filename)
             SnapshotService(db_session).capture(portfolio.id, label=f"Auto — upload ({filename})")
             return portfolio.id
