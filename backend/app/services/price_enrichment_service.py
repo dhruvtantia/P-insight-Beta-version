@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
+from app.core.public_errors import FailureReason, public_reason
 
 PRICE_STATUSES = {
     "live",
@@ -139,8 +140,8 @@ def persist_price_outcomes(
         if holding.current_price is not None:
             if holding.price_source == "yfinance" or holding.price_status == "live":
                 holding.price_status = "stale"
-                holding.price_failure_reason = (
-                    failure_reason or "latest live lookup returned no price"
+                holding.price_failure_reason = public_reason(
+                    failure_reason or "latest live lookup returned no price", FailureReason.PRICE_FAILED
                 )
             else:
                 holding.price_status = holding.price_status or "uploaded_current_price"
@@ -150,7 +151,7 @@ def persist_price_outcomes(
         holding.price_status = "provider_failed" if failure_reason else "missing"
         holding.price_source = "yfinance"
         holding.price_timestamp = fetched_at
-        holding.price_failure_reason = failure_reason
+        holding.price_failure_reason = public_reason(failure_reason, FailureReason.PRICE_FAILED)
 
     db.commit()
     from app.services.computation_cache import invalidate_private_computations

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from app.core.public_errors import SafeBrokerReason
 
 
 # ─── Connector metadata (returned by GET /brokers/) ───────────────────────────
@@ -43,7 +44,7 @@ class BrokerConnectionMeta(BaseModel):
     connection_state: str            = "disconnected"   # "disconnected"|"pending"|"connected"|"syncing"|"error"
     account_id:       Optional[str]  = None
     last_sync_at:     Optional[datetime] = None
-    sync_error:       Optional[str]  = None
+    sync_error:       Optional[SafeBrokerReason]  = None
     created_at:       Optional[datetime] = None
     updated_at:       Optional[datetime] = None
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 from typing import Optional, Literal
+from app.core.public_errors import SafeEnrichmentReason, SafePriceReason
 
 EnrichmentOverall = Literal["in_progress", "done", "failed"]
 """
@@ -133,8 +134,8 @@ class HoldingEnrichmentStatus(BaseModel):
     price_status:        Optional[str] = None
     price_source:        Optional[str] = None
     price_timestamp:     Optional[str] = None
-    price_failure_reason: Optional[str] = None
-    failure_reason:      Optional[str] = None
+    price_failure_reason: Optional[SafePriceReason] = None
+    failure_reason:      Optional[SafeEnrichmentReason] = None
     last_enriched_at:    Optional[str] = None  # ISO-8601 UTC
 
 

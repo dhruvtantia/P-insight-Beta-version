@@ -20,6 +20,7 @@ This service is intentionally separate from QuantAnalyticsService so that:
 from __future__ import annotations
 
 import logging
+from app.core.public_errors import FailureReason
 import asyncio
 from copy import deepcopy
 from dataclasses import asdict
@@ -131,7 +132,7 @@ class OptimizerService:
             )
         except Exception as exc:
             logger.exception(f"Optimizer failed: {exc}")
-            return self._error_result(str(exc))
+            return self._error_result(FailureReason.OPTIMIZER_FAILED.value)
 
         if (
             cache_key is not None and generation == computation_generation()
@@ -227,7 +228,7 @@ class OptimizerService:
             frontier_pts = compute_frontier(mu, sigma, constraints, RISK_FREE_RATE, n_frontier)
         except Exception as exc:
             logger.exception(f"Optimization solve failed: {exc}")
-            return self._error_result(f"Optimization failed: {exc}")
+            return self._error_result(FailureReason.OPTIMIZER_FAILED.value)
 
         min_var_pt = _post_process_portfolio_point(min_var_pt, mu, sigma, constraints)
         max_shr_pt = _post_process_portfolio_point(max_shr_pt, mu, sigma, constraints)

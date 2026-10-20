@@ -8,7 +8,6 @@ out of the route layer. V2 confirm remains the preferred fast path.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -16,6 +15,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import BackgroundTasks
 
+from app.core.public_errors import FailureReason
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.ingestion.column_detector import REQUIRED_FIELDS
 from app.ingestion.normalizer import normalize_to_holdings
@@ -24,6 +24,7 @@ from app.schemas.upload import ConfirmResponse
 from app.services.upload_file_utils import (
     UploadServiceError,
     load_dataframe_from_upload,
+    parse_column_mapping,
     upload_filename,
 )
 from app.services.upload_v2_service import pre_warm_uploaded_quant_cache
@@ -32,10 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_legacy_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:
-    try:
-        col_map: dict[str, Optional[str]] = json.loads(column_mapping)
-    except json.JSONDecodeError as exc:
-        raise UploadServiceError(422, f"Invalid column_mapping JSON: {exc}") from exc
+    col_map = parse_column_mapping(column_mapping)
 
     missing_required = [field for field in REQUIRED_FIELDS if col_map.get(field) is None]
     if missing_required:
@@ -72,8 +70,7 @@ async def confirm_legacy_upload(
             422,
             (
                 f"No valid rows could be parsed. "
-                f"{len(skipped)} row(s) had errors: "
-                f"{skipped[:3]}"
+                f"{len(skipped)} row(s) had invalid required values. Check the column mapping."
             ),
         )
 
@@ -146,7 +143,7 @@ def _persist_legacy_base_portfolio(holdings, filename: str, *, user_id: Optional
             db_session.close()
     except Exception as exc:
         logger.error("Could not persist upload to DB: %s", exc)
-        raise UploadServiceError(500, f"Could not save portfolio to database: {exc}") from exc
+        raise UploadServiceError(500, FailureReason.SAVE_FAILED.value) from exc
 
 
 def _patch_legacy_enrichment(portfolio_id: int, enrich_records: list) -> None:

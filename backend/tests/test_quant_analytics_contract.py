@@ -147,7 +147,7 @@ async def test_benchmark_unavailable_keeps_portfolio_metrics_and_nulls_relative_
     metrics = result["metrics"]["portfolio"]
 
     assert result["meta"]["benchmark_available"] is False
-    assert result["meta"]["benchmark_error"] == "benchmark offline"
+    assert result["meta"]["benchmark_error"] == "Benchmark data unavailable. Retry later."
     assert metrics["annualized_return"] is not None
     assert metrics["annualized_volatility"] is not None
     assert metrics["beta"] is None

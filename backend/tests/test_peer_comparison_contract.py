@@ -133,7 +133,7 @@ def test_peer_comparison_reports_partial_peer_fundamentals_failure(client):
     assert meta["peer_count_requested"] == 2
     assert meta["peer_count_available"] == 1
     assert payload["peers"][1]["source"] == "unavailable"
-    assert payload["peers"][1]["error"] == "peer unavailable"
+    assert payload["peers"][1]["error"] == "Market data provider unavailable. Retry later."
 
 
 def test_peer_comparison_marks_missing_selected_fundamentals(client):
@@ -150,7 +150,7 @@ def test_peer_comparison_marks_missing_selected_fundamentals(client):
     assert payload["peer_source"] == "none"
     assert meta["peer_discovery_status"] == "not_found"
     assert meta["selected_fundamentals_available"] is False
-    assert meta["selected_fundamentals_error"] == "no fundamentals"
+    assert meta["selected_fundamentals_error"] == "Market data provider unavailable. Retry later."
     assert meta["sparse_set"] is True
 
 

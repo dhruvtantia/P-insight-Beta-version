@@ -64,6 +64,7 @@ A non-empty list takes precedence over `FRONTEND_URL`; otherwise that single ori
 | Unexpected HTTP/server exceptions | Central FastAPI/Starlette handlers return a constant generic detail for HTTP 5xx/unhandled exceptions. Ordinary client-error status/details/headers are retained. |
 | Reviewed service failures | Explicit `PublicServiceError` preserves existing typed feature-unavailability and static enrichment-status messages. Only reviewed public data belongs here, never raw provider/exception strings. |
 | JWT/JWKS errors | Token parsing, invalid signatures/claims and JWKS failures do not echo library/provider exception text or untrusted algorithm values. Existing authentication status/header behavior is retained. |
+| Reviewed embedded failures | Provider/news/events/peer/optimizer/advisor errors and job/holding/broker status reasons use approved messages, not exception strings. Existing status distinctions, data fields and response shapes remain. |
 
 Intentional compatibility change: `/health` no longer carries environment, version, feature or key-presence inventory. The debug panel's key section calls the local-only diagnostics route instead. Existing API feature registry and provider availability contracts remain authenticated application capabilities, not public health probes. Existing upload creation/progress routes remain available.
 
@@ -74,14 +75,30 @@ Intentional compatibility change: `/health` no longer carries environment, versi
 | Configuration, URL validation, environment parsing | Pydantic, Pydantic Settings; `backend/app/core/config.py` |
 | Database URL parsing, local bootstrap, read-only startup check | SQLAlchemy, Alembic; `backend/app/db/` |
 | External failure policy | FastAPI/Starlette exception handlers; `backend/app/core/errors.py` |
+| Embedded/legacy failure messages | Shared exact approved-message catalog and Pydantic `AfterValidator` string annotations; `backend/app/core/public_errors.py`. Producers and DTO/read boundaries apply the same policy. |
+| Column-mapping structure | Shared Pydantic `TypeAdapter` JSON parser; `backend/app/services/upload_file_utils.py`. Required-column rules remain with their existing workflow owners. |
 | Authentication and diagnostics | PyJWT/Supabase JWKS, API system router; `backend/app/core/auth.py`, `backend/app/api/v1/endpoints/system.py` |
 | Browser consumption | Existing Next.js/TypeScript API client and debug panel; no database or credential logic moved into UI |
 | Verification | pytest/TestClient with synthetic data, Ruff, TypeScript, GitHub Actions |
 
-## Remaining B05 Work
+## Embedded Failures
 
-This first slice does **not** complete the entire B05 external-error acceptance. Transport exception handlers cannot sanitize exception-derived strings already embedded in successful/degraded JSON responses, persisted job status or parser/client-error messages. Those boundaries still need a focused inventory, safe reason codes/messages and regression tests before B05 closes and B06 advances. Do not treat preserved HTTP 4xx details as universally audited. Do not publish sensitive reproduction inputs in public tracking.
+Transport handlers cannot sanitize errors already embedded in JSON. The second B05 slice therefore uses explicit producer and read boundaries rather than a blanket response rewrite:
 
-Broader typed API-contract generation remains B08; durable job/file lifecycle is B11-B14; provider contracts and observability are B15/B21. Logging throughout services has not been globally redacted by this slice, and the server/framework may still log raised exceptions. Controlled log access and a separate redaction review remain necessary. No production deployment, account setup, credential rotation or migration of real data was performed.
+- `public_errors.py` owns approved plain-string messages. Unknown stored/provider error strings become a contextual safe message. Only exact approved legacy reasons are preserved; matching a prefix, truncating text or attempting to remove known secrets is not an approval rule. `None` remains absent, and failure states/counts remain failures.
+- Holding price/enrichment, broker status and advisor response models apply the shared policy using Pydantic string validators, keeping their JSON schemas unchanged. History status and raw holding-metrics reads filter old reasons without modifying stored rows. Newly persisted price, enrichment, history and broker failures also use safe messages.
+- Upload file/model/database failures use static messages. Both confirm flows and refresh share a strict object-of-string-or-null column-mapping parser; malformed JSON, lists/scalars and nested/non-string values return 422 before importing holdings. Existing required-column checks, accepted-row rules and owner context are retained.
+- Provider/news/event/peer/benchmark/optimizer/advisor catches return approved messages while preserving unavailable/empty/fallback distinctions. Fundamentals adapters also filter a returned/cached `error` field, not only raised exceptions. Calculations, source selection and cache ownership are not redesigned.
+- A broker `SyncResult.error` now stops before portfolio refresh. Failure metadata remains safe and existing holdings are not replaced by a reported failed sync. Broker integration is still scaffolded; this guard is not connector launch acceptance.
 
-The existing checked-in OpenAPI/TypeScript artifacts predate accepted runtime changes; they are not treated as proof of current API completeness. This slice compares complete live-generated schemas against the accepted runtime baseline: all prior operation shapes/components remain unchanged, apart from health/readiness descriptions, and one local-only diagnostic operation is added. B08 must regenerate and enforce artifact drift checks.
+Intentional compatibility changes are failure-message text and wrong-shaped mapping inputs becoming 422 instead of an internal crash. No routes, response fields, model components or success numerical outputs are intentionally changed in this slice. Existing ownership tests still verify the originating owner guard and unchanged database state; service wrappers now expose only a static save-failure message. The first slice's health/diagnostics changes remain as documented above.
+
+Synthetic regressions cover producer exceptions, returned/cached error payloads, malformed mapping shapes, old saved reasons, failure-state preservation, untouched stored rows, no holdings replacement on broker failure, and diagnostics denial even after the user dependency resolves. Tests never require real provider credentials or customer portfolios. B05 closure still requires the reviewed issue's exact-revision delivery evidence, not this document alone.
+
+## Remaining Launch Gates
+
+This is a bounded review of present exception-derived failure boundaries, not a guarantee that arbitrary future provider content is safe. Ordinary user data, uploaded previews, tickers and model-generated content are not globally rewritten or certified by this policy. New error producers must use the catalog; new DTO paths must enforce the same read policy. Full identity/access review remains B07, numerical/provider methodology and rights B15-B17, and browser integration B18-B20.
+
+Broader typed API-contract generation remains B08; durable job/private-file lifecycle is B11-B14; provider contracts and observability are B15/B21. Logging throughout services has not been globally redacted, and the server/framework may still log raised exceptions. Controlled log access and a separate redaction review remain necessary. No production deployment, account setup, credential rotation or migration of real data was performed.
+
+The existing checked-in OpenAPI/TypeScript artifacts predate accepted runtime changes; they are not proof of current API completeness. The first slice compared complete live-generated schemas against B04: existing operation shapes/components stayed unchanged except health/readiness descriptions, with one local-only diagnostic operation added. The second slice preserves operation shapes/components and corrects only the broker-sync description, which incorrectly promised HTTP 501 for the existing structured scaffold response. B08 must regenerate and enforce checked-in artifact drift checks.

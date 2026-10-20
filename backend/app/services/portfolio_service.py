@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from typing import Any, Optional, Sequence
 import pandas as pd
+from app.core.public_errors import FailureReason, public_reason
 
 from app.repositories.portfolio_repository import PortfolioRepository
 from app.data_providers.base import BaseDataProvider
@@ -153,6 +154,9 @@ class PortfolioReadService:
                 }
 
             h_dict["price_status"] = canonical_status
+            h_dict["price_failure_reason"] = public_reason(
+                h_dict.get("price_failure_reason"), FailureReason.PRICE_FAILED
+            )
             if market_value_uses_fallback and not h_dict.get("price_source"):
                 h_dict["price_source"] = "average_cost"
 

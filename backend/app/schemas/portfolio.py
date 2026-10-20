@@ -13,6 +13,7 @@ Benefits of separation:
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 from datetime import datetime
+from app.core.public_errors import SafePriceReason
 
 
 # ─── Holding Schemas ──────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ class HoldingBase(BaseModel):
         description="Provider/source for the current price: yfinance|uploaded_csv|db_only|average_cost|unknown")
     price_timestamp: Optional[datetime] = Field(None,
         description="UTC timestamp when the price was fetched or recorded")
-    price_failure_reason: Optional[str] = Field(None,
+    price_failure_reason: Optional[SafePriceReason] = Field(None,
         description="Reason the live provider could not supply a price")
     # Enrichment status (Phase 3) — populated after upload enrichment pipeline.
     # Transparent to the UI so stale/weak data can be labelled.

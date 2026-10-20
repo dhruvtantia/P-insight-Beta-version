@@ -24,7 +24,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.connectors.base import ConnectorNotConfiguredError
+from app.core.public_errors import FailureReason, public_reason
+from app.connectors.base import ConnectorNotConfiguredError, ConnectorSyncError
 from app.connectors.registry import CONNECTOR_REGISTRY, list_connectors, get_connector
 from app.models.broker_connection import BrokerConnection
 from app.models.portfolio import Portfolio
@@ -151,28 +152,28 @@ class BrokerService:
                 )
             else:
                 row.connection_state = "error"
-                row.sync_error       = result.error
+                row.sync_error       = public_reason(result.error, FailureReason.BROKER_FAILED) or FailureReason.BROKER_FAILED.value
                 self.db.commit()
                 return ConnectResponse(
                     success=False, portfolio_id=portfolio_id,
                     broker_name=req.broker_name, connection_state="error",
-                    message=result.error or "Connection failed",
+                    message=row.sync_error or FailureReason.BROKER_FAILED.value,
                 )
 
         except ConnectorNotConfiguredError as exc:
             # Scaffold — set pending state, return informative response
             row.connection_state = "pending"
-            row.sync_error       = str(exc)
+            row.sync_error       = FailureReason.BROKER_NOT_READY.value
             self.db.commit()
             logger.info("Scaffolded connector %s: %s", req.broker_name, exc)
             return ConnectResponse(
                 success=False, portfolio_id=portfolio_id,
                 broker_name=req.broker_name, connection_state="pending",
-                message=str(exc), scaffolded=True,
+                message=FailureReason.BROKER_NOT_READY.value, scaffolded=True,
             )
         except Exception as exc:
             row.connection_state = "error"
-            row.sync_error       = str(exc)
+            row.sync_error       = FailureReason.BROKER_FAILED.value
             self.db.commit()
             logger.error("Connect failed for %s: %s", req.broker_name, exc)
             raise
@@ -207,6 +208,8 @@ class BrokerService:
 
         try:
             sync_result = connector.sync_holdings(config)
+            if sync_result.error:
+                raise ConnectorSyncError(FailureReason.BROKER_FAILED.value)
 
             # Persist holdings via refresh_portfolio (pre/post snapshots)
             mgr = PortfolioManagerService(self.db, user_id=self.user_id)
@@ -234,18 +237,18 @@ class BrokerService:
                 message          = sync_result.message or f"Synced {len(sync_result.holdings)} holdings",
             )
 
-        except ConnectorNotConfiguredError as exc:
+        except ConnectorNotConfiguredError:
             row.connection_state = "pending"
-            row.sync_error       = str(exc)
+            row.sync_error       = FailureReason.BROKER_NOT_READY.value
             row.updated_at       = now
             self.db.commit()
             return SyncResponse(
                 success=False, portfolio_id=portfolio_id,
-                broker_name=row.broker_name, message=str(exc), scaffolded=True,
+                broker_name=row.broker_name, message=FailureReason.BROKER_NOT_READY.value, scaffolded=True,
             )
         except Exception as exc:
             row.connection_state = "error"
-            row.sync_error       = str(exc)
+            row.sync_error       = FailureReason.BROKER_FAILED.value
             row.updated_at       = now
             self.db.commit()
             logger.error("Sync failed for portfolio %s broker %s: %s", portfolio_id, row.broker_name, exc)

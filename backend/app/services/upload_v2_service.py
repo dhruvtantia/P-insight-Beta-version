@@ -32,13 +32,13 @@ Downstream compatibility:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import BackgroundTasks
+from app.core.public_errors import FailureReason
 
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.ingestion.column_detector import REQUIRED_FIELDS
@@ -53,6 +53,7 @@ from app.schemas.upload_v2 import (
 from app.services.upload_file_utils import (
     UploadServiceError,
     load_dataframe_from_upload,
+    parse_column_mapping,
     upload_filename,
 )
 from app.ingestion.normalizer import (
@@ -184,11 +185,11 @@ def classify_rows_v2(
                 currency="INR",
                 data_source="uploaded",
             )
-        except Exception as exc:
+        except Exception:
             rejected.append(RejectedRow(
                 row_index=row_idx,
                 raw_ticker=ticker,
-                reasons=[str(exc)],
+                reasons=[FailureReason.INVALID_ROW.value],
             ))
             continue
 
@@ -564,10 +565,7 @@ async def confirm_upload_v2_file(
 
 
 def _parse_v2_column_mapping(column_mapping: str) -> dict[str, Optional[str]]:
-    try:
-        col_map: dict[str, Optional[str]] = json.loads(column_mapping)
-    except json.JSONDecodeError as exc:
-        raise UploadServiceError(422, f"Invalid column_mapping JSON: {exc}") from exc
+    col_map = parse_column_mapping(column_mapping)
 
     missing_required = [field for field in REQUIRED_FIELDS if col_map.get(field) is None]
     if missing_required:
@@ -594,7 +592,7 @@ def _persist_v2_base_portfolio(
             db.close()
     except Exception as exc:
         logger.error("V2 DB persist failed: %s", exc)
-        raise UploadServiceError(500, f"Could not save portfolio to database: {exc}") from exc
+        raise UploadServiceError(500, FailureReason.SAVE_FAILED.value) from exc
 
 
 # ─── Enrichment status polling ────────────────────────────────────────────────

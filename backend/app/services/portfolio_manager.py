@@ -17,6 +17,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.public_errors import FailureReason, public_reason
 from app.services.computation_cache import invalidate_private_computations
 from app.models.portfolio import Portfolio, Holding
 from app.repositories.portfolio_repository import PortfolioRepository
@@ -379,7 +380,7 @@ class PortfolioManagerService:
             db_h.normalized_ticker   = rec.normalized_ticker
             db_h.sector_status       = rec.sector_status
             db_h.name_status         = rec.name_status
-            db_h.enrichment_reason   = rec.enrichment_reason
+            db_h.enrichment_reason   = public_reason(rec.enrichment_reason, FailureReason.ENRICHMENT_FAILED)
             # Phase 3 — per-holding ingest status
             db_h.enrichment_status   = rec.enrichment_status
             db_h.fundamentals_status = rec.fundamentals_status
@@ -387,7 +388,7 @@ class PortfolioManagerService:
             if rec.last_enriched_at is not None:
                 from datetime import timezone as _tz
                 db_h.last_enriched_at = datetime.fromtimestamp(rec.last_enriched_at, tz=_tz.utc)
-            db_h.failure_reason = rec.enrichment_reason
+            db_h.failure_reason = db_h.enrichment_reason
             changed = True   # always mark changed to persist metadata
 
             if changed:

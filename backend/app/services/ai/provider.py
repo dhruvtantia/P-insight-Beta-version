@@ -34,6 +34,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from app.core.config import settings
+from app.core.public_errors import FailureReason
 
 # Conversation turn type — matches ConversationTurn schema
 # dict keys: "role" ("user"|"assistant"), "content" (str)
@@ -134,7 +135,7 @@ class ClaudeProvider(LLMProvider):
             )
             return msg.content[0].text
         except Exception as e:
-            raise ProviderError(f"Claude API call failed: {e}") from e
+            raise ProviderError(FailureReason.ADVISOR_FAILED.value) from e
 
     def get_info(self) -> dict:
         return {"provider": "claude", "model": self.model, "available": True}
@@ -190,7 +191,7 @@ class OpenAIProvider(LLMProvider):
             )
             return resp.choices[0].message.content or ""
         except Exception as e:
-            raise ProviderError(f"OpenAI API call failed: {e}") from e
+            raise ProviderError(FailureReason.ADVISOR_FAILED.value) from e
 
     def get_info(self) -> dict:
         return {"provider": "openai", "model": self.model, "available": True}

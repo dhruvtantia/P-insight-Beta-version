@@ -39,6 +39,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from app.core.public_errors import FailureReason, public_reason
 
 from app.core.dependencies import DbSession, CurrentUserId, assert_portfolio_owned
 from app.services.feature_registry import require_feature
@@ -350,7 +351,7 @@ async def get_holdings_status(
                 fundamentals_status=h.fundamentals_status,
                 peers_status=h.peers_status,
                 last_enriched_at=last_enriched,
-                failure_reason=h.failure_reason,
+                failure_reason=public_reason(h.failure_reason, FailureReason.ENRICHMENT_FAILED),
             )
         )
 

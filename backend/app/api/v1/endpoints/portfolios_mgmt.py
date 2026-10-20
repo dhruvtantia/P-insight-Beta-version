@@ -15,14 +15,13 @@ Routes:
   DELETE /portfolios/{id}                 delete a portfolio
 """
 
-import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.core.dependencies import DbSession, CurrentUserId
 from app.services.portfolio_manager import PortfolioManagerService
 from app.services.feature_registry import feature_dependency
-from app.services.upload_file_utils import UploadServiceError, load_dataframe_from_upload
+from app.services.upload_file_utils import UploadServiceError, load_dataframe_from_upload, parse_column_mapping
 from app.schemas.portfolio_mgmt import (
     PortfolioMeta,
     PortfolioListResponse,
@@ -86,8 +85,8 @@ async def activate_portfolio(portfolio_id: int, db: DbSession, user_id: CurrentU
     svc = PortfolioManagerService(db, user_id=user_id)
     try:
         return svc.activate(portfolio_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found") from None
 
 
 # ─── Refresh (re-import) ──────────────────────────────────────────────────────
@@ -115,13 +114,8 @@ async def refresh_portfolio(
     existing portfolio rather than creating a new one — designed to support
     future broker-sync refresh flows.
     """
-    # Parse mapping
     try:
-        col_map: dict = json.loads(column_mapping)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid column_mapping JSON: {exc}")
-
-    try:
+        col_map = parse_column_mapping(column_mapping)
         df = load_dataframe_from_upload(file.filename, await file.read())
     except UploadServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
@@ -139,8 +133,8 @@ async def refresh_portfolio(
 
     try:
         p, pre_snap_id, post_snap_id = svc.refresh_portfolio(portfolio_id, holdings, filename)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Portfolio refresh unavailable. Check the portfolio and file.") from None
 
     return RefreshResponse(
         success=True,

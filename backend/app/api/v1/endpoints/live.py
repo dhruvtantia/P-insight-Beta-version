@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
+from app.core.public_errors import FailureReason, public_provider_result
 from app.data_providers.live_provider import (
     LiveAPIProvider,
     YFINANCE_AVAILABLE,
@@ -170,7 +171,7 @@ async def get_live_fundamentals(
     # Check 4-hour cache first
     cached = _fund_from_cache(t)
     if cached:
-        return {"ticker": t, **cached, "from_cache": True}
+        return {"ticker": t, **public_provider_result(cached), "from_cache": True}
 
     if not YFINANCE_AVAILABLE:
         return {
@@ -194,7 +195,7 @@ async def get_live_fundamentals(
 
     if data and data.get("source") != "yfinance_error":
         _store_fund(t, data)
-        return {"ticker": t, **data, "from_cache": False}
+        return {"ticker": t, **public_provider_result(data), "from_cache": False}
 
     raise HTTPException(
         status_code=404,
@@ -261,7 +262,7 @@ def _fetch_indices_sync() -> dict:
         except Exception as exc:
             logger.warning("Individual index fetch failed for %s: %s", sym, exc)
             return {"symbol": sym, "name": label_map[sym], "unavailable": True,
-                    "reason": f"fetch_error: {exc}"}
+                    "reason": FailureReason.PROVIDER_FAILED.value}
 
     symbols      = [sym for sym, _ in _INDICES]
     indices_out: list = []
