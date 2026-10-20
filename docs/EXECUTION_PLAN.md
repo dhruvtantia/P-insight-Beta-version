@@ -6,7 +6,9 @@ Updated: 2026-10-19. Start with the [checkpoint and work queue](EXECUTION_STATUS
 
 B00 is accepted through [PR #3](https://github.com/dhruvtantia/P-insight-Beta-version/pull/3), merged at `9b71c53953373421bbc360244b794d8a78edc435`. Its exact-head and post-merge CI passed. The original foundation commits were preserved, and the local baseline was reconciled without discarding existing work.
 
-Proposed first release: an invite-only, multi-user beta for uploaded INR Indian-equity and supported-ETF portfolios. **Owner approval is still open.** Public signup, billing, brokers and other roadmap capabilities are not silently included or excluded. See [release decisions and acceptance gates](PRODUCTION_READINESS.md).
+**Approved first-launch breadth: full roadmap required.** On 2026-10-19 the owner selected "Full roadmap required at launch"; see [decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12). Public signup, billing/entitlements, brokers, screener, AI advisor/chat, news/events and advanced analytics are launch requirements alongside the core portfolio experience. The [required-feature manifest](PRODUCTION_READINESS.md#required-feature-manifest) also carries forward US-market expansion, real-time analytics and portfolio recommendations from the README. None can silently become post-launch work.
+
+Feature breadth is approved; precise markets/assets/currencies, feed latency, advanced-methodology specifications, pricing and provider eligibility remain open. An unresolved specification blocks acceptance of that requirement; it does not exclude it. The earlier invite-only uploaded-INR beta proposal and its scheduling assumptions do not describe this launch.
 
 Security and correctness work can proceed while commercial decisions remain open. A release, purchase, real-account mutation or customer-data migration needs its own approved scope. This plan configures no unattended work or automatic production rollout.
 
@@ -54,15 +56,17 @@ UI contributors own presentation, accessible interactions and component states. 
 | M2: data contracts | B08-B09 | Canonical identity/quality/API contracts and PostgreSQL ownership/revision invariants |
 | M3: reliable import | B10-B14 | One validated import/refresh workflow with durable, bounded, revision-safe enrichment |
 | M4: financial correctness | B15-B17 | Valuation/history/snapshots/analytics reconcile with declared methodology and quality |
-| M5: browser experience | B18-B20 | Session-safe UI, component handoff, browser acceptance and approved optional capabilities |
+| M5: browser experience | B18-B20 | Session-safe UI, component handoff, browser acceptance and required AI/news/events integrations |
 | M6: operated release | B21-B23 | Hosting, auth/email, monitoring, CI promotion, recovery, support and capacity verified |
-| M7: release/expansion | B24-B25 | Rehearsal and go/no-go passed, staged rollout, separate gates for subsequent tracks |
+| M7: full-roadmap launch | B25 then B24 | All required roadmap tracks accepted before full-product rehearsal, go/no-go and controlled rollout |
 
 Staging/provider procurement can start after the safety baseline rather than waiting for M6. Frontend work can overlap domain work after B08 contracts are stable. Parallel contributors must coordinate ownership; no concurrent edits to the same surface without agreement.
 
 ## Ordered Batches
 
 A batch is a bounded work package, not a promise to finish a subsystem in one chat. Split large batches into smaller PRs, for example B12a/B12b, while retaining the parent acceptance boundary. The near-term issues are linked from the checkpoint; later issues are created when their scope is ready.
+
+**Execution dependency: B02-B23 -> complete B25 acceptance -> B24 launch.** Batch IDs and original task IDs stay stable; the rows below put B25 before B24 deliberately. B25 subtracks can start after their safety, identity and domain contracts are ready and overlap later engineering/operations work. This is not a requirement to wait until B23 to begin integrations. B20 is mandatory. Early staging or invited rehearsals are tests, not fulfillment of the first-launch scope.
 
 | Batch | Deliverable | Original tasks | Acceptance boundary |
 |---|---|---|---|
@@ -86,18 +90,24 @@ A batch is a bounded work package, not a promise to finish a subsystem in one ch
 | B17 | Quant/optimization/simulation methodology | T30,T31,T42 | Actual methods labeled, constraints respected, deterministic numerical fixtures agree |
 | B18 | Session/query lifecycle and upload workflow state | T36,T37,T38,T39 | Identity/portfolio changes invalidate private state; late responses fenced; progress resumes; typed errors |
 | B19 | UI handoff and browser/accessibility coverage | T40,T41,T43 | Synthetic component states; representative desktop/mobile/browser workflows and accessible interactions |
-| B20 | Approved AI/news/events integration or exclusion | T34,T35 | Executed provider, consent/quota/fallback/quality evidence; inclusion/exclusion explicitly approved |
+| B20 | Required AI/news/events integration | T34,T35 | Executed integrations, consent/quota/fallback/quality evidence and browser acceptance; no placeholder/exclusion substitute |
 | B21 | Staging/production hosting, auth/email and services | T44,T45,T46,T47 | Isolated environments/secrets, deployed API/worker/scheduler, real email and dependency checks |
 | B22 | CI promotion, observability and rollout controls | T48,T49 | Exact-revision checks, tested redacted alerts, serialized migrations and controlled promotion |
 | B23 | Recovery, customer lifecycle, support and capacity | T50,T51,T52 | Measured restore, account export/delete/recovery, policy review, load/quota/budget evidence |
-| B24 | Rehearsal, release decision and invited rollout | T53,T54,T55,T56,T57 | Promised features accepted, outage/deploy drills passed, no open release blocker, monitored beta |
-| B25 | Public/paid/broker/screener/extended tracks | T58 | Each extension has its own approved scope, data/permissions/operations and acceptance gates |
+| B25 | Required public/paid/broker/screener/extended tracks | T58 | All manifest tracks implemented and accepted with specifications, data/permissions/operations evidence before B24 |
+| B24 | Full-product rehearsal, release decision and rollout | T53,T54,T55,T56,T57 | B02-B23 and B25 gates passed, outage/deploy drills passed, no release blocker, approved monitored launch |
 
 ## Priority: Import and Enrichment
 
 B10-B14 are the largest initial reliability investment after safety and contracts. Acceptance covers parse -> review -> confirm -> revision -> durable job -> observable enrichment -> terminal outcome -> safe refresh/retry, not merely a successful upload response.
 
-Use synthetic fixtures for multiple owners, repeated commands, duplicate instruments, bounded file resources, API/worker interruption, provider failure and refresh during ongoing work. Accepted holdings remain available while optional derived stages can be explicitly unavailable; missing data must never be presented as verified data.
+Use synthetic fixtures for multiple owners, repeated commands, duplicate instruments, bounded file resources, API/worker interruption, provider failure and refresh during ongoing work. Accepted holdings remain available while unavailable derived observations are explicitly labeled; missing data must never be presented as verified data. Honest per-instrument missing-data or temporary outage states do not waive a required feature's implementation and acceptance.
+
+## Scope and Schedule Control
+
+Break B25 into independently reviewed delivery slices with module owners, API/schema contracts, vendor prerequisites and deterministic plus live acceptance evidence for every manifest row. Reconcile legacy roadmap promises against that manifest before committing a launch date. Estimates based only on the earlier uploaded-INR beta are not estimates for this scope. Re-estimate after feature specifications and provider eligibility are established; no delivery date or cost is approved here.
+
+Any proposed removal or deferral requires a new explicit owner decision recorded in GitHub and these canonical scope documents. Feature flags, missing credentials, mock integrations and unfinished specifications cannot satisfy a required launch gate. Feature breadth approval does not approve purchases, production deployment or real-account mutations.
 
 ## Public-Safe Collaboration
 
@@ -109,7 +119,7 @@ Use synthetic fixtures for multiple owners, repeated commands, duplicate instrum
 
 ## Session Handoff and Completion
 
-Every handoff identifies the batch/subtask, branch/base, owned changes, exact test evidence, PR/CI state, unverified dependencies and next action. Use PLANNED, IN_PROGRESS, LOCAL_VERIFIED, CI_PENDING, REVIEW_READY, MERGED, STAGING_VERIFIED or BLOCKED accurately. An approved scope exclusion is recorded explicitly, not treated as implementation.
+Every handoff identifies the batch/subtask, branch/base, owned changes, exact test evidence, PR/CI state, unverified dependencies and next action. Use PLANNED, IN_PROGRESS, LOCAL_VERIFIED, CI_PENDING, REVIEW_READY, MERGED, STAGING_VERIFIED or BLOCKED accurately. No scope exclusion is approved by this plan; a later owner-approved change must be recorded explicitly, not treated as implementation.
 
 A code batch requires tests, review, accepted PR, verified CI and safe baseline reconciliation. An operational batch additionally requires its live acceptance evidence. Record final merge and post-merge CI in the linked issue once known; the next code snapshot can reference that accepted evidence without an endless status-only commit loop.
 

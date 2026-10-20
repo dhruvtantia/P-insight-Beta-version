@@ -1,5 +1,7 @@
 # P-Insight — Production & Monetization Roadmap (Corrected)
 
+> Historical planning snapshot (2026-07-21), not the current execution tracker or readiness evidence. Its status, estimates, provider and regulatory statements need fresh verification before use. The [execution plan](docs/EXECUTION_PLAN.md), [checkpoint](docs/EXECUTION_STATUS.md) and [release gates](docs/PRODUCTION_READINESS.md) now own delivery decisions. The owner required the full roadmap at first launch on 2026-10-19 ([decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12)); older staging/deferral assumptions do not override that decision.
+
 **Prepared as:** Principal Software Architect / Technical PM review
 **Sources:** `AUDIT_REPORT.md` (2026-07-17) **and** the live `production-hardening` branch + `docs/hardening-tracker.md`, checked directly against your project folder on 2026-07-21.
 **Supersedes:** an earlier draft of this file, which was written from the audit alone before I checked the actual repo. That draft is now wrong in places — see the correction note below before reading anything else.

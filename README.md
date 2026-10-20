@@ -8,6 +8,9 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 [execution plan](docs/EXECUTION_PLAN.md), [checkpoint and work queue](docs/EXECUTION_STATUS.md),
 and [release decisions and acceptance gates](docs/PRODUCTION_READINESS.md).
 Earlier roadmap descriptions are not proof that a feature is production-ready.
+**First-launch scope:** the owner requires the full roadmap, including public signup,
+billing and the extended feature tracks. The [required-feature manifest](docs/PRODUCTION_READINESS.md#required-feature-manifest)
+defines the launch gates; feature flags and placeholders do not count as delivery.
 
 ---
 
