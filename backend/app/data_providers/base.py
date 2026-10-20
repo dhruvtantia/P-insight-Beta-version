@@ -17,9 +17,15 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from app.schemas.portfolio import HoldingBase
+from app.services.computation_cache import PortfolioComputationScope
 
 
 class BaseDataProvider(ABC):
+
+    @property
+    def computation_cache_scope(self) -> PortfolioComputationScope | None:
+        """Identity of the last resolved holdings snapshot; None disables private caching."""
+        return None
 
     # ─── Identity ─────────────────────────────────────────────────────────────
 

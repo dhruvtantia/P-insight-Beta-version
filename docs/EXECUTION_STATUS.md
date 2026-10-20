@@ -23,20 +23,23 @@ This records accepted development evidence, not production certification. The SH
 
 B02 historical isolated-source verification: 29 new synthetic access-contract cases; 50 focused upload/access/auth tests and all 120 backend tests passed. Ruff and diff checks passed. This evidence does not substitute for live service checks or the remaining security batches.
 
-**B03 implementation and acceptance record:** [issue #6](https://github.com/dhruvtantia/P-insight-Beta-version/issues/6) owns the reviewed PR, exact-head/post-merge CI and final reconciliation evidence once available. All three supported upload-creation routes pass explicit authenticated identity; the shared save boundary rejects missing owner context when authentication is enabled. [Compatibility and migration policy](UPLOAD_COMPATIBILITY.md) retains the HTTP contracts and records remaining differences and acceptance limits.
+**B03 accepted:** [issue #6](https://github.com/dhruvtantia/P-insight-Beta-version/issues/6), [PR #15](https://github.com/dhruvtantia/P-insight-Beta-version/pull/15), historical merge anchor `ff3f27b2759c6a1d686c4693ee1d6ff560d7c29e`. Exact-head/post-merge CI passed and local baselines were safely reconciled. All three supported creation routes pass authenticated identity; the shared save boundary refuses missing owners when authentication is enabled. [Compatibility policy](UPLOAD_COMPATIBILITY.md) records retained contracts and limits. The issue owns detailed evidence.
 
-B03 isolated-source verification: 38 new synthetic ownership cases and all 158 backend tests passed; Ruff and diff checks passed. This covers sequential per-owner database creation/activation, not private file lifecycle, concurrent database constraints, durable enrichment or the full private-operation matrix. Explicit auth-disabled local behavior remains, not production approval.
+B03 historical isolated-source verification: 38 new synthetic ownership cases and all 158 backend tests passed. This covers sequential database ownership/activation, not private files, concurrent constraints or durable enrichment. Explicit auth-disabled local behavior remains, not production approval.
 
-**Next implementation batch after B03 acceptance:** [B04, issue #7](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7), revision-aware private computation caching. Check B03's live delivery record before advancing. Safety remains first; B25 is required before B24, not a post-launch extension. Full-roadmap scope and modular UI/backend ownership are unchanged.
+**B04 implementation and acceptance record:** [issue #7](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7) owns the reviewed PR, exact-head/post-merge CI and final reconciliation evidence once available. Private optimizer/quant results use explicit owner/portfolio scope, current holding/history/benchmark inputs and calculation settings. Mutation generations fence cache publication; failures bypass storage. See the [cache contract and remaining revision gates](COMPUTATION_CACHE_CONTRACT.md).
+
+B04 isolated-source verification: 73 new cache/provider/HTTP cases and all 231 backend tests passed; Ruff passed. Full runtime OpenAPI is unchanged, and real optimizer/quant outputs match the accepted baseline on a fixed synthetic dataset (excluding the computation timestamp). Baseline health/readiness, unauthenticated rejection, fresh SQLite migrations and frontend type-checking passed. These do not establish production availability or general financial correctness. The revision token is an interim timestamp surrogate, not B09's required persisted revision; distributed revision/job correctness remains open.
+
+**Next implementation batch after B04 acceptance:** [B05, issue #8](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8), environment/startup/diagnostics safety. Check B04's live delivery record before advancing. Safety remains first; B25 is required before B24, not a post-launch extension. Full-roadmap scope and modular UI/backend ownership are unchanged.
 
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B04: revision-aware analytics cache contracts](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7) | After B03 acceptance: full computation identity and invalidation |
-| 2 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | Validated environment, configuration and diagnostic boundaries |
-| 3 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
-| 4 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
+| 1 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | After B04 acceptance: validated configuration and diagnostic boundaries |
+| 2 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
+| 3 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
 
@@ -45,7 +48,7 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | Milestone | Current evidence / gate |
 |---|---|
 | M0 baseline/tracking | B00 accepted; B01 publication acceptance is recorded in issue #4 |
-| M1 safe foundation | B02 accepted in issue #5; B03 delivery evidence in issue #6; B04-B07 remain. These bounded slices do not establish full private-operation isolation |
+| M1 safe foundation | B02/B03 accepted; B04 delivery evidence in issue #7; B05-B07 remain. These bounded slices do not establish full private-operation isolation |
 | M2 data contracts | B08/B09 ownership/revision/API/database gates remain |
 | M3 import/enrichment | B10-B14 durable lifecycle and recovery gates remain |
 | M4 financial correctness | B15-B17 provider/quality/numerical acceptance remains |
@@ -74,4 +77,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B03 issue #6 and scope decision #12. If B03 acceptance is complete, start B04 issue #7 on a verified current main; otherwise finish B03 acceptance first. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat accepted baseline work or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts.
+Read B04 issue #7 and scope decision #12. If B04 acceptance is complete, start B05 issue #8 on a verified current main; otherwise finish B04 acceptance first. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat accepted baseline work or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.

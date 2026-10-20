@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.data_providers.base import BaseDataProvider
 from app.data_providers.file_provider import FileDataProvider
 from app.schemas.portfolio import HoldingBase
+from app.services.computation_cache import PortfolioComputationScope
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ class UploadedPortfolioProvider(BaseDataProvider):
         # Tenancy scope. None → legacy global active portfolio (AUTH_ENABLED off).
         self._user_id = user_id
         self._market_proxy = FileDataProvider()
+        self._computation_scope = None
+
+    @property
+    def computation_cache_scope(self) -> PortfolioComputationScope | None:
+        return self._computation_scope
 
     @property
     def mode_name(self) -> str:
@@ -42,6 +48,7 @@ class UploadedPortfolioProvider(BaseDataProvider):
         return True
 
     async def get_holdings(self) -> list[HoldingBase]:
+        self._computation_scope = None
         if self._db is None:
             logger.error("UploadedPortfolioProvider.get_holdings() called without a db session")
             raise RuntimeError("UploadedPortfolioProvider requires a database session")
@@ -52,11 +59,13 @@ class UploadedPortfolioProvider(BaseDataProvider):
         if self._user_id is not None:
             query = query.filter(Portfolio.user_id == self._user_id)
         if self._portfolio_id is not None:
-            active = query.filter(Portfolio.id == self._portfolio_id).first()
+            active = query.filter(Portfolio.id == self._portfolio_id).populate_existing().first()
         else:
-            active = query.filter(Portfolio.is_active.is_(True)).first()
+            active = query.filter(Portfolio.is_active.is_(True)).populate_existing().first()
         if active is None:
             return []
+
+        self._computation_scope = PortfolioComputationScope.from_portfolio(self._user_id, active)
 
         return [
             HoldingBase(
