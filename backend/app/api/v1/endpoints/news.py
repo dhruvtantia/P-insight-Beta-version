@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from typing import Literal, Optional
 
 from app.core.config import settings
+from app.core.public_errors import FailureReason
 from app.core.dependencies import DataProvider
 from app.services.feature_registry import feature_dependency
 
@@ -162,10 +163,10 @@ async def get_news(
                 tickers=ticker_list,
                 event_type=event_type,
             )
-        except Exception as exc:
+        except Exception:
             articles = []
             news_status = "unavailable"
-            news_reason = f"{type(exc).__name__}: {str(exc)[:120]}"
+            news_reason = FailureReason.NEWS_FAILED.value
 
     is_live = provider.mode_name == "live"
     # news_unavailable is reserved for provider/configuration failures.
@@ -221,10 +222,10 @@ async def get_events(
         )
         events_status = "ok" if events else "empty"
         events_reason = None if events else "No corporate events matched the requested tickers or filters"
-    except Exception as exc:
+    except Exception:
         events = []
         events_status = "unavailable"
-        events_reason = f"{type(exc).__name__}: {str(exc)[:120]}"
+        events_reason = FailureReason.EVENTS_FAILED.value
 
     is_live = provider.mode_name == "live"
     news_key_configured = bool(settings.NEWS_API_KEY)

@@ -132,7 +132,7 @@ async def get_upload_status(
     try:
         return JobStatusService(db).get_upload_enrichment_status(portfolio_id, user_id=user_id)
     except JobStatusNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found") from exc
     except Exception as exc:
         raise PublicServiceError(
             status_code=500,
@@ -214,7 +214,7 @@ async def get_upload_status_v2(
     try:
         return JobStatusService(db).get_upload_enrichment_status(portfolio_id, user_id=user_id)
     except JobStatusNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=f"Portfolio {portfolio_id} not found") from exc
     except Exception as exc:
         raise PublicServiceError(
             status_code=500,

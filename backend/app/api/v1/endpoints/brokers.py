@@ -101,11 +101,11 @@ async def connect_broker(
     svc = BrokerService(db, user_id=user_id)
     try:
         return svc.connect(portfolio_id, body)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Portfolio or broker not found.") from None
     except Exception as exc:
         logger.error("connect_broker error: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Broker operation failed.") from None
 
 
 # ─── Sync ─────────────────────────────────────────────────────────────────────
@@ -120,17 +120,18 @@ async def sync_broker(portfolio_id: int, db: DbSession, user_id: CurrentUserId =
     Pull current holdings from the connected broker and replace
     the portfolio's holdings (with pre/post snapshots for history).
 
-    Returns HTTP 501 with `scaffolded: true` for unimplemented connectors.
+    Unimplemented connectors return success=false and scaffolded=true;
+    the connection stays pending and holdings are not replaced.
     Returns HTTP 400 if no connection exists or state is not connected.
     """
     svc = BrokerService(db, user_id=user_id)
     try:
         return svc.sync(portfolio_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Broker connection unavailable. Connect first.") from None
     except Exception as exc:
         logger.error("sync_broker error: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Broker operation failed.") from None
 
 
 # ─── Disconnect ───────────────────────────────────────────────────────────────
@@ -145,5 +146,5 @@ async def disconnect_broker(portfolio_id: int, db: DbSession, user_id: CurrentUs
     svc = BrokerService(db, user_id=user_id)
     try:
         return svc.disconnect(portfolio_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Portfolio or broker connection not found.") from None

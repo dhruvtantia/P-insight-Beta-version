@@ -33,6 +33,7 @@ Live mode:  yfinance via LiveAPIProvider.get_price_history(), TTL-cached.
 """
 
 import logging
+from app.core.public_errors import FailureReason, public_reason
 import asyncio
 from copy import deepcopy
 import numpy as np
@@ -375,7 +376,7 @@ class QuantAnalyticsService:
                 "benchmark_name":      bench_data["name"],
                 "benchmark_source":    bench_data["source"],
                 "benchmark_available": benchmark_ok,
-                "benchmark_error":     bench_data.get("error"),
+                "benchmark_error":     public_reason(bench_data.get("error"), FailureReason.BENCHMARK_FAILED),
                 "risk_free_rate":      RISK_FREE_RATE,
                 "methodology":         "daily_simple_returns_geometric_annualized",
                 "weighting_status":    "current_price",
@@ -468,7 +469,7 @@ class QuantAnalyticsService:
                 return h.ticker, [], "unavailable", "fetch timed out"
             except Exception as e:
                 logger.warning(f"Price history error for {h.ticker}: {e}")
-                return h.ticker, [], "unavailable", f"fetch error ({type(e).__name__})"
+                return h.ticker, [], "unavailable", FailureReason.PROVIDER_FAILED.value
 
         tasks   = [_fetch_one(h) for h in holdings]
         results = await asyncio.gather(*tasks)

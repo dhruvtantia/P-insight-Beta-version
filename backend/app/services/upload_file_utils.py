@@ -11,11 +11,14 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+from pydantic import TypeAdapter, ValidationError
 
+from app.core.public_errors import FailureReason
 from app.ingestion.normalizer import read_file_as_dataframe
 
 ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 MAX_FILE_SIZE_MB = 10
+_COLUMN_MAPPING = TypeAdapter(dict[str, str | None])
 
 
 class UploadServiceError(Exception):
@@ -25,6 +28,15 @@ class UploadServiceError(Exception):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
+
+
+def parse_column_mapping(value: str) -> dict[str, str | None]:
+    try:
+        return _COLUMN_MAPPING.validate_json(value, strict=True)
+    except ValidationError:
+        raise UploadServiceError(
+            422, "Invalid column_mapping JSON: expected an object mapping fields to column names or null."
+        ) from None
 
 
 def upload_filename(filename: str | None) -> str:
@@ -60,6 +72,6 @@ def load_dataframe_from_upload(filename: str | None, content: bytes) -> pd.DataF
     try:
         return read_file_as_dataframe(tmp_path)
     except Exception as exc:
-        raise UploadServiceError(422, f"Could not read file: {exc}") from exc
+        raise UploadServiceError(422, FailureReason.FILE_READ.value) from exc
     finally:
         tmp_path.unlink(missing_ok=True)

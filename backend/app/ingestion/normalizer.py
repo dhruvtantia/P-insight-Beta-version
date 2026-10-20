@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+from app.core.public_errors import FailureReason
 
 from app.schemas.portfolio import HoldingBase
 
@@ -213,11 +214,11 @@ def normalize_to_holdings(
                 data_source="uploaded",
             )
             holdings.append(h)
-        except Exception as exc:
+        except Exception:
             skipped.append({
                 "row_index":  int(idx),       # type: ignore[arg-type]
                 "raw_ticker": row.get("ticker"),
-                "error":      str(exc),
+                "error":      FailureReason.INVALID_ROW.value,
             })
 
     return holdings, skipped

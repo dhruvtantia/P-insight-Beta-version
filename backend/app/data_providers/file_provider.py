@@ -18,6 +18,7 @@ Fundamentals & Peers:
 """
 
 import logging
+from app.core.public_errors import FailureReason, public_provider_result
 from pathlib import Path
 from typing import Optional
 import pandas as pd
@@ -195,7 +196,7 @@ class FileDataProvider(BaseDataProvider):
             for variant in _resolve_ticker_variants(ticker):
                 cached = _fund_from_cache(variant)
                 if cached:
-                    return {"ticker": ticker, **cached, "from_cache": True}
+                    return {"ticker": ticker, **public_provider_result(cached), "from_cache": True}
 
             # Fetch from yfinance (handles variant resolution internally)
             data = _fetch_fundamentals_single(ticker)
@@ -212,14 +213,14 @@ class FileDataProvider(BaseDataProvider):
             if resolved != ticker:
                 _store_fund(ticker, data)
 
-            return {"ticker": ticker, **data}
+            return {"ticker": ticker, **public_provider_result(data)}
 
         except Exception as exc:
             logger.warning("Fundamentals proxy failed for %s: %s", ticker, exc)
             return {
                 "ticker": ticker,
                 "source": "unavailable",
-                "error":  str(exc),
+                "error":  FailureReason.PROVIDER_FAILED.value,
             }
 
     async def get_news(self, tickers: list[str], event_type: Optional[str] = None) -> list[dict]:
@@ -273,7 +274,7 @@ class FileDataProvider(BaseDataProvider):
                 "peer_source": "none",
                 "peer_source_label": "No peer universe found",
                 "peer_discovery_status": "error",
-                "peer_discovery_reason": str(exc),
+                "peer_discovery_reason": FailureReason.PEERS_FAILED.value,
                 "peer_universe_static": False,
             }
         return {

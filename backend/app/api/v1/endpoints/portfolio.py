@@ -8,6 +8,7 @@ All routes use the data provider pattern via dependency injection.
 import os
 import shutil
 from pathlib import Path
+from app.core.public_errors import FailureReason
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 
 from app.core.dependencies import DbSession, DataProvider, CurrentUserId
@@ -124,15 +125,15 @@ async def upload_portfolio(db: DbSession, user_id: CurrentUserId, file: UploadFi
     # Parse and cache in FileDataProvider
     try:
         holdings = FileDataProvider.load_from_file(str(save_path))
-    except (ValueError, Exception) as e:
+    except Exception:
         os.remove(save_path)
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=FailureReason.FILE_READ.value) from None
 
     try:
         from app.services.portfolio_manager import PortfolioManagerService
         PortfolioManagerService(db, user_id=user_id).save_uploaded_portfolio(holdings, filename=file.filename or "upload")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Could not persist upload: {exc}")
+    except Exception:
+        raise HTTPException(status_code=500, detail=FailureReason.SAVE_FAILED.value) from None
 
     return UploadResponse(
         success=True,

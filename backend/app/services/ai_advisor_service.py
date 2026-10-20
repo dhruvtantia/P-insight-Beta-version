@@ -43,6 +43,7 @@ from app.schemas.advisor   import (
 from app.services.context_builder import PortfolioContextBuilder, PortfolioContext
 from app.services.portfolio_service import PortfolioReadService
 from app.core.config import settings
+from app.core.public_errors import FailureReason
 
 logger = logging.getLogger(__name__)
 
@@ -400,7 +401,7 @@ class AIAdvisorService:
         # Resolve portfolio
         try:
             pid = self._resolve_portfolio_id(req.portfolio_id)
-        except ValueError as e:
+        except ValueError:
             return AIAdvisorResponse(
                 query         = req.query,
                 summary       = "",
@@ -408,7 +409,7 @@ class AIAdvisorService:
                 recommendations = [],
                 follow_ups    = [],
                 fallback_used = True,
-                error_message = str(e),
+                error_message = FailureReason.NO_PORTFOLIO.value,
             )
 
         # Build context
@@ -423,7 +424,7 @@ class AIAdvisorService:
                 recommendations = [],
                 follow_ups    = [],
                 fallback_used = True,
-                error_message = f"Context build failed: {e}",
+                error_message = FailureReason.CONTEXT_FAILED.value,
             )
 
         # Build system prompt — include optimization narrative if requested
@@ -450,7 +451,7 @@ class AIAdvisorService:
                 raw_response = _call_anthropic(system_prompt, req.query, history)
             except Exception as e:
                 logger.warning("Anthropic advisor call failed: %s", e)
-                raw_response = _fallback_signal(str(e))
+                raw_response = _fallback_signal(FailureReason.ADVISOR_FAILED.value)
 
         latency_ms = int((time.monotonic() - t0) * 1000)
 

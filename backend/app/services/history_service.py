@@ -44,6 +44,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import func
+from app.core.public_errors import FailureReason, public_reason
 from sqlalchemy.orm import Session
 from app.services.cache_service import HistoryBuildStatusStore
 
@@ -86,7 +87,7 @@ def set_history_build_status(
         status,
         rows_written=rows_written,
         benchmark_rows=benchmark_rows,
-        error=error,
+        error=public_reason(error, FailureReason.HISTORY_FAILED),
         note=note,
     )
 
@@ -107,7 +108,9 @@ def get_history_build_status(portfolio_id: int) -> dict:
     'unknown' means no upload has been triggered in this server session
     (the DB may still have data from a prior session).
     """
-    return _HISTORY_BUILD_STATUS.get_status(portfolio_id)
+    state = dict(_HISTORY_BUILD_STATUS.get_status(portfolio_id))
+    state["error"] = public_reason(state.get("error"), FailureReason.HISTORY_FAILED)
+    return state
 
 
 # ─── Build + Store ─────────────────────────────────────────────────────────────
@@ -306,8 +309,8 @@ def build_and_store_portfolio_history(
             "Failed to build portfolio history (portfolio_id=%s): %s",
             portfolio_id, exc, exc_info=True,
         )
-        set_history_build_status(portfolio_id, "failed", error=str(exc))
-        return {"rows_written": 0, "benchmark_rows": 0, "error": str(exc), "note": None}
+        set_history_build_status(portfolio_id, "failed", error=FailureReason.HISTORY_FAILED.value)
+        return {"rows_written": 0, "benchmark_rows": 0, "error": FailureReason.HISTORY_FAILED.value, "note": None}
 
 
 def _extract_closes(raw, tickers: list[str]) -> "dict[str, pd.Series]":

@@ -29,6 +29,7 @@ import concurrent.futures
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
+from app.core.public_errors import FailureReason, public_reason
 
 from app.schemas.portfolio import HoldingBase
 
@@ -117,7 +118,7 @@ class EnrichmentRecord:
             "sector_status":       self.sector_status,
             "name_status":         self.name_status,
             "attempted_sources":   self.attempted_sources,
-            "enrichment_reason":   self.enrichment_reason,
+            "enrichment_reason":   public_reason(self.enrichment_reason, FailureReason.ENRICHMENT_FAILED),
             "fundamentals_status": self.fundamentals_status,
             "enrichment_status":   self.enrichment_status,
         }

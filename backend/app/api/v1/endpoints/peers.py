@@ -59,6 +59,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from app.core.dependencies import DataProvider
+from app.core.public_errors import FailureReason, public_reason
 from app.services.feature_registry import feature_dependency
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ def _extract(fundamentals: dict, ticker: str) -> dict:
     out: dict = {
         "ticker": ticker,
         "source": fundamentals.get("source", "unknown"),
-        "error":  fundamentals.get("error"),
+        "error":  public_reason(fundamentals.get("error"), FailureReason.PROVIDER_FAILED),
     }
     for field in FUND_FIELDS:
         out[field] = fundamentals.get(field)
@@ -150,7 +151,10 @@ async def _discover_peers(provider: DataProvider, ticker: str) -> dict:
         "peer_source": discovery.get("peer_source") or "unknown",
         "peer_source_label": discovery.get("peer_source_label") or "Unknown peer source",
         "peer_discovery_status": status,
-        "peer_discovery_reason": discovery.get("peer_discovery_reason"),
+        "peer_discovery_reason": (
+            public_reason(discovery.get("peer_discovery_reason"), FailureReason.PEERS_FAILED)
+            if status == "error" else discovery.get("peer_discovery_reason")
+        ),
         "peer_universe_static": discovery.get("peer_universe_static"),
     }
 
@@ -244,8 +248,8 @@ async def get_peers(ticker: str, provider: DataProvider):
                     "source": "timeout",
                     "error":  f"Timed out after {_PEER_TIMEOUT_SECS:.0f}s",
                 }
-            except Exception as exc:  # noqa: BLE001
-                return {"source": "unavailable", "error": str(exc)}
+            except Exception:  # noqa: BLE001
+                return {"source": "unavailable", "error": FailureReason.PROVIDER_FAILED.value}
 
         peer_funds = await asyncio.gather(
             *[_fetch_with_timeout(peer) for peer in peer_tickers],
@@ -319,7 +323,7 @@ async def get_peers(ticker: str, provider: DataProvider):
         "peer_discovery_reason": peer_discovery["peer_discovery_reason"],
         "peer_universe_static": peer_discovery["peer_universe_static"],
         "selected_fundamentals_available": selected_fundamentals_available,
-        "selected_fundamentals_error": selected_fund.get("error"),
+        "selected_fundamentals_error": public_reason(selected_fund.get("error"), FailureReason.PROVIDER_FAILED),
         # as_of — aligned with /analytics/ratios and /quant/full meta.as_of.
         # fetched_at is kept for backward compatibility.
         "as_of":                fetched_at,

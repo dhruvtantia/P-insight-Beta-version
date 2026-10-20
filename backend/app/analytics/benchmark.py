@@ -15,6 +15,7 @@ Cache: in-process, 1-hour TTL for live data.
 
 import time
 import logging
+from app.core.public_errors import FailureReason
 import numpy as np
 from datetime import date, timedelta
 from typing import Optional
@@ -144,7 +145,7 @@ def fetch_benchmark_live(period: str = "1y") -> dict:
             "period": period,
             "data":   [],
             "source": "unavailable",
-            "error":  str(e),
+            "error":  FailureReason.BENCHMARK_FAILED.value,
         }
 
 

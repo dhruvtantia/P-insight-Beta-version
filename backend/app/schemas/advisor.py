@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Optional
 from pydantic import BaseModel, Field
+from app.core.public_errors import SafeAdvisorReason
 
 
 # ─── Request ──────────────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ class AIAdvisorResponse(BaseModel):
     model:           Optional[str] = None
     latency_ms:      int       = 0
     fallback_used:   bool      = False
-    error_message:   Optional[str] = None
+    error_message:   Optional[SafeAdvisorReason] = None
 
     # What was included in context
     context_summary: Optional[ContextSummary] = None

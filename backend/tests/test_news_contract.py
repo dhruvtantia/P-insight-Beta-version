@@ -92,7 +92,8 @@ def test_news_contract_marks_provider_failure_unavailable(client, monkeypatch):
     assert payload["articles"] == []
     assert payload["news_status"] == "unavailable"
     assert payload["news_unavailable"] is True
-    assert "quota exceeded" in payload["news_reason"]
+    assert payload["news_reason"] == "News provider unavailable. Retry later."
+    assert "quota exceeded" not in payload["news_reason"]
 
 
 @pytest.mark.parametrize(

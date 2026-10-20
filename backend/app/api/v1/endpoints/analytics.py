@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from app.core.dependencies import DbSession, DataProvider, CurrentUserId
+from app.core.public_errors import FailureReason, public_provider_result, public_reason
 from app.services.portfolio_service import PortfolioService
 from app.services.fundamentals_view_service import (
     compute_weighted_metrics,
@@ -165,7 +166,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
 
         if is_unavailable:
             unavailable_tickers.append(h.ticker)
-            reason = fundamentals.get("error") or "No fundamentals data returned"
+            reason = public_reason(fundamentals.get("error"), FailureReason.PROVIDER_FAILED) or "No fundamentals data returned"
             excluded_reason[h.ticker] = reason
             logger.debug(
                 "Fundamentals unavailable for %s: %s",
@@ -176,7 +177,7 @@ async def get_financial_ratios(db: DbSession, provider: DataProvider):
         # Forward only the fields FinancialRatioResponse knows about.
         # Extra keys (e.g. resolved_ticker, sector_source) are stripped here
         # rather than relying on Pydantic's silent extra-field handling.
-        extra = {k: v for k, v in fundamentals.items() if k in _RATIO_PASSTHROUGH_KEYS}
+        extra = {k: v for k, v in public_provider_result(fundamentals).items() if k in _RATIO_PASSTHROUGH_KEYS}
 
         ratio_list.append(FinancialRatioResponse(
             ticker=h.ticker,

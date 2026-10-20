@@ -18,6 +18,7 @@ Three endpoints that power the AI Portfolio Copilot:
 """
 
 import logging
+from app.core.public_errors import FailureReason
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.db.database        import get_db
@@ -95,7 +96,7 @@ def ask_advisor(
             recommendations = [],
             follow_ups    = [],
             fallback_used = True,
-            error_message = f"Internal error: {e}",
+            error_message = FailureReason.ADVISOR_FAILED.value,
         )
 
 
@@ -120,8 +121,8 @@ def get_portfolio_context(
         svc     = AIAdvisorService(db, user_id=user_id)
         payload = svc.build_context_payload(portfolio_id)
         return payload
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail=FailureReason.NO_PORTFOLIO.value) from None
     except Exception as e:
         logger.error("Context endpoint error for portfolio %s: %s", portfolio_id, e)
-        raise HTTPException(status_code=500, detail=f"Failed to build context: {e}")
+        raise HTTPException(status_code=500, detail=FailureReason.CONTEXT_FAILED.value) from None

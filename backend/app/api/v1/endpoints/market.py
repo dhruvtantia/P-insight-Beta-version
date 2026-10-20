@@ -30,6 +30,7 @@ Market hours:
 import asyncio
 import concurrent.futures
 import logging
+from app.core.public_errors import FailureReason
 import time
 from datetime import datetime, timezone, timedelta, date as date_type, time as dt_time
 from typing import Optional
@@ -222,8 +223,8 @@ def _fetch_single_index(sym: str, name: str) -> dict:
             "reason": "yfinance_not_installed",
             "last_updated": fetched_at, "source": "none",
         }
-    except Exception as exc:
-        reason = f"{type(exc).__name__}: {str(exc)[:120]}"
+    except Exception:
+        reason = FailureReason.PROVIDER_FAILED.value
         logger.warning("Market index error: %s — %s", sym, reason)
         return {
             "symbol": sym, "name": name,
@@ -292,7 +293,7 @@ def _fetch_gainers_losers() -> tuple[list[dict], list[dict], dict]:
 
     except Exception as exc:
         logger.warning("Gainers/losers batch failed: %s", exc)
-        return [], [], {"status": "unavailable", "reason": f"{type(exc).__name__}: {str(exc)[:120]}", "source": "yfinance"}
+        return [], [], {"status": "unavailable", "reason": FailureReason.PROVIDER_FAILED.value, "source": "yfinance"}
 
 
 # ─── Main orchestrator ────────────────────────────────────────────────────────
@@ -351,12 +352,12 @@ def _fetch_overview() -> dict:
             sym = futures[fut]
             try:
                 results[sym] = fut.result()
-            except Exception as exc:
+            except Exception:
                 name = next((n for s, n in all_indices if s == sym), sym)
                 results[sym] = {
                     "symbol": sym, "name": name,
                     "status": "unavailable", "unavailable": True,
-                    "reason": str(exc), "source": "yfinance",
+                    "reason": FailureReason.PROVIDER_FAILED.value, "source": "yfinance",
                     "last_updated": now_utc,
                 }
 

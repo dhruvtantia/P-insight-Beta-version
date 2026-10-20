@@ -235,7 +235,7 @@ def test_upload_persistence_rejects_unscoped_context_when_auth_enabled(upload_ac
     holdings = [HoldingBase(ticker="TESTNEW", name="Synthetic", quantity=1, average_cost=100)]
     before = _database_state()
     expected_error = ValueError if boundary == "manager" else UploadServiceError
-    with pytest.raises(expected_error, match="owner context"):
+    with pytest.raises(expected_error) as error:
         if boundary == "legacy":
             upload_confirm_service._persist_legacy_base_portfolio(holdings, "guard.csv", user_id=None)
         elif boundary == "v2":
@@ -243,4 +243,9 @@ def test_upload_persistence_rejects_unscoped_context_when_auth_enabled(upload_ac
         else:
             with SessionLocal() as db:
                 PortfolioManagerService(db, user_id=None).save_uploaded_portfolio(holdings, "guard.csv")
+    cause = error.value if boundary == "manager" else error.value.__cause__
+    assert isinstance(cause, ValueError)
+    assert "owner context" in str(cause)
+    if boundary != "manager":
+        assert error.value.detail == "Could not save portfolio to database."
     assert _database_state() == before

@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from app.data_providers.base import BaseDataProvider
 from app.schemas.portfolio import HoldingBase
 from app.core.config import settings
+from app.core.public_errors import FailureReason, public_provider_result
 
 logger = logging.getLogger(__name__)
 
@@ -574,7 +575,7 @@ def _fetch_newsapi_articles(
         if data.get("status") != "ok":
             message = data.get("message") or "non-ok response"
             logger.warning("NewsAPI returned non-ok status: %s", message)
-            raise NewsAPIProviderError(f"NewsAPI returned non-ok status: {message}")
+            raise NewsAPIProviderError(FailureReason.NEWS_FAILED.value)
 
         articles: list[dict] = []
         for raw in data.get("articles", []):
@@ -609,7 +610,7 @@ def _fetch_newsapi_articles(
         if isinstance(exc, NewsAPIProviderError):
             raise
         logger.warning("NewsAPI fetch failed: %s", exc)
-        raise NewsAPIProviderError(str(exc)) from exc
+        raise NewsAPIProviderError(FailureReason.NEWS_FAILED.value) from exc
 
 
 # ─── Provider implementation ──────────────────────────────────────────────────
@@ -825,7 +826,7 @@ class LiveAPIProvider(BaseDataProvider):
                 "interval": interval,
                 "data":     [],
                 "source":   "unavailable",
-                "error":    str(e),
+                "error":    FailureReason.PROVIDER_FAILED.value,
             }
 
     # ─── Fundamentals ─────────────────────────────────────────────────────────
@@ -841,7 +842,7 @@ class LiveAPIProvider(BaseDataProvider):
         for variant in _resolve_ticker_variants(ticker):
             cached = _fund_from_cache(variant)
             if cached:
-                return {"ticker": ticker, **cached, "from_cache": True}
+                return {"ticker": ticker, **public_provider_result(cached), "from_cache": True}
 
         if not YFINANCE_AVAILABLE:
             return {
@@ -865,7 +866,7 @@ class LiveAPIProvider(BaseDataProvider):
         # Also cache under the original ticker as a convenience alias
         if resolved != ticker:
             _store_fund(ticker, data)
-        return {"ticker": ticker, **data}
+        return {"ticker": ticker, **public_provider_result(data)}
 
     # ─── News ─────────────────────────────────────────────────────────────────
 
