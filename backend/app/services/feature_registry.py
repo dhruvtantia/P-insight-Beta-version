@@ -8,9 +8,8 @@ to discover whether a feature is attached, degraded, or intentionally disabled.
 
 from collections.abc import Callable
 
-from fastapi import HTTPException
-
 from app.core.config import settings
+from app.core.errors import PublicServiceError
 from app.schemas.system import FeatureDependencyHealth, FeatureHealth, FeatureRegistryResponse
 
 
@@ -249,7 +248,7 @@ def require_feature(feature_id: str) -> FeatureHealth:
     """Raise a typed 503 if a feature is disconnected or unavailable."""
     feature = get_feature(feature_id)
     if feature is None:
-        raise HTTPException(
+        raise PublicServiceError(
             status_code=503,
             detail={
                 "feature_id": feature_id,
@@ -262,7 +261,7 @@ def require_feature(feature_id: str) -> FeatureHealth:
             },
         )
     if feature.status in {"disabled", "unavailable"}:
-        raise HTTPException(
+        raise PublicServiceError(
             status_code=503,
             detail=_feature_boundary_detail(feature),
         )

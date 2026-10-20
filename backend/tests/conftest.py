@@ -11,6 +11,8 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_DB_PATH}"
 os.environ.setdefault("DOCS_ENABLED", "false")
 os.environ.setdefault("DEFAULT_DATA_MODE", "uploaded")
 os.environ.setdefault("AUTH_ENABLED", "false")
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("LOCAL_DB_BOOTSTRAP", "true")
 
 import pytest
 from fastapi.testclient import TestClient

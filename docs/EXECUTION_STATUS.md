@@ -31,13 +31,17 @@ B03 historical isolated-source verification: 38 new synthetic ownership cases an
 
 B04 isolated-source verification: 73 new cache/provider/HTTP cases and all 231 backend tests passed; Ruff passed. Full runtime OpenAPI is unchanged, and real optimizer/quant outputs match the accepted baseline on a fixed synthetic dataset (excluding the computation timestamp). Baseline health/readiness, unauthenticated rejection, fresh SQLite migrations and frontend type-checking passed. These do not establish production availability or general financial correctness. The revision token is an interim timestamp surrogate, not B09's required persisted revision; distributed revision/job correctness remains open.
 
-**Next implementation batch after B04 acceptance:** [B05, issue #8](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8), environment/startup/diagnostics safety. Check B04's live delivery record before advancing. Safety remains first; B25 is required before B24, not a post-launch extension. Full-roadmap scope and modular UI/backend ownership are unchanged.
+**B04 accepted:** [issue #7](https://github.com/dhruvtantia/P-insight-Beta-version/issues/7), [PR #16](https://github.com/dhruvtantia/P-insight-Beta-version/pull/16), historical merge anchor `cfee8046532f925ed67b646e33274d733564b26e`. Exact-head/post-merge CI passed and local baselines were safely reconciled. The issue owns detailed final evidence; the interim-revision limitations above remain.
+
+**B05 first slice:** [issue #8](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) owns this slice's PR, exact-head/post-merge checks and reconciliation evidence once available. Validated settings reject incompatible staging/production configuration; managed startup checks migration stamps read-only, while disposable SQLite bootstrap requires explicit opt-in. Public health is minimal, diagnostics are local-only, and generic transport/JWT/readiness failures are sanitized. The frontend diagnostic consumer is updated. See the [runtime safety contract](RUNTIME_SAFETY.md).
+
+**B05 remains open:** finish the embedded provider/job/parser error-message boundaries and focused regression coverage before whole-batch acceptance or B06. Central exception handlers do not sanitize arbitrary data already returned inside JSON. Safety remains first; B25 is required before B24, not a post-launch extension. Full-roadmap scope and modular UI/backend ownership are unchanged.
 
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | After B04 acceptance: validated configuration and diagnostic boundaries |
+| 1 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | Accept the first slice, then finish embedded-error boundaries before closing B05 |
 | 2 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
 | 3 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
 
@@ -48,7 +52,7 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | Milestone | Current evidence / gate |
 |---|---|
 | M0 baseline/tracking | B00 accepted; B01 publication acceptance is recorded in issue #4 |
-| M1 safe foundation | B02/B03 accepted; B04 delivery evidence in issue #7; B05-B07 remain. These bounded slices do not establish full private-operation isolation |
+| M1 safe foundation | B02-B04 accepted; B05 first slice in issue #8; remaining B05 work and B06/B07 remain. These bounded slices do not establish full private-operation isolation |
 | M2 data contracts | B08/B09 ownership/revision/API/database gates remain |
 | M3 import/enrichment | B10-B14 durable lifecycle and recovery gates remain |
 | M4 financial correctness | B15-B17 provider/quality/numerical acceptance remains |
@@ -77,4 +81,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B04 issue #7 and scope decision #12. If B04 acceptance is complete, start B05 issue #8 on a verified current main; otherwise finish B04 acceptance first. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat accepted baseline work or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.
+Read B05 issue #8 and scope decision #12. Complete any pending first-slice delivery checks, then finish the B05 embedded-error inventory and safe contracts on verified current main. Do not start B06 until whole-batch acceptance. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not repeat accepted baseline work or start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.

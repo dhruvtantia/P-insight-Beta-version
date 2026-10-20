@@ -1,22 +1,26 @@
 """
 Database Initialisation
 -------------------------
-Creates all tables on application startup.
-Also runs lightweight column migrations for additive schema changes
-so existing SQLite databases are upgraded automatically.
+Verifies Alembic stamps on managed databases without changing schema.
+Explicit LOCAL_DB_BOOTSTRAP permits disposable development/test SQLite only.
 
 Migration policy (Phase 0 hardening):
   - Alembic is now the CANONICAL migration mechanism for staging/production
     (see backend/alembic/). Run `alembic upgrade head` against PostgreSQL.
   - The create_all + _COLUMN_MIGRATIONS block below is retained only as the
-    zero-config bootstrap for local development and the test suite (which
+    explicit bootstrap for local development and the test suite (which
     builds its schema via Base.metadata.create_all in tests/conftest.py).
-    It is a no-op on fresh, Alembic-managed databases.
+    It never runs on managed databases.
 """
 
 import logging
+from pathlib import Path
 
-from sqlalchemy import text
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import inspect, text
+from app.core.config import settings
 from app.db.database import engine, Base
 
 # Import all models so SQLAlchemy registers them before create_all
@@ -31,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Column additions for existing tables ─────────────────────────────────────
 # Each entry: (table, column, sqlite_type, default_expression)
-# We use "IF NOT EXISTS" via a try/except because SQLite does not support it.
+# Column inspection avoids swallowing unrelated database failures.
 
 _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
     ("portfolios", "is_active",        "BOOLEAN",     "0"),
@@ -75,17 +79,32 @@ _COLUMN_MIGRATIONS: list[tuple[str, str, str, str]] = [
 
 def _run_column_migrations() -> None:
     """Idempotently add new columns to existing tables."""
+    columns = {}
+    inspector = inspect(engine)
     with engine.connect() as conn:
         for table, col, col_type, default in _COLUMN_MIGRATIONS:
-            try:
-                conn.execute(
-                    text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type} DEFAULT {default}")
-                )
-                conn.commit()
-                logger.info("Migration: added column %s.%s", table, col)
-            except Exception:
-                # Column already exists — safe to ignore
-                pass
+            if table not in columns:
+                columns[table] = {item["name"] for item in inspector.get_columns(table)}
+            if col in columns[table]:
+                continue
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type} DEFAULT {default}"))
+            conn.commit()
+            columns[table].add(col)
+            logger.info("Local bootstrap added column %s.%s", table, col)
+
+
+def verify_managed_schema() -> None:
+    """Read the migration stamp only; migration jobs own all deployed DDL."""
+    config = Config()
+    config.set_main_option("script_location", str(Path(__file__).resolve().parents[2] / "alembic"))
+    expected = set(ScriptDirectory.from_config(config).get_heads())
+    try:
+        with engine.connect() as connection:
+            current = set(MigrationContext.configure(connection).get_current_heads())
+    except Exception:
+        raise RuntimeError("Database migration check failed; verify connectivity and migration state") from None
+    if not expected or current != expected:
+        raise RuntimeError("Database migration required; run the reviewed Alembic upgrade before startup")
 
 
 def _seed_mock_portfolio() -> None:
@@ -124,7 +143,14 @@ def _seed_mock_portfolio() -> None:
 
 
 def init_db() -> None:
-    """Create all database tables and run migrations."""
+    """Verify managed schema, or explicitly bootstrap disposable local SQLite."""
+    if not settings.LOCAL_DB_BOOTSTRAP:
+        verify_managed_schema()
+        logger.info("Database migration stamp verified")
+        return
+    # Defense in depth if code mutates the shared settings after validation.
+    if settings.APP_ENV not in {"development", "test"} or engine.dialect.name != "sqlite":
+        raise RuntimeError("Local database bootstrap is not permitted for this environment")
     # 1. Create new tables (idempotent)
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
@@ -138,4 +164,4 @@ def init_db() -> None:
     #    (GET /portfolio returned 0 holdings while the portfolio selector showed
     #    a "Demo Portfolio" entry).  The function body is kept for reference.
 
-    print("✅ Database initialised")
+    logger.info("Local database bootstrap complete")

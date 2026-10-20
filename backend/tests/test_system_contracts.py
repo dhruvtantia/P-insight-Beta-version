@@ -4,11 +4,7 @@ def test_health_contract(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "healthy"
-    assert isinstance(payload["app"], str)
-    assert isinstance(payload["version"], str)
-    assert isinstance(payload["env"], str)
-    assert isinstance(payload["features"], dict)
-    assert isinstance(payload["api_keys"], dict)
+    assert set(payload) == {"status"}
 
 
 def test_readiness_contract(client):
