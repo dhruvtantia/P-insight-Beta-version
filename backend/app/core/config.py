@@ -4,13 +4,54 @@ P-Insight Core Configuration
 Centralised settings loaded from environment variables (.env file).
 All environment-specific values live here — never hard-coded elsewhere.
 
-Quick-start defaults are safe for local development.
-For production, set APP_ENV=production and override dangerous defaults
-(DEBUG, ALLOWED_ORIGINS, DOCS_ENABLED) via environment variables or a
-.env file.  See DEPLOYMENT.md for the full checklist.
+See docs/RUNTIME_SAFETY.md for local bootstrap and managed deployment policy.
 """
 
-from pydantic_settings import BaseSettings
+import ipaddress
+import json
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
+
+from pydantic import AnyHttpUrl, TypeAdapter, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+_HTTP_URL = TypeAdapter(AnyHttpUrl)
+
+
+def _origin(value: str, *, deployed: bool = False) -> str:
+    """Validate a browser origin, not an arbitrary URL or CORS pattern."""
+    try:
+        parsed = urlsplit(value)
+        # Pydantic normalizes browser-style numeric hosts (e.g. 127.1) too.
+        canonical = urlsplit(str(_HTTP_URL.validate_python(value)))
+        host = canonical.hostname
+        port = parsed.port
+        if (
+            not host or parsed.scheme not in {"http", "https"}
+            or parsed.username is not None or parsed.password is not None
+            or parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+            or "?" in value or "#" in value or "*" in value or "\\" in value
+            or any(char.isspace() or ord(char) < 32 for char in value)
+        ):
+            raise ValueError
+        if deployed:
+            local_host = host.rstrip(".")
+            if parsed.scheme != "https" or local_host == "localhost" or local_host.endswith(".localhost"):
+                raise ValueError
+            try:
+                address = ipaddress.ip_address(host)
+            except ValueError:
+                address = None
+            if address is not None and (address.is_loopback or address.is_unspecified):
+                raise ValueError
+        authority = f"[{host}]" if ":" in host else host
+        if port is not None and port != (443 if parsed.scheme == "https" else 80):
+            authority += f":{port}"
+        return f"{parsed.scheme}://{authority}"
+    except (TypeError, ValueError):
+        raise ValueError("Expected an exact HTTP(S) origin without credentials, path or wildcards") from None
 
 
 class Settings(BaseSettings):
@@ -18,19 +59,19 @@ class Settings(BaseSettings):
     APP_NAME:    str  = "P-Insight API"
     APP_VERSION: str  = "0.1.0"
 
-    # "development" | "staging" | "production"
-    APP_ENV: str = "development"
+    # Unknown environment names fail closed instead of falling back to local behavior.
+    APP_ENV: Literal["development", "test", "staging", "production"] = "development"
 
     # Set False in production — True is only safe locally
     DEBUG: bool = False
 
     # ─── Logging ─────────────────────────────────────────────────────────────
     # "DEBUG" | "INFO" | "WARNING" | "ERROR"
-    LOG_LEVEL: str = "INFO"
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     # ─── API Docs ────────────────────────────────────────────────────────────
     # Disable Swagger UI + ReDoc in production to reduce attack surface.
-    # Override with DOCS_ENABLED=true when you need them behind a VPN etc.
+    # Only development/test may expose docs or the raw OpenAPI schema.
     DOCS_ENABLED: bool = False
 
     # ─── CORS ────────────────────────────────────────────────────────────────
@@ -39,7 +80,7 @@ class Settings(BaseSettings):
     # Fallback (single origin, kept for backwards-compat):
     #   FRONTEND_URL=http://localhost:3000
     # If ALLOWED_ORIGINS is non-empty it takes precedence over FRONTEND_URL.
-    ALLOWED_ORIGINS: list[str] = []
+    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = []
     FRONTEND_URL:    str       = "http://localhost:3000"
 
     # ─── Database ────────────────────────────────────────────────────────────
@@ -47,9 +88,10 @@ class Settings(BaseSettings):
     #   DATABASE_URL=sqlite:///./p_insight.db
     # PostgreSQL (production):
     #   DATABASE_URL=postgresql+psycopg2://user:password@host:5432/p_insight
-    #   pip install psycopg2-binary   (or asyncpg for async drivers)
-    #   Then run: alembic upgrade head
+    #   Use the locked sync driver, then run: alembic upgrade head
     DATABASE_URL: str = "sqlite:///./p_insight.db"
+    # Explicit opt-in for disposable local SQLite only; never deployed DDL.
+    LOCAL_DB_BOOTSTRAP: bool = False
 
     # ─── Authentication & Tenancy (Supabase Auth) ───────────────────────────
     # AUTH_ENABLED gates the whole tenancy layer. When False (local/dev/test
@@ -63,20 +105,16 @@ class Settings(BaseSettings):
     # to the frontend as NEXT_PUBLIC_SUPABASE_URL.
     SUPABASE_URL: str = ""
 
-    # HS256 verification secret (Supabase project "JWT Secret"). This is the
-    # simplest server-side verification path and is what Supabase uses by
-    # default. Keep it secret; never expose to the frontend.
+    # Optional legacy HS256 secret. ES256/RS256 use SUPABASE_URL + JWKS instead.
+    # Never expose this value to the frontend.
     SUPABASE_JWT_SECRET: str = ""
 
     # Expected `aud` claim on Supabase access tokens (default "authenticated").
     SUPABASE_JWT_AUD: str = "authenticated"
 
     # ─── Data Mode ───────────────────────────────────────────────────────────
-    # Stored as a plain str so that a stale .env value (e.g. "mock") never causes
-    # a pydantic ValidationError that crashes the entire backend on startup.
-    # The routing layer (core/dependencies.py) enforces the valid values at request
-    # time and returns a 400 error for anything unsupported.
-    DEFAULT_DATA_MODE: str = "uploaded"
+    # Invalid legacy values must fail at configuration time, not during requests.
+    DEFAULT_DATA_MODE: Literal["uploaded", "live", "broker"] = "uploaded"
 
     # ─── Feature Flags ───────────────────────────────────────────────────────
     LIVE_API_ENABLED:          bool = True
@@ -110,10 +148,74 @@ class Settings(BaseSettings):
     ZERODHA_API_KEY:                str = ""
     ZERODHA_API_SECRET:             str = ""
 
-    class Config:
-        env_file      = ".env"
-        case_sensitive = True
-        extra          = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env", case_sensitive=True, extra="ignore", hide_input_in_errors=True,
+    )
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_origins(cls, value):
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            if value.lstrip().startswith("["):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    raise ValueError("ALLOWED_ORIGINS must be a JSON list or comma-separated origins") from None
+            else:
+                value = [part.strip() for part in value.split(",")]
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise ValueError("ALLOWED_ORIGINS must be a list of origins")
+        return list(dict.fromkeys(_origin(item) for item in value))
+
+    @field_validator("FRONTEND_URL")
+    @classmethod
+    def validate_frontend_origin(cls, value):
+        return _origin(value)
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def validate_database_url(cls, value):
+        try:
+            url = make_url(value)
+            if url.drivername not in {"sqlite", "sqlite+pysqlite", "postgresql", "postgresql+psycopg2"}:
+                raise ValueError
+            if url.get_backend_name() == "postgresql" and (not url.host or not url.database):
+                raise ValueError
+        except (ArgumentError, TypeError, ValueError):
+            raise ValueError("DATABASE_URL must select supported synchronous SQLite or PostgreSQL") from None
+        return value
+
+    @model_validator(mode="after")
+    def validate_runtime(self):
+        deployed = self.APP_ENV in {"staging", "production"}
+        errors = []
+        if self.LOCAL_DB_BOOTSTRAP and (deployed or not self.is_sqlite()):
+            errors.append("LOCAL_DB_BOOTSTRAP is restricted to development/test SQLite")
+        if deployed:
+            if not self.AUTH_ENABLED:
+                errors.append("AUTH_ENABLED must be true")
+            if self.DEBUG or self.LOG_LEVEL == "DEBUG":
+                errors.append("DEBUG and debug logging must be disabled")
+            if self.DOCS_ENABLED:
+                errors.append("DOCS_ENABLED must be false")
+            if self.is_sqlite():
+                errors.append("DATABASE_URL must select PostgreSQL")
+            if not self.SUPABASE_JWT_AUD.strip():
+                errors.append("SUPABASE_JWT_AUD must not be empty")
+            try:
+                _origin(self.SUPABASE_URL, deployed=True)
+            except ValueError:
+                errors.append("SUPABASE_URL must be a non-local HTTPS project origin")
+            try:
+                for origin in self.cors_origins():
+                    _origin(origin, deployed=True)
+            except ValueError:
+                errors.append("CORS origins must be exact non-local HTTPS origins")
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
     # ─── Derived helpers ──────────────────────────────────────────────────────
 
@@ -121,16 +223,12 @@ class Settings(BaseSettings):
         """
         Return the effective CORS allow-list.
         ALLOWED_ORIGINS (multi-value) takes precedence over FRONTEND_URL.
-        In development mode, localhost:3000 is always included as a convenience.
+        No localhost origins are appended implicitly.
         """
         if self.ALLOWED_ORIGINS:
             origins = list(self.ALLOWED_ORIGINS)
         else:
             origins = [self.FRONTEND_URL]
-
-        # Always allow localhost in non-production environments
-        if self.APP_ENV != "production" and "http://localhost:3000" not in origins:
-            origins.append("http://localhost:3000")
 
         return origins
 

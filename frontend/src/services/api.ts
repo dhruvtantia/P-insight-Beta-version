@@ -763,14 +763,16 @@ export const historyApi = {
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
 export const systemApi = {
-  health: () => apiFetch<{
+  health: () => apiFetch<{ status: string }>('/health'),
+
+  diagnostics: () => apiFetch<{
     status:   string
     app:      string
     version:  string
     env:      string
     features: Record<string, boolean>
     api_keys: Record<string, boolean>
-  }>('/health'),
+  }>('/api/v1/system/diagnostics'),
 
   getFeatures: async () =>
     toFeatureRegistryResponse(await apiFetch<ApiFeatureRegistryResponse>('/api/v1/system/features')),

@@ -84,8 +84,8 @@ def _decode_supabase_jwt(token: str) -> dict:
     """
     try:
         alg = jwt.get_unverified_header(token).get("alg")
-    except jwt.InvalidTokenError as exc:
-        raise AuthError(f"Invalid token: {exc}")
+    except jwt.InvalidTokenError:
+        raise AuthError("Invalid token") from None
 
     try:
         if alg == "HS256":
@@ -109,13 +109,11 @@ def _decode_supabase_jwt(token: str) -> dict:
                 algorithms=[alg],
                 audience=settings.SUPABASE_JWT_AUD,
             )
-        raise AuthError(f"Unsupported token signing algorithm: {alg}")
+        raise AuthError("Unsupported token signing algorithm")
     except jwt.ExpiredSignatureError:
         raise AuthError("Token has expired")
-    except jwt.PyJWKClientError as exc:
-        raise AuthError(f"Invalid token: {exc}")
-    except jwt.InvalidTokenError as exc:
-        raise AuthError(f"Invalid token: {exc}")
+    except (jwt.PyJWKClientError, jwt.InvalidTokenError):
+        raise AuthError("Invalid token") from None
 
 
 def _get_or_create_user(db: Session, sub: str, email: Optional[str]) -> User:

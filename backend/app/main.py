@@ -9,7 +9,7 @@ Local dev:
 Production (example):
     gunicorn -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 app.main:app
 
-Environment variables → see app/core/config.py and DEPLOYMENT.md.
+Environment variables: see app/core/config.py and docs/RUNTIME_SAFETY.md.
 """
 
 import logging
@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.errors import install_error_handlers
 from app.api.v1.router import api_router
 from app.db.init_db import init_db
 
@@ -54,10 +55,12 @@ app = FastAPI(
         "Visit /docs for interactive API documentation."
     ),
     lifespan=lifespan,
-    # Disable interactive docs in production; enable via DOCS_ENABLED=true
+    # Docs and schema are opt-in for development/test only.
     docs_url="/docs"    if settings.DOCS_ENABLED else None,
     redoc_url="/redoc"  if settings.DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
 )
+install_error_handlers(app)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -85,40 +88,16 @@ async def health_check():
     Liveness probe — returns 200 if the process is running.
     Load balancers and uptime monitors can hit this endpoint.
 
-    Also exposes boolean API-key configuration flags (true = key is set,
-    false = key is empty/missing) so the debug panel can show which optional
-    features are available without exposing the key values themselves.
+    Deliberately exposes no version, environment, provider or key inventory.
     """
-    from app.data_providers.live_provider import YFINANCE_AVAILABLE
-
-    return {
-        "status":  "healthy",
-        "app":     settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "env":     settings.APP_ENV,
-        "features": {
-            "live_api":    settings.LIVE_API_ENABLED,
-            "broker_sync": settings.BROKER_SYNC_ENABLED,
-            "ai_chat":     settings.AI_CHAT_ENABLED,
-            "yfinance":    YFINANCE_AVAILABLE,
-        },
-        # Boolean flags only — key values are never exposed
-        "api_keys": {
-            "anthropic":      bool(settings.ANTHROPIC_API_KEY),
-            "openai":         bool(settings.OPENAI_API_KEY),
-            "news_api":       bool(settings.NEWS_API_KEY),
-            "alpha_vantage":  bool(settings.ALPHA_VANTAGE_API_KEY),
-            "fmp":            bool(settings.FINANCIAL_MODELING_PREP_API_KEY),
-            "zerodha":        bool(settings.ZERODHA_API_KEY),
-        },
-    }
+    return {"status": "healthy"}
 
 
 @app.get("/readiness", tags=["System"])
 async def readiness_check():
     """
-    Readiness probe — returns 200 only when the app can serve traffic.
-    Checks database connectivity before reporting ready.
+    Database-connectivity readiness, not provider or full-product readiness.
+    Startup separately verifies the managed migration stamp.
     Kubernetes / Render / Railway health checks should use this endpoint.
     """
     from sqlalchemy import text
@@ -132,8 +111,9 @@ async def readiness_check():
             session.execute(text("SELECT 1"))
         db_ok   = True
         db_info = "sqlite" if settings.is_sqlite() else "postgresql"
-    except Exception as exc:  # noqa: BLE001
-        db_info = f"error: {exc}"
+    except Exception:  # noqa: BLE001
+        logger.error("Readiness database connectivity check failed")
+        db_info = "unavailable"
 
     status  = "ready" if db_ok else "not_ready"
     code    = 200    if db_ok else 503

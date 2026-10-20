@@ -32,6 +32,7 @@ from fastapi import (
 )
 
 from app.core.dependencies import DbSession, CurrentUserId
+from app.core.errors import PublicServiceError
 from app.data_providers.file_provider import UPLOADS_PATH
 from app.schemas.upload import ConfirmResponse, ParseResponse
 from app.schemas.upload_v2 import V2ConfirmResponse, V2StatusResponse
@@ -133,7 +134,7 @@ async def get_upload_status(
     except JobStatusNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(
+        raise PublicServiceError(
             status_code=500,
             detail="Could not read enrichment status",
         ) from exc
@@ -215,7 +216,7 @@ async def get_upload_status_v2(
     except JobStatusNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(
+        raise PublicServiceError(
             status_code=500,
             detail="Could not read enrichment status",
         ) from exc

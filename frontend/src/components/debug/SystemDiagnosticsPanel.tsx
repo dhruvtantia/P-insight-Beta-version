@@ -4,7 +4,7 @@
  * SystemDiagnosticsPanel — developer diagnostics view (v2).
  *
  * Sections:
- *   1. API Health          — checks /health endpoint, shows feature flags
+ *   1. API Health          — checks the minimal public /health endpoint
  *   2. Data Mode           — current mode, available modes
  *   3. Active Filters      — filterStore state (sector, ticker)
  *   4. Simulation State    — simHoldings count, totalWeight, isModified
@@ -476,11 +476,11 @@ function ApiKeysSection() {
     setLoading(true)
     setError(null)
     try {
-      const res = await systemApi.health()
+      const res = await systemApi.diagnostics()
       setApiKeys(res.api_keys ?? null)
       setFeatures(res.features ?? null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach /health')
+      setError(e instanceof Error ? e.message : 'Diagnostics unavailable')
     } finally {
       setLoading(false)
     }
