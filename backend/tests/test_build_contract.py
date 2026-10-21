@@ -68,20 +68,29 @@ def test_frontend_install_is_frozen_and_uses_declared_manager():
 
 
 def test_backend_install_does_not_override_pinned_test_tools():
-    bootstrap = (ROOT / "backend/requirements-bootstrap.txt").read_text().strip()
-    assert re.fullmatch(r"pip==\d+\.\d+(?:\.\d+)?", bootstrap)
-    pins = {}
-    for line in (ROOT / "backend/requirements-lock.txt").read_text().splitlines():
-        if not line or line.startswith("#"):
-            continue
-        assert re.fullmatch(r"[\w.-]+==[\w.+-]+", line), f"Non-exact requirement: {line}"
-        name, version = line.split("==")
-        assert name.lower() not in pins
-        pins[name.lower()] = version
-    assert {"ruff", "pytest", "pytest-asyncio"} <= pins.keys()
     install = next(s["run"] for s in steps("backend") if s.get("name") == "Install dependencies")
     assert install.strip().splitlines() == [
-        "python -m pip install -r requirements-bootstrap.txt",
-        "python -m pip install -r requirements-lock.txt",
+        "python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt",
+        "python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt",
         "python -m pip check",
     ]
+
+
+def test_ci_verifies_exports_and_audits_without_ignores_or_failure_fallbacks():
+    check = next(s for s in steps("backend") if s.get("name") == "Dependency integrity and advisories")
+    commands = check["run"]
+    assert "scripts/export_dependencies.py --check" in commands
+    assert "-m pip_audit --disable-pip --no-deps --strict" in commands
+    for file in ("requirements-dev-lock.txt", "requirements-tools-lock.txt", "requirements-bootstrap.txt"):
+        assert f"-r {file}" in commands
+    assert "--require-hashes --no-deps --no-build-isolation -r requirements-tools-lock.txt" in commands
+    assert "--ignore-vuln" not in commands and "||" not in commands
+    assert check.get("continue-on-error", False) is False
+
+
+def test_ci_installs_and_imports_the_runtime_without_dev_or_maintenance_tools():
+    command = next(s["run"] for s in steps("backend") if s.get("name") == "Runtime-only installation")
+    assert "--require-hashes --no-deps --no-build-isolation -r requirements-lock.txt" in command
+    assert "from app.main import app" in command
+    assert 'all(find_spec(name) is None for name in ("pytest", "poetry", "pip_audit"))' in command
+    assert "requirements-dev-lock.txt" not in command

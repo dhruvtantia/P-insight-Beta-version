@@ -1,59 +1,74 @@
-[tool.poetry]
+[project]
 name = "p-insight-backend"
 version = "0.1.0"
 description = "P-Insight Portfolio Analytics Backend"
-authors = ["Dhruv Tantia <dhruvtantia6@gmail.com>"]
-readme = "README.md"
+authors = [{name = "Dhruv Tantia", email = "dhruvtantia6@gmail.com"}]
+readme = "../README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.135.2",
+    "starlette==1.3.1",
+    "uvicorn[standard]==0.32.1",
+    "sqlalchemy==2.0.48",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.14.2",
+    "python-dotenv==1.2.2",
+    "pandas==2.3.3",
+    "numpy==2.5.1",
+    "python-multipart==0.0.32",
+    "aiofiles==23.2.1",
+    "openpyxl==3.1.5",
+    "alembic==1.18.4",
+    "psycopg2-binary==2.9.12",
+    "pyjwt==2.15.0",
+    "cryptography==50.0.0",
+    "yfinance==0.2.66",
+    "httpx==0.27.2",
+    "scipy==1.18.0",
+    "scikit-learn==1.9.0",
+    # Keep numerical support libraries at the tested baseline too.
+    "joblib==1.5.3",
+    "threadpoolctl==3.6.0",
+    "narwhals==2.24.0",
+    "anthropic==0.117.0",
+    # Security floors for transitive dependencies; re-audit on every update.
+    "anyio>=4.14.2,<5",
+    "certifi>=2026.10.19",
+    "idna>=3.15,<4",
+    "soupsieve>=2.9,<3",
+    "urllib3>=2.8,<3",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.115.0"
-uvicorn = {extras = ["standard"], version = "^0.32.0"}
-sqlalchemy = "^2.0.0"
-pydantic = "^2.0.0"
-pydantic-settings = "^2.6.0"
-python-dotenv = "^1.0.0"
-pandas = "^2.1.0"
-numpy = ">=1.26,<3.0"  # scipy>=1.18 requires numpy 2.x; verified compatible with pandas 2.3
-python-multipart = "^0.0.9"
-aiofiles = "^23.2.1"
-openpyxl = "^3.1.2"
-
-# Persistence / migrations (Phase 0 — production hardening)
-alembic = "^1.13.0"
-psycopg2-binary = "^2.9.0"
-
-# Auth & tenancy (Phase 1) — verifies Supabase access tokens (HS256 legacy
-# secret or ES256/RS256 via JWKS for projects on the newer signing keys).
-pyjwt = ">=2.8,<3"
-cryptography = ">=42.0"
-
-# Market data
-yfinance = "^0.2.50"
-httpx = "^0.27.0"
-
-# Optimization engine — enables real SLSQP frontier (scipy) and
-# Ledoit-Wolf/OAS covariance shrinkage (scikit-learn). Without these the
-# optimizer silently degrades to Monte-Carlo sampling + sample covariance.
-scipy = "^1.11.0"
-scikit-learn = "^1.3.0"
-
-# AI advisor — Claude provider (soft-imported in services/ai/provider.py).
-anthropic = ">=0.39,<1.0"
-
-# Broker sync (Phase 6, Account Aggregator route) — enable when ready.
-# kiteconnect = "^5.0.1"
+[tool.poetry]
+package-mode = false
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.0"
-httpx = "^0.27.0"
-ruff = "^0.1.0"
+pytest = "9.0.3"
+pytest-asyncio = "1.3.0"
+ruff = "0.1.15"
+pyyaml = "6.0.3"
+
+[tool.poetry.group.build]
+optional = true
+
+[tool.poetry.group.build.dependencies]
+pip = "26.2.2"
+setuptools = "84.2.1"
+wheel = "0.48.0"
+
+[tool.poetry.group.lock]
+optional = true
+
+[tool.poetry.group.lock.dependencies]
+poetry = "2.3.4"
+poetry-plugin-export = "1.10.0"
+pip-audit = "2.10.1"
+virtualenv = ">=21.14.7,<22"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core==2.3.2"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"

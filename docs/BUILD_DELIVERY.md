@@ -1,16 +1,19 @@
 # Build and Delivery Contract
 
-B06 first slice. [Issue #9](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9)
-owns live review, exact-revision checks and delivery evidence. This is not whole-batch
-acceptance or production certification.
+B06 build and dependency slices. [Issue #9](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9)
+owns live review, exact-revision checks and delivery evidence. See the
+[dependency ownership/security policy](DEPENDENCY_POLICY.md). This is not
+whole-batch acceptance or production certification.
 
 ## Supported Verification Target
 
 | Component | Version source | Install source |
 |---|---|---|
 | Python | Root `.python-version`: 3.12.13 | Backend isolated virtual environment |
-| pip | `backend/requirements-bootstrap.txt`: 26.1 | Exact bootstrap requirement |
-| Backend app and test packages | `backend/requirements-lock.txt` | Exact existing pins; no subsequent test-tool upgrades |
+| pip/build bootstrap | Generated `backend/requirements-bootstrap.txt`: pip 26.2.2 | Hash-verified build group |
+| Backend runtime | Generated `backend/requirements-lock.txt` | Main group; no test/Poetry tools |
+| Backend tests | Generated `backend/requirements-dev-lock.txt` | Main and dev groups; no subsequent test-tool upgrades |
+| Lock/audit maintenance | Generated `backend/requirements-tools-lock.txt` | Separate environment: Poetry 2.3.4, export plugin 1.10.0, pip-audit 2.10.1 |
 | Node | Root `.node-version`: 24.19.0 | Same target in frontend `engines.node` |
 | pnpm | `frontend/package.json`: 11.15.1 plus SHA-512 | `pnpm/action-setup` reads that manifest in CI |
 | Frontend packages | `frontend/pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
@@ -33,14 +36,14 @@ npm/download fallback when binaries are missing, so it is not an approved repair
 path. Executable tests check image processing and native module resolution without
 these hooks. Unsupported platforms must fail and be reviewed, not fetch a repair.
 
-Backend compatibility is certified only by the recorded checks on the target above,
-not by the wider Python range in the existing Poetry manifest. `pyproject.toml`
-and `poetry.lock` remain for the next B06 lock-consolidation review; they are not
-an interchangeable tested installation path. Do not regenerate either as a side
-effect of running the app. The current pip file still mixes application, test and
-Poetry tooling, lacks artifact hashes, and may require platform-specific transitive
-dependencies. Exact pins and `pip check` improve control but do **not** establish
-a fully closed, hash-verified backend environment.
+`backend/pyproject.toml` is the manifest and `backend/poetry.lock` is the single
+resolved graph for the Python 3.12 line. The four installation exports include
+platform markers and artifact hashes; the export-check command rejects drift.
+Installations neither resolve additional dependencies nor create an unpinned
+isolated build environment. `pip check` must pass afterward. Do not regenerate
+the lock/exports as a side effect of starting the app or silently install tools
+into the API environment. This is not a claim of hermetic native/system builds;
+see the dependency policy for the pinned sdist build and external-input limits.
 
 ## Local Checks
 
@@ -52,12 +55,20 @@ python3.12 --version
 python3.12 -m venv backend/.venv
 cd backend
 . .venv/bin/activate
-python -m pip install -r requirements-bootstrap.txt
-python -m pip install -r requirements-lock.txt
+python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt
 python -m pip check
 python -m ruff check app tests
 python -m pytest tests -q
 ```
+
+For an application-only environment, use `requirements-lock.txt` instead of the
+dev export; the bootstrap command is unchanged. To verify/update exports, use a
+separate empty virtual environment, install bootstrap then tools export with the
+same hash/no-deps/no-build-isolation flags, and run the commands in the dependency
+policy. CI demonstrates this exact split and blocks stale exports or advisory
+matches. Do not use Poetry's implicit environment installation as an alternative
+to these checked pip commands.
 
 The Python version must match `.python-version`, not just its major/minor number.
 If `.venv` already exists, choose another empty environment path; do not overwrite
@@ -91,7 +102,9 @@ declare the supported Node 24 action runtime, rather than relying on the runner
 to upgrade a deprecated Node 20 action. Updates to runtime pins, action SHAs,
 lockfiles or engine declarations require a reviewed PR and exact-head checks.
 `test_build_contract.py` checks the coupled declarations and fail-closed install
-commands. Executable frontend tests prove that stale lock specifications and
+commands. Dependency tests check exact hashes/group separation, reject stale
+exports without repairing them, and exercise real pip hash/dependency failures
+with offline synthetic wheels. Executable frontend tests prove that stale lock specifications and
 unsupported Node engines are rejected without resolving or downloading a repair,
 and smoke-test both locked native dependencies.
 Both jobs keep their existing names:
@@ -110,14 +123,12 @@ own PR. Agent COMMENT review is not independent human approval.
 
 ## B06 Remaining Gates
 
-1. Consolidate backend dependency ownership and supported Python constraints;
-   separate runtime/test/build tooling and verify a complete Linux dependency
-   closure with artifact integrity. Compare import, numerical and migration
-   behavior before changing packages. Do not claim the existing Poetry/pip files
-   already agree.
-2. Review current advisories and licenses across both resolved dependency graphs;
-   fix or record justified, owned, expiring exceptions. Define secret scanning
-   and CI enforcement. No advisory clearance or approved exception is implied here.
+1. Verify the backend dependency slice's exact-head/post-merge Linux installation,
+   closure, audit and regression checks in issue #9. Do not infer acceptance before
+   that evidence exists. Preserve the documented framework schema differences.
+2. Finish frontend advisory review, license inventory and secret-scanning policy/
+   enforcement. Backend scan evidence is dated and limited to its resolved graph;
+   no whole-project advisory clearance or vulnerability exception is implied.
 3. Configure and exercise repository enforcement after the required context names
    are confirmed, preserving a usable single-maintainer review process.
 4. Review the tracked local-runtime directory separately, including references and

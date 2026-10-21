@@ -139,8 +139,8 @@ The older Poetry shortcut is not the tested CI installation path.
 cd backend
 python3.12 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r requirements-bootstrap.txt
-python -m pip install -r requirements-lock.txt
+python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt
 python -m pip check
 ```
 
