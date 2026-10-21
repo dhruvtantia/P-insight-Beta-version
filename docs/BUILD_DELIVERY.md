@@ -86,7 +86,9 @@ unreviewed downloads to make builds pass. No deployment runs in this workflow.
 ## Delivery Controls
 
 CI actions use verified full commit references, job tokens have `contents: read`,
-and checkout does not persist credentials. Updates to runtime pins, action SHAs,
+and checkout does not persist credentials. All four pinned action implementations
+declare the supported Node 24 action runtime, rather than relying on the runner
+to upgrade a deprecated Node 20 action. Updates to runtime pins, action SHAs,
 lockfiles or engine declarations require a reviewed PR and exact-head checks.
 `test_build_contract.py` checks the coupled declarations and fail-closed install
 commands. Executable frontend tests prove that stale lock specifications and
