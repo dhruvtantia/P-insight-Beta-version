@@ -1,0 +1,87 @@
+"""Keep the reviewed toolchain and CI installation paths aligned."""
+
+import json
+import re
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def workflow():
+    return yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+
+
+def steps(job):
+    return workflow()["jobs"][job]["steps"]
+
+
+def test_runtime_versions_are_exact_and_frontend_engines_match():
+    node = (ROOT / ".node-version").read_text().strip()
+    python = (ROOT / ".python-version").read_text().strip()
+    assert re.fullmatch(r"24\.\d+\.\d+", node)
+    assert re.fullmatch(r"3\.12\.\d+", python)
+    package = json.loads((ROOT / "frontend/package.json").read_text())
+    assert package["engines"]["node"] == node
+    manager = package["packageManager"].split("+", 1)[0]
+    assert manager == f"pnpm@{package['engines']['pnpm']}"
+    assert re.fullmatch(r"pnpm@\d+\.\d+\.\d+\+sha512\.[a-f0-9]{128}",
+                        package["packageManager"])
+    assert yaml.safe_load((ROOT / "frontend/pnpm-workspace.yaml").read_text()) == {
+        "packages": ["."], "engineStrict": True,
+        "strictDepBuilds": True, "verifyDepsBeforeRun": "error",
+        "allowBuilds": {"sharp@0.34.5": False, "unrs-resolver@1.11.1": False},
+    }
+
+
+def test_ci_uses_runtime_files_and_immutable_action_references():
+    for job in ("backend", "frontend"):
+        config = workflow()["jobs"][job]
+        assert config["runs-on"] == "ubuntu-24.04"
+        assert config["timeout-minutes"] == 20
+        for step in steps(job):
+            if "uses" in step:
+                assert re.fullmatch(r"[\w-]+/[\w-]+@[a-f0-9]{40}", step["uses"])
+            if step.get("uses", "").startswith("actions/checkout@"):
+                assert step["with"]["persist-credentials"] is False
+    assert workflow()["permissions"] == {"contents": "read"}
+    python_setup = next(s for s in steps("backend")
+                        if s.get("uses", "").startswith("actions/setup-python@"))
+    assert python_setup["with"]["python-version-file"] == ".python-version"
+    node_setup = next(s for s in steps("frontend")
+                      if s.get("uses", "").startswith("actions/setup-node@"))
+    assert node_setup["with"]["node-version-file"] == ".node-version"
+    assert node_setup["with"]["package-manager-cache"] is False
+
+
+def test_frontend_install_is_frozen_and_uses_declared_manager():
+    setup = next(s for s in steps("frontend")
+                 if s.get("uses", "").startswith("pnpm/action-setup@"))
+    assert setup["with"] == {"package_json_file": "frontend/package.json", "run_install": False}
+    commands = {s["name"]: s["run"].strip() for s in steps("frontend") if "run" in s}
+    assert commands["Install dependencies"] == "pnpm install --frozen-lockfile"
+    assert commands["Toolchain rejection checks"] == "pnpm run test:toolchain"
+    assert commands["Build"] == "pnpm run build"
+    assert commands["Type-check"] == "pnpm run type-check"
+    assert not (ROOT / "frontend/package-lock.json").exists()
+
+
+def test_backend_install_does_not_override_pinned_test_tools():
+    bootstrap = (ROOT / "backend/requirements-bootstrap.txt").read_text().strip()
+    assert re.fullmatch(r"pip==\d+\.\d+(?:\.\d+)?", bootstrap)
+    pins = {}
+    for line in (ROOT / "backend/requirements-lock.txt").read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        assert re.fullmatch(r"[\w.-]+==[\w.+-]+", line), f"Non-exact requirement: {line}"
+        name, version = line.split("==")
+        assert name.lower() not in pins
+        pins[name.lower()] = version
+    assert {"ruff", "pytest", "pytest-asyncio"} <= pins.keys()
+    install = next(s["run"] for s in steps("backend") if s.get("name") == "Install dependencies")
+    assert install.strip().splitlines() == [
+        "python -m pip install -r requirements-bootstrap.txt",
+        "python -m pip install -r requirements-lock.txt",
+        "python -m pip check",
+    ]

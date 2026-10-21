@@ -5,27 +5,31 @@ on:
     branches: [main, production-hardening]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend (ruff + pytest + alembic)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, node24
         with:
-          python-version: "3.12"
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6, node24
+        with:
+          python-version-file: .python-version
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          # requirements-lock.txt is the reproducible install source
-          # (local Poetry is unusable on this project's Homebrew Python).
-          pip install -r requirements-lock.txt
-          pip install ruff pytest pytest-asyncio
+          python -m pip install -r requirements-bootstrap.txt
+          python -m pip install -r requirements-lock.txt
+          python -m pip check
 
       - name: Ruff
         run: ruff check app tests
@@ -71,22 +75,34 @@ jobs:
 
   frontend:
     name: Frontend (type-check + build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, node24
         with:
-          node-version: "20"
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5, node24
+        with:
+          package_json_file: frontend/package.json
+          run_install: false
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Toolchain rejection checks
+        run: pnpm run test:toolchain
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Type-check
-        run: npm run type-check
+        run: pnpm run type-check
