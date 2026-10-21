@@ -27,12 +27,38 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -r requirements-bootstrap.txt
-          python -m pip install -r requirements-lock.txt
+          python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+          python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt
           python -m pip check
 
+      - name: Runtime-only installation
+        run: |
+          python -m venv ../.runtime-check
+          ../.runtime-check/bin/python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+          ../.runtime-check/bin/python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-lock.txt
+          ../.runtime-check/bin/python -m pip check
+          APP_ENV=test AUTH_ENABLED=false LOCAL_DB_BOOTSTRAP=false DATABASE_URL=sqlite:///:memory: ../.runtime-check/bin/python - <<'PY'
+          from importlib.util import find_spec
+          from app.main import app
+
+          assert app is not None
+          assert all(find_spec(name) is None for name in ("pytest", "poetry", "pip_audit"))
+          PY
+
+      - name: Dependency integrity and advisories
+        env:
+          POETRY_KEYRING_ENABLED: "false"
+          POETRY_VIRTUALENVS_USE_POETRY_PYTHON: "true"
+        run: |
+          python -m venv ../.dependency-tools
+          ../.dependency-tools/bin/python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+          ../.dependency-tools/bin/python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-tools-lock.txt
+          ../.dependency-tools/bin/python -m pip check
+          ../.dependency-tools/bin/python scripts/export_dependencies.py --check
+          ../.dependency-tools/bin/python -m pip_audit --disable-pip --no-deps --strict -r requirements-dev-lock.txt -r requirements-tools-lock.txt -r requirements-bootstrap.txt
+
       - name: Ruff
-        run: ruff check app tests
+        run: ruff check app tests scripts/export_dependencies.py
 
       - name: Pytest (SQLite)
         run: python -m pytest tests -q

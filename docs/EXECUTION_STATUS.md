@@ -41,6 +41,10 @@ B05 second-slice local evidence: 78 new synthetic failure-injection cases and al
 
 **B06 first slice:** issue #9 owns current review/delivery. The [build contract](BUILD_DELIVERY.md) aligns exact runtime versions, frozen pnpm installation and pinned backend test tools, with regression checks. This slice does not close B06: backend lock consolidation/integrity, advisory/license/secret policy, actual GitHub enforcement and separate runtime-artifact review remain. Main was observed unprotected on 2026-10-20; no protection change or production deployment is implied.
 
+**B06 first-slice delivery verified:** [PR #19](https://github.com/dhruvtantia/P-insight-Beta-version/pull/19), historical merge anchor `638c4802194e47351254a19bb8741b5c5b47b619`. Final-head/post-merge checks passed with 405 backend tests, frontend build/type checks and PostgreSQL startup. Local baselines were safely reconciled. Issue #9 remains open; owner-approved required CI without self-approval still needs administration access and effective-rule verification.
+
+**B06 backend dependency slice:** current review/delivery acceptance belongs to issue #9. The [dependency policy](DEPENDENCY_POLICY.md) defines one Poetry graph with separate hashed app/dev/bootstrap/maintenance exports, fail-closed export/advisory checks and dated scan limits. Numerical packages are retained; compatible framework/security updates include explicitly reviewed OpenAPI metadata differences. This does not certify financial correctness or complete B08's generated-artifact reconciliation. Finish this slice's delivery, then frontend advisory/license/secret policy, GitHub enforcement and separate runtime-artifact review before B07.
+
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
