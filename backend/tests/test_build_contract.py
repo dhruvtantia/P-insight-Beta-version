@@ -31,7 +31,14 @@ def test_runtime_versions_are_exact_and_frontend_engines_match():
     assert yaml.safe_load((ROOT / "frontend/pnpm-workspace.yaml").read_text()) == {
         "packages": ["."], "engineStrict": True,
         "strictDepBuilds": True, "verifyDepsBeforeRun": "error",
-        "allowBuilds": {"sharp@0.34.5": False, "unrs-resolver@1.11.1": False},
+        "allowBuilds": {"sharp@0.35.5": False, "unrs-resolver@1.11.1": False},
+        "overrides": {
+            "postcss@<8.5.31": "8.5.31",
+            "sharp@<0.35.5": "0.35.5",
+            "postcss-selector-parser@<7.1.6": "7.1.6",
+            "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
+        },
+        "patchedDependencies": {"braces@3.0.3": "patches/braces@3.0.3.patch"},
     }
 
 
@@ -74,6 +81,20 @@ def test_backend_install_does_not_override_pinned_test_tools():
         "python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt",
         "python -m pip check",
     ]
+
+
+def test_frontend_audit_is_required_and_has_no_failure_or_advisory_exceptions():
+    check = next(s for s in steps("frontend") if s.get("name") == "Frontend dependency advisories")
+    assert check["run"].strip() == "pnpm run audit:dependencies"
+    assert check.get("continue-on-error", False) is False
+    package = json.loads((ROOT / "frontend/package.json").read_text())
+    assert package["scripts"]["audit:dependencies"] == "pnpm audit --audit-level=low"
+    assert package["scripts"]["test:dependencies"] == "node --test scripts/test-dependency-audit.mjs"
+    assert package["scripts"]["test:patches"] == "node --test scripts/test-braces-patch.mjs"
+    commands = [s.get("run", "").strip() for s in steps("frontend")]
+    assert commands.index("pnpm run test:dependencies") < commands.index(check["run"].strip())
+    assert commands.index("pnpm install --frozen-lockfile") < commands.index(check["run"].strip())
+    assert commands.index("pnpm run test:patches") < commands.index("pnpm run build")
 
 
 def test_ci_verifies_exports_and_audits_without_ignores_or_failure_fallbacks():

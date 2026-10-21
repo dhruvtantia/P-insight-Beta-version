@@ -94,9 +94,69 @@ The already-pending reconciliation of stored OpenAPI/generated frontend artifact
 remains B08; this slice does not silently regenerate unrelated artifacts or claim
 that historical generated files are current.
 
+## Frontend Review and Gate
+
+The frontend uses the exact Node/pnpm versions in the build contract and one
+integrity-qualified `pnpm-lock.yaml`. Ordinary installation is frozen; only an
+explicit dependency-maintenance change may resolve a new graph. Do not use
+`audit --fix`, ignore registry errors, ignore unfixable advisories or add ignored
+GHSA IDs to make checks pass. The frontend CI job runs
+`pnpm run audit:dependencies` at the low-severity threshold, including dev and
+optional dependencies, without a failure fallback. Real pnpm tests against local
+synthetic registry responses prove clean success, low-severity rejection,
+registry-outage rejection and malformed-response rejection. The audit runs after
+build/type checks so a known advisory does not conceal their compatibility result;
+it still makes the same named frontend job fail.
+
+The 2026-10-21 baseline report contains 69 advisory records across 13 package
+names and 57 distinct GHSA identifiers. These are package matches, not proof of
+application exploitation. The candidate retains React 18, Tailwind 3, the API
+generator and application code. It updates Next.js/eslint-config-next from
+15.5.14 to the patched maintenance release 15.5.28, plus affected supporting
+dependencies. See the [upstream security update](https://nextjs.org/blog/nextjs-security-update-october-14-2026).
+
+Reviewed overrides address parents with older/exact dependency constraints:
+PostCSS 8.5.31, sharp 0.35.5, js-yaml 4.3.2 and postcss-selector-parser 7.1.6.
+The selector parser crosses a major version: actual Tailwind/PostCSS compilation,
+synthetic CSS equality, production build and stored-schema API-generation parity
+must be checked, not assumed from an audit result. The sharp platform-binary smoke
+must pass with dependency hooks disabled. Production optional dependencies are
+not excluded from security review.
+
+**Unresolved build dependency:** `braces@3.0.3`,
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), remains
+on Tailwind/watch/lint tooling paths. The public npm advisory response suggests
+`>=3.0.4`, but the registry has no published 3.0.4 and the GitHub advisory lists
+no patched version as of this review. Do not declare it fixed or use an
+unreviewed fork. It is absent from the locked production dependency paths;
+that does not make untrusted build inputs safe or establish that all bundled
+framework internals have been audited. A full audit must remain red until a
+verified remediation or explicitly approved, scoped, time-limited exception.
+No exception is approved or configured here. A production-only clean scan is
+supporting evidence, not a substitute for the full CI gate.
+
+At the owner's request to investigate a real fix rather than move past the
+warning, the candidate includes a [pinned local backport](../frontend/patches/README.md)
+of the five depth-guard changes from the closed, unmerged upstream proposal.
+pnpm's patch-qualified lock applies it during installation; no remote branch is
+executed at build time. Six regression tests cover the 100/101 nesting boundary,
+stricter/fractional limits, direct ASTs/cycles, retained ordinary behavior and
+actual glob/watch consumer resolution. A reverse-patch negative control proves
+the original accepts excessive depth and reproduces stack exhaustion under an
+explicit 256-KB test stack, while the candidate rejects the same input with the
+intended depth error. Default-stack reproduction is not claimed. This is tested
+behavioral remediation for that class of input, not an upstream release or
+whole-library security clearance. The raw full audit still fails; retain draft
+status and review this evidence before considering any acceptance-policy change.
+
+Recharts 2 and ESLint 9 support/deprecation warnings remain separate maintenance
+work; a known-advisory scan cannot certify ongoing upstream support. Broader
+framework/UI migrations require their own compatibility review. Stored OpenAPI
+and generated-type reconciliation remains B08, not a claim of this slice.
+
 ## Remaining B06 Work
 
-- Frontend resolved-graph advisory review and any bounded remediation.
+- Resolve the frontend build-only advisory and accept the reviewed dependency slice.
 - License inventory/approval and repository secret-scanning policy/enforcement.
 - Owner-approved GitHub protection setup and effective-rule verification; the
   connected integration currently lacks repository-administration access.

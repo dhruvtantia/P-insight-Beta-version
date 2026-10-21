@@ -29,7 +29,7 @@ After installation, pnpm's dependency-status check is configured to error on dri
 instead of silently installing again (`verifyDepsBeforeRun: error`). Always run
 the frozen install first; this setting is not proof of a complete installation.
 Unknown dependency build
-scripts remain errors. The reviewed native-package hooks (`sharp@0.34.5` and
+scripts remain errors. The reviewed native-package hook policy (`sharp@0.35.5` and
 `unrs-resolver@1.11.1`) are explicitly disabled: their platform binaries are already
 integrity-locked optional dependencies. The resolver hook includes an independent
 npm/download fallback when binaries are missing, so it is not an approved repair
@@ -84,8 +84,11 @@ node --version
 pnpm --version
 pnpm install --frozen-lockfile
 pnpm run test:toolchain
+pnpm run test:dependencies
+pnpm run test:patches
 pnpm run build
 pnpm run type-check
+pnpm run audit:dependencies
 ```
 
 The current Next.js layout uses `next/font/google`: a clean production build needs
@@ -93,6 +96,10 @@ access to Google Fonts in addition to the package registry. A successful build i
 not evidence of offline/hermetic reproducibility. Bundling licensed font files is
 a separately reviewed follow-up; do not disable certificate checks or substitute
 unreviewed downloads to make builds pass. No deployment runs in this workflow.
+The full frontend audit currently rejects the build-only `braces` version
+advisory even with the tested local depth-guard candidate; see the dependency
+policy and patch provenance. A successful build, patch test or production-only
+scan is not whole-batch acceptance. No audit exception is approved.
 
 ## Delivery Controls
 
@@ -126,7 +133,8 @@ own PR. Agent COMMENT review is not independent human approval.
 1. Verify the backend dependency slice's exact-head/post-merge Linux installation,
    closure, audit and regression checks in issue #9. Do not infer acceptance before
    that evidence exists. Preserve the documented framework schema differences.
-2. Finish frontend advisory review, license inventory and secret-scanning policy/
+2. Resolve the documented frontend build-only advisory and complete its review;
+   finish license inventory and secret-scanning policy/
    enforcement. Backend scan evidence is dated and limited to its resolved graph;
    no whole-project advisory clearance or vulnerability exception is implied.
 3. Configure and exercise repository enforcement after the required context names
