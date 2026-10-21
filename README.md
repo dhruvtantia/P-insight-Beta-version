@@ -131,12 +131,23 @@ defines the launch gates; feature flags and placeholders do not count as deliver
 ## 🛠️ Setup
 
 ### Backend
+
+Use the pinned toolchain and installation path in [Build and Delivery](docs/BUILD_DELIVERY.md).
+The older Poetry shortcut is not the tested CI installation path.
+
 ```bash
 cd backend
-poetry install --no-root
-poetry env activate
-uvicorn main:app --reload --port 8000
+python3.12 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-bootstrap.txt
+python -m pip install -r requirements-lock.txt
+python -m pip check
 ```
+
+Do not overwrite an existing environment. Before running `uvicorn app.main:app`,
+follow [Runtime Safety](docs/RUNTIME_SAFETY.md) to choose an explicit local database
+or a migrated managed database. Frontend install/build commands and exact Node/pnpm
+versions are in the build contract above. These are development checks, not a deployment.
 
 ### Author
 Dhruv Tantia

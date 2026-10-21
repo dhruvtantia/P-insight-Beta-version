@@ -37,13 +37,16 @@ B04 isolated-source verification: 73 new cache/provider/HTTP cases and all 231 b
 
 B05 second-slice local evidence: 78 new synthetic failure-injection cases and all 401 backend tests passed. The complete runtime schema keeps existing operation shapes/components, with only a corrected broker-sync description; real optimizer/quant outputs match the accepted baseline on a fixed synthetic dataset, excluding the computation timestamp. Review and delivery acceptance belong to issue #8: completed with that evidence means B05 is accepted and B06 is next; otherwise finish B05 first. Passing this safety batch is not production certification. Safety remains first; B25 is required before B24. Full-roadmap scope and modular UI/backend ownership are unchanged.
 
+**B05 final delivery verified:** [PR #18](https://github.com/dhruvtantia/P-insight-Beta-version/pull/18), historical merge anchor `47867961bf56072f7dae9939614302e030d638aa`. Exact-head/post-merge checks passed, local baselines were safely reconciled, and issue #8 is closed as completed. B05 needs no repeated implementation.
+
+**B06 first slice:** issue #9 owns current review/delivery. The [build contract](BUILD_DELIVERY.md) aligns exact runtime versions, frozen pnpm installation and pinned backend test tools, with regression checks. This slice does not close B06: backend lock consolidation/integrity, advisory/license/secret policy, actual GitHub enforcement and separate runtime-artifact review remain. Main was observed unprotected on 2026-10-20; no protection change or production deployment is implied.
+
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B05: environment and startup safety](https://github.com/dhruvtantia/P-insight-Beta-version/issues/8) | Verify second-slice review/delivery and whole-batch acceptance; first slice is already accepted |
-| 2 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Compatible frozen install and verified delivery controls |
-| 3 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Signing/claim/provisioning and private-operation contracts |
+| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Finish first-slice delivery, then remaining lock, security-policy and enforcement gates |
+| 2 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | After whole-batch B06 acceptance: signing/claim/provisioning and private-operation contracts |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
 
@@ -52,7 +55,7 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | Milestone | Current evidence / gate |
 |---|---|
 | M0 baseline/tracking | B00 accepted; B01 publication acceptance is recorded in issue #4 |
-| M1 safe foundation | B02-B04 and B05 first slice accepted; B05 final acceptance in issue #8; B06/B07 remain. These bounded slices do not establish full private-operation isolation |
+| M1 safe foundation | B02-B05 accepted; B06/B07 remain. These bounded slices do not establish full private-operation isolation |
 | M2 data contracts | B08/B09 ownership/revision/API/database gates remain |
 | M3 import/enrichment | B10-B14 durable lifecycle and recovery gates remain |
 | M4 financial correctness | B15-B17 provider/quality/numerical acceptance remains |
@@ -81,4 +84,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B05 issue #8 and scope decision #12. Finish any pending second-slice delivery checks and verify whole-batch acceptance. If issue #8 is completed with review, exact-head/post-merge checks and safe reconciliation, begin B06 issue #9 on verified current main; otherwise finish B05 first. The B05 first slice is already accepted; do not repeat its delivery. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.
+Read B06 issue #9 and scope decision #12, then verify live GitHub/local main. B05 is accepted. Finish any pending B06 first-slice delivery, then address the remaining gates in BUILD_DELIVERY.md before B07. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.
