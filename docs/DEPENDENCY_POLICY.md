@@ -101,12 +101,15 @@ integrity-qualified `pnpm-lock.yaml`. Ordinary installation is frozen; only an
 explicit dependency-maintenance change may resolve a new graph. Do not use
 `audit --fix`, ignore registry errors, ignore unfixable advisories or add ignored
 GHSA IDs to make checks pass. The frontend CI job runs
-`pnpm run audit:dependencies` at the low-severity threshold, including dev and
-optional dependencies, without a failure fallback. Real pnpm tests against local
+`pnpm run audit:dependencies` with the owner-approved exact-backport verification
+rule described below. It queries the raw audit at the low-severity threshold,
+including dev and optional dependencies, without a registry-error fallback.
+`pnpm run audit:raw` remains available and returns the registry's original exit
+status. Real pnpm tests against local
 synthetic registry responses prove clean success, low-severity rejection,
 registry-outage rejection and malformed-response rejection. The audit runs after
 build/type checks so a known advisory does not conceal their compatibility result;
-it still makes the same named frontend job fail.
+any rejected finding or failed verification still fails the same named frontend job.
 
 The 2026-10-21 baseline report contains 69 advisory records across 13 package
 names and 57 distinct GHSA identifiers. These are package matches, not proof of
@@ -123,17 +126,16 @@ must be checked, not assumed from an audit result. The sharp platform-binary smo
 must pass with dependency hooks disabled. Production optional dependencies are
 not excluded from security review.
 
-**Unresolved build dependency:** `braces@3.0.3`,
+**Locally remediated build dependency, upstream version finding retained:** `braces@3.0.3`,
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), remains
 on Tailwind/watch/lint tooling paths. The public npm advisory response suggests
 `>=3.0.4`, but the registry has no published 3.0.4 and the GitHub advisory lists
 no patched version as of this review. Do not declare it fixed or use an
 unreviewed fork. It is absent from the locked production dependency paths;
 that does not make untrusted build inputs safe or establish that all bundled
-framework internals have been audited. A full audit must remain red until a
-verified remediation or explicitly approved, scoped, time-limited exception.
-No exception is approved or configured here. A production-only clean scan is
-supporting evidence, not a substitute for the full CI gate.
+framework internals have been audited. The raw full scan remains red; it is not
+represented as a clean scan. A production-only clean scan is supporting evidence,
+not a substitute for the full CI gate.
 
 At the owner's request to investigate a real fix rather than move past the
 warning, the candidate includes a [pinned local backport](../frontend/patches/README.md)
@@ -146,8 +148,35 @@ the original accepts excessive depth and reproduces stack exhaustion under an
 explicit 256-KB test stack, while the candidate rejects the same input with the
 intended depth error. Default-stack reproduction is not claimed. This is tested
 behavioral remediation for that class of input, not an upstream release or
-whole-library security clearance. The raw full audit still fails; retain draft
-status and review this evidence before considering any acceptance-policy change.
+whole-library security clearance.
+
+### Approved Verified-Fix Rule
+
+On 2026-10-21, the owner explicitly answered **"Approve the verified-fix rule"**.
+This approves the bounded frontend remediation check, not a blanket advisory
+ignore, automatic future renewal, production launch or whole B06 acceptance.
+The [review record](../frontend/security/braces-remediation.json) expires at
+**2026-11-20 00:00 America/Toronto**. The check fails at that instant until a new
+explicit review is recorded or a supported fixed release replaces the backport.
+No recurring automation or automatic renewal is configured.
+
+The check verifies approval/dates, exact patch SHA-256 and lock registration,
+every file in the installed package, all four reviewed consumer paths, and the
+absence of this dependency from the locked runtime/optional closure. It reruns
+the real patch regressions and requires their complete passing TAP summary,
+queries the public registry with bounded timeouts, prints the raw finding and
+validates report coverage, counts, package/version, development-only paths and
+reviewed advisory details. Any new/different advisory, unknown schema, command
+failure, drift, missing patch or expired review fails. The only permitted
+non-clean classification is `verified-local-backport` with one visible known
+version match; it must never be labeled `clean`.
+
+The JSON review record is reviewed source, not a signature or attestation from
+the upstream publisher. Exact installed-byte checks and behavioural tests do not
+protect a compromised runner or maliciously rewritten verification code; normal
+code review, integrity-locked installation and repository enforcement remain
+separate requirements. `js-yaml@4.3.2`, already present in the resolved graph, is
+declared directly as a dev dependency for structured lock/config parsing.
 
 Recharts 2 and ESLint 9 support/deprecation warnings remain separate maintenance
 work; a known-advisory scan cannot certify ongoing upstream support. Broader
@@ -156,7 +185,7 @@ and generated-type reconciliation remains B08, not a claim of this slice.
 
 ## Remaining B06 Work
 
-- Resolve the frontend build-only advisory and accept the reviewed dependency slice.
+- Complete exact-head/post-merge acceptance of the frontend verified-fix slice.
 - License inventory/approval and repository secret-scanning policy/enforcement.
 - Owner-approved GitHub protection setup and effective-rule verification; the
   connected integration currently lacks repository-administration access.

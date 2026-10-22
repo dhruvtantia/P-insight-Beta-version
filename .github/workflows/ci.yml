@@ -133,6 +133,9 @@ jobs:
       - name: Dependency patch regression checks
         run: pnpm run test:patches
 
+      - name: Remediation policy rejection checks
+        run: pnpm run test:remediation
+
       - name: Build
         run: pnpm run build
 

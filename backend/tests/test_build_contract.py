@@ -83,18 +83,25 @@ def test_backend_install_does_not_override_pinned_test_tools():
     ]
 
 
-def test_frontend_audit_is_required_and_has_no_failure_or_advisory_exceptions():
+def test_frontend_audit_requires_approved_exact_backport_verification():
     check = next(s for s in steps("frontend") if s.get("name") == "Frontend dependency advisories")
     assert check["run"].strip() == "pnpm run audit:dependencies"
     assert check.get("continue-on-error", False) is False
     package = json.loads((ROOT / "frontend/package.json").read_text())
-    assert package["scripts"]["audit:dependencies"] == "pnpm audit --audit-level=low"
+    assert package["scripts"]["audit:dependencies"] == "node scripts/audit-dependencies.mjs"
+    assert package["scripts"]["audit:raw"] == "pnpm audit --audit-level=low"
+    assert package["devDependencies"]["js-yaml"] == "4.3.2"
     assert package["scripts"]["test:dependencies"] == "node --test scripts/test-dependency-audit.mjs"
     assert package["scripts"]["test:patches"] == "node --test scripts/test-braces-patch.mjs"
+    assert package["scripts"]["test:remediation"] == "node --test scripts/test-remediation-policy.mjs"
     commands = [s.get("run", "").strip() for s in steps("frontend")]
     assert commands.index("pnpm run test:dependencies") < commands.index(check["run"].strip())
     assert commands.index("pnpm install --frozen-lockfile") < commands.index(check["run"].strip())
     assert commands.index("pnpm run test:patches") < commands.index("pnpm run build")
+    assert commands.index("pnpm run test:remediation") < commands.index(check["run"].strip())
+    policy = json.loads((ROOT / "frontend/security/braces-remediation.json").read_text())
+    assert policy["status"] == "approved"
+    assert policy["advisory"] == "GHSA-vfj7-8cjw-p6xm"
 
 
 def test_ci_verifies_exports_and_audits_without_ignores_or_failure_fallbacks():

@@ -86,6 +86,7 @@ pnpm install --frozen-lockfile
 pnpm run test:toolchain
 pnpm run test:dependencies
 pnpm run test:patches
+pnpm run test:remediation
 pnpm run build
 pnpm run type-check
 pnpm run audit:dependencies
@@ -96,10 +97,14 @@ access to Google Fonts in addition to the package registry. A successful build i
 not evidence of offline/hermetic reproducibility. Bundling licensed font files is
 a separately reviewed follow-up; do not disable certificate checks or substitute
 unreviewed downloads to make builds pass. No deployment runs in this workflow.
-The full frontend audit currently rejects the build-only `braces` version
-advisory even with the tested local depth-guard candidate; see the dependency
-policy and patch provenance. A successful build, patch test or production-only
-scan is not whole-batch acceptance. No audit exception is approved.
+The raw frontend audit still flags the build-only `braces` version; use
+`pnpm run audit:raw` to inspect its original result. The owner explicitly approved
+the exact-backport verification rule in the dependency policy. The required
+`audit:dependencies` check prints the raw finding, verifies the installed fix and
+scope, and reports `verified-local-backport`, not a clean scan. It fails on
+2026-11-20 at 00:00 America/Toronto unless explicitly re-reviewed/replaced.
+A successful build, patch test or production-only scan is not whole-batch
+acceptance. No blanket advisory suppression or automatic renewal is permitted.
 
 ## Delivery Controls
 
@@ -133,7 +138,7 @@ own PR. Agent COMMENT review is not independent human approval.
 1. Verify the backend dependency slice's exact-head/post-merge Linux installation,
    closure, audit and regression checks in issue #9. Do not infer acceptance before
    that evidence exists. Preserve the documented framework schema differences.
-2. Resolve the documented frontend build-only advisory and complete its review;
+2. Complete exact-head/post-merge review of the approved frontend remediation;
    finish license inventory and secret-scanning policy/
    enforcement. Backend scan evidence is dated and limited to its resolved graph;
    no whole-project advisory clearance or vulnerability exception is implied.
