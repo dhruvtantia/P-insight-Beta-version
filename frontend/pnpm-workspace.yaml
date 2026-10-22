@@ -1,8 +1,15 @@
 packages:
   - .
 allowBuilds:
-  sharp@0.34.5: false
+  sharp@0.35.5: false
   unrs-resolver@1.11.1: false
 engineStrict: true
 strictDepBuilds: true
 verifyDepsBeforeRun: error
+overrides:
+  postcss@<8.5.31: 8.5.31
+  sharp@<0.35.5: 0.35.5
+  postcss-selector-parser@<7.1.6: 7.1.6
+  js-yaml@>=4.0.0 <4.3.2: 4.3.2
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch

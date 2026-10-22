@@ -1,6 +1,6 @@
 # P-Insight: Execution Checkpoint
 
-Updated: 2026-10-20. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
+Updated: 2026-10-21. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
 
 ## Accepted Baseline
 
@@ -45,11 +45,15 @@ B05 second-slice local evidence: 78 new synthetic failure-injection cases and al
 
 **B06 backend dependency slice:** current review/delivery acceptance belongs to issue #9. The [dependency policy](DEPENDENCY_POLICY.md) defines one Poetry graph with separate hashed app/dev/bootstrap/maintenance exports, fail-closed export/advisory checks and dated scan limits. Numerical packages are retained; compatible framework/security updates include explicitly reviewed OpenAPI metadata differences. This does not certify financial correctness or complete B08's generated-artifact reconciliation. Finish this slice's delivery, then frontend advisory/license/secret policy, GitHub enforcement and separate runtime-artifact review before B07.
 
+**B06 backend slice accepted:** [PR #20](https://github.com/dhruvtantia/P-insight-Beta-version/pull/20), historical merge anchor `996327043043018593302e0f102d03ed7b70c8c7`. Exact-head/post-merge Linux checks passed, including all 418 tests, isolated runtime/dev/maintenance installs, backend advisory/export checks and PostgreSQL startup. Local baselines were reconciled with all preserved evidence/worktree entries unchanged. Issue #9 owns full delivery evidence; the old local Python environment was not upgraded.
+
+**B06 frontend dependency slice in progress:** [PR #21](https://github.com/dhruvtantia/P-insight-Beta-version/pull/21) owns the reviewed candidate. The owner explicitly approved the verified-fix rule on 2026-10-21. The gate now checks the exact installed backport, lock/consumer/runtime scope, behavioural regressions, expiry and the complete raw advisory report; the one reviewed version finding remains visible as `verified-local-backport`, never a clean scan. See the [approved policy](DEPENDENCY_POLICY.md#approved-verified-fix-rule), which expires at 2026-11-20 00:00 America/Toronto. The earlier raw-gate failure is historical evidence, not a current successful check; new exact-head review/CI and post-merge/local acceptance belong to issue #9. No blanket ignore, automatic renewal, deployment or B07 acceptance is implied.
+
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Finish first-slice delivery, then remaining lock, security-policy and enforcement gates |
+| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Accept approved frontend verified-fix delivery; finish license/secret policy, enforcement and runtime-artifact review |
 | 2 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | After whole-batch B06 acceptance: signing/claim/provisioning and private-operation contracts |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
@@ -88,4 +92,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B06 issue #9 and scope decision #12, then verify live GitHub/local main. B05 is accepted. Finish any pending B06 first-slice delivery, then address the remaining gates in BUILD_DELIVERY.md before B07. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not start a broad import rewrite. Required roadmap integration slices can be planned alongside the safety work without bypassing its contracts. Revisit the B04 revision hook when B09 lands.
+Read B06 issue #9 and scope decision #12, then verify live GitHub/local main and the frontend candidate PR. B05 and the B06 build/backend slices are accepted. Verify delivery of the owner-approved exact-backport rule, then finish the remaining gates in BUILD_DELIVERY.md before B07. Implement only the selected slice with synthetic tests, review and exact-revision checks. Preserve local audit evidence and linked worktrees. Do not start a broad import rewrite. Required roadmap integration and private-staging preparation can be planned alongside the safety work without bypassing its contracts or changing full-roadmap public-launch scope. Revisit the B04 revision hook when B09 lands.

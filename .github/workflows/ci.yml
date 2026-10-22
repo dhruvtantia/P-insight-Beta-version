@@ -127,8 +127,20 @@ jobs:
       - name: Toolchain rejection checks
         run: pnpm run test:toolchain
 
+      - name: Advisory gate rejection checks
+        run: pnpm run test:dependencies
+
+      - name: Dependency patch regression checks
+        run: pnpm run test:patches
+
+      - name: Remediation policy rejection checks
+        run: pnpm run test:remediation
+
       - name: Build
         run: pnpm run build
 
       - name: Type-check
         run: pnpm run type-check
+
+      - name: Frontend dependency advisories
+        run: pnpm run audit:dependencies
