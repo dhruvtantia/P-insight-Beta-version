@@ -122,3 +122,25 @@ def test_ci_installs_and_imports_the_runtime_without_dev_or_maintenance_tools():
     assert "from app.main import app" in command
     assert 'all(find_spec(name) is None for name in ("pytest", "poetry", "pip_audit"))' in command
     assert "requirements-dev-lock.txt" not in command
+
+
+def test_secret_scan_has_full_history_and_cannot_skip_failures():
+    checkout = next(s for s in steps("backend")
+                    if s.get("uses", "").startswith("actions/checkout@"))
+    assert checkout["with"]["fetch-depth"] == 0
+    commands = {s["name"]: s for s in steps("backend") if "run" in s}
+    assert commands["Install pinned secret scanner"]["run"] == (
+        'python ../scripts/security_checks.py install --destination "$RUNNER_TEMP/pinsight-secret-tools"'
+    )
+    assert commands["Secret scanner rejection checks"]["run"] == (
+        "python -m unittest discover -s ../scripts/tests -v"
+    )
+    assert commands["Committed history secret scan"]["run"] == (
+        'python ../scripts/security_checks.py scan --scanner "$RUNNER_TEMP/pinsight-secret-tools/gitleaks"'
+    )
+    for name in ("Install pinned secret scanner", "Secret scanner rejection checks", "Committed history secret scan"):
+        assert not commands[name].get("continue-on-error", False)
+        assert "if" not in commands[name]
+        assert "||" not in commands[name]["run"]
+    names = [step.get("name") for step in steps("backend")]
+    assert names.index("Committed history secret scan") < names.index("Install dependencies")

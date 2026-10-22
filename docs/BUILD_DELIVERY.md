@@ -124,6 +124,13 @@ Both jobs keep their existing names:
 - `Backend (ruff + pytest + alembic)`
 - `Frontend (type-check + build)`
 
+The backend job also runs [committed-history secret checks](SECRET_SCANNING.md)
+before application dependency installation: a hash-pinned disposable scanner,
+full-history checkout and synthetic rejection tests. It adds no runtime dependency
+or third required-check name. Count-only output is deliberate; raw reports must
+never become public CI artifacts. The [tracked-runtime inventory](TRACKED_RUNTIME_REVIEW.md)
+is read-only, not cleanup approval.
+
 On 2026-10-20, GitHub's branch API reported `main.protected=false`, required status
 checks `enforcement_level=off`, and the effective branch-rules endpoint returned
 an empty list. This is an observed gap, **not** server enforcement. CODEOWNERS,

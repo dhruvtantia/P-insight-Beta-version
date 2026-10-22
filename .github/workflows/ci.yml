@@ -20,10 +20,22 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, node24
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6, node24
         with:
           python-version-file: .python-version
+
+      - name: Install pinned secret scanner
+        run: python ../scripts/security_checks.py install --destination "$RUNNER_TEMP/pinsight-secret-tools"
+
+      - name: Secret scanner rejection checks
+        env:
+          PINSIGHT_TEST_SCANNER: ${{ runner.temp }}/pinsight-secret-tools/gitleaks
+        run: python -m unittest discover -s ../scripts/tests -v
+
+      - name: Committed history secret scan
+        run: python ../scripts/security_checks.py scan --scanner "$RUNNER_TEMP/pinsight-secret-tools/gitleaks"
 
       - name: Install dependencies
         run: |
@@ -58,7 +70,7 @@ jobs:
           ../.dependency-tools/bin/python -m pip_audit --disable-pip --no-deps --strict -r requirements-dev-lock.txt -r requirements-tools-lock.txt -r requirements-bootstrap.txt
 
       - name: Ruff
-        run: ruff check app tests scripts/export_dependencies.py
+        run: ruff check app tests scripts/export_dependencies.py ../scripts/security_checks.py ../scripts/tests
 
       - name: Pytest (SQLite)
         run: python -m pytest tests -q

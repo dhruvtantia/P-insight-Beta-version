@@ -185,12 +185,16 @@ and generated-type reconciliation remains B08, not a claim of this slice.
 
 ## Remaining B06 Work
 
-- Complete exact-head/post-merge acceptance of the frontend verified-fix slice.
-- License inventory/approval and repository secret-scanning policy/enforcement.
+- The frontend verified-fix slice was accepted at merge
+  `65e23b007ecea44d49d9e7b9bb1132025fb3ca25`; issue #9 retains delivery evidence.
+- Complete review/delivery of the [committed-history secret control](SECRET_SCANNING.md).
+  It is not GitHub-native push protection or license approval.
+- License inventory/approval, including notices and unknown/custom/dual-license
+  decisions, remains separately required.
 - Owner-approved GitHub protection setup and effective-rule verification; the
   connected integration currently lacks repository-administration access.
-- Separate inventory/review of tracked local-runtime artifacts before any approved
-  cleanup. No blanket deletion or history rewrite.
+- Review the [tracked-runtime inventory](TRACKED_RUNTIME_REVIEW.md) and disposition
+  before any separately approved cleanup. No blanket deletion or history rewrite.
 
 These remain acceptance gates. Passing the backend dependency slice does not
 start B07, enable paid/broker features, deploy services or approve a launch.
