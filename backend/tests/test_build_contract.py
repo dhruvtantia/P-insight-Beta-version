@@ -133,7 +133,7 @@ def test_secret_scan_has_full_history_and_cannot_skip_failures():
         'python ../scripts/security_checks.py install --destination "$RUNNER_TEMP/pinsight-secret-tools"'
     )
     assert commands["Secret scanner rejection checks"]["run"] == (
-        "python -m unittest discover -s ../scripts/tests -v"
+        "python -m unittest discover -s ../scripts/tests -p test_security_checks.py -v"
     )
     assert commands["Committed history secret scan"]["run"] == (
         'python ../scripts/security_checks.py scan --scanner "$RUNNER_TEMP/pinsight-secret-tools/gitleaks"'
@@ -144,3 +144,48 @@ def test_secret_scan_has_full_history_and_cannot_skip_failures():
         assert "||" not in commands[name]["run"]
     names = [step.get("name") for step in steps("backend")]
     assert names.index("Committed history secret scan") < names.index("Install dependencies")
+
+
+def test_license_inventories_are_validated_in_existing_separate_environments():
+    commands = {step["name"]: step for step in steps("backend") if "run" in step}
+    assert commands["License inventory rejection checks"]["run"] == (
+        "python -m unittest discover -s ../scripts/tests -p test_license_inventory.py -v"
+    )
+    assert commands["Development license inventory (not approval)"]["run"] == (
+        'python ../scripts/license_inventory.py --environment development '
+        '--output "$RUNNER_TEMP/python-development-licenses.json"'
+    )
+    assert ("../.runtime-check/bin/python ../scripts/license_inventory.py --environment runtime "
+            '--output "$RUNNER_TEMP/python-runtime-licenses.json"') in commands["Runtime-only installation"]["run"]
+    assert ("../.dependency-tools/bin/python ../scripts/license_inventory.py --environment maintenance "
+            '--output "$RUNNER_TEMP/python-maintenance-licenses.json"') in commands["Dependency integrity and advisories"]["run"]
+    frontend = {step["name"]: step for step in steps("frontend") if "run" in step}
+    assert frontend["License inventory rejection checks"]["run"] == "pnpm run test:licenses"
+    assert frontend["Frontend license inventory (not approval)"]["run"] == (
+        'pnpm run license:inventory "$RUNNER_TEMP/frontend-licenses.json"'
+    )
+    for step in [commands["Development license inventory (not approval)"],
+                 commands["License inventory rejection checks"], frontend["License inventory rejection checks"],
+                 frontend["Frontend license inventory (not approval)"]]:
+        assert not step.get("continue-on-error", False)
+        assert "if" not in step and "||" not in step["run"]
+
+
+def test_license_artifacts_are_explicit_sanitized_reports_not_broad_uploads():
+    expected = {
+        "backend": ["python-development-licenses.json", "python-runtime-licenses.json", "python-maintenance-licenses.json"],
+        "frontend": ["frontend-licenses.json"],
+    }
+    for job, files in expected.items():
+        uploads = [step for step in steps(job)
+                   if step.get("uses", "").startswith("actions/upload-artifact@")]
+        assert len(uploads) == 1
+        step = uploads[0]
+        assert step["uses"] == "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
+        assert step["with"]["path"].strip().splitlines() == ["${{ runner.temp }}/" + file for file in files]
+        assert step["with"]["retention-days"] == 14
+        assert step["with"]["if-no-files-found"] == "error"
+        assert step["with"]["include-hidden-files"] is False
+        assert step["with"]["overwrite"] is False
+        assert "${{ github.run_attempt }}" in step["with"]["name"]
+        assert "if" not in step and not step.get("continue-on-error", False)

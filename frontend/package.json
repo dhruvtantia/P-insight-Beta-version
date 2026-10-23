@@ -12,6 +12,8 @@
     "test:dependencies": "node --test scripts/test-dependency-audit.mjs",
     "test:patches": "node --test scripts/test-braces-patch.mjs",
     "test:remediation": "node --test scripts/test-remediation-policy.mjs",
+    "test:licenses": "node --test scripts/test-license-inventory.mjs",
+    "license:inventory": "node scripts/license-inventory.mjs",
     "audit:raw": "pnpm audit --audit-level=low",
     "audit:dependencies": "node scripts/audit-dependencies.mjs",
     "generate:api-types": "openapi-typescript ../backend/openapi.json -o src/generated/api-types.ts",

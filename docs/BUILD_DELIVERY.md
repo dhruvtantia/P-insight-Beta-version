@@ -87,6 +87,8 @@ pnpm run test:toolchain
 pnpm run test:dependencies
 pnpm run test:patches
 pnpm run test:remediation
+pnpm run test:licenses
+pnpm run license:inventory /tmp/frontend-licenses-new.json
 pnpm run build
 pnpm run type-check
 pnpm run audit:dependencies
@@ -130,6 +132,15 @@ full-history checkout and synthetic rejection tests. It adds no runtime dependen
 or third required-check name. Count-only output is deliberate; raw reports must
 never become public CI artifacts. The [tracked-runtime inventory](TRACKED_RUNTIME_REVIEW.md)
 is read-only, not cleanup approval.
+
+CI also validates [license inventories](LICENSE_REVIEW.md) in the separate
+Python runtime/dev/maintenance environments and the frozen frontend install.
+Only four named sanitized JSON inventories are retained as GitHub artifacts for
+14 days, using the pinned Node 24 upload action; no secret-scan report or broad
+directory upload is permitted. A successful inventory check still says license
+review is required. Artifact text verification, notices and owner/legal approval
+remain gates, not implied by these reports. Choose unused output paths for local
+inventory commands: existing files are never overwritten.
 
 On 2026-10-20, GitHub's branch API reported `main.protected=false`, required status
 checks `enforcement_level=off`, and the effective branch-rules endpoint returned
