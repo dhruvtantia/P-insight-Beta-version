@@ -187,10 +187,13 @@ and generated-type reconciliation remains B08, not a claim of this slice.
 
 - The frontend verified-fix slice was accepted at merge
   `65e23b007ecea44d49d9e7b9bb1132025fb3ca25`; issue #9 retains delivery evidence.
-- Complete review/delivery of the [committed-history secret control](SECRET_SCANNING.md).
-  It is not GitHub-native push protection or license approval.
-- License inventory/approval, including notices and unknown/custom/dual-license
-  decisions, remains separately required.
+- The [committed-history secret control](SECRET_SCANNING.md) and read-only runtime
+  review were accepted at merge `1370723bcfdb72cb779ee90922ae94959bedb415`.
+  This is not GitHub-native push protection or license approval.
+- Finish exact-head/post-merge delivery of [validated license inventories](LICENSE_REVIEW.md),
+  then verify artifact texts/bundled components, prepare notices and record license
+  choices/approval. All inventory records remain review-required; no legal allowlist
+  or whole-project clearance is approved by this tooling slice.
 - Owner-approved GitHub protection setup and effective-rule verification; the
   connected integration currently lacks repository-administration access.
 - Review the [tracked-runtime inventory](TRACKED_RUNTIME_REVIEW.md) and disposition

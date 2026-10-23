@@ -45,7 +45,7 @@ Use the exact Python version in `.python-version` and a new empty tool path:
 
 ```bash
 python scripts/security_checks.py install --destination /tmp/pinsight-secret-tools-new
-PINSIGHT_TEST_SCANNER=/tmp/pinsight-secret-tools-new/gitleaks python -m unittest discover -s scripts/tests -v
+PINSIGHT_TEST_SCANNER=/tmp/pinsight-secret-tools-new/gitleaks python -m unittest discover -s scripts/tests -p test_security_checks.py -v
 python scripts/security_checks.py scan --scanner /tmp/pinsight-secret-tools-new/gitleaks
 ```
 

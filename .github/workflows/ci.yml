@@ -32,7 +32,7 @@ jobs:
       - name: Secret scanner rejection checks
         env:
           PINSIGHT_TEST_SCANNER: ${{ runner.temp }}/pinsight-secret-tools/gitleaks
-        run: python -m unittest discover -s ../scripts/tests -v
+        run: python -m unittest discover -s ../scripts/tests -p test_security_checks.py -v
 
       - name: Committed history secret scan
         run: python ../scripts/security_checks.py scan --scanner "$RUNNER_TEMP/pinsight-secret-tools/gitleaks"
@@ -43,12 +43,19 @@ jobs:
           python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-dev-lock.txt
           python -m pip check
 
+      - name: License inventory rejection checks
+        run: python -m unittest discover -s ../scripts/tests -p test_license_inventory.py -v
+
+      - name: Development license inventory (not approval)
+        run: python ../scripts/license_inventory.py --environment development --output "$RUNNER_TEMP/python-development-licenses.json"
+
       - name: Runtime-only installation
         run: |
           python -m venv ../.runtime-check
           ../.runtime-check/bin/python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
           ../.runtime-check/bin/python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-lock.txt
           ../.runtime-check/bin/python -m pip check
+          ../.runtime-check/bin/python ../scripts/license_inventory.py --environment runtime --output "$RUNNER_TEMP/python-runtime-licenses.json"
           APP_ENV=test AUTH_ENABLED=false LOCAL_DB_BOOTSTRAP=false DATABASE_URL=sqlite:///:memory: ../.runtime-check/bin/python - <<'PY'
           from importlib.util import find_spec
           from app.main import app
@@ -66,11 +73,12 @@ jobs:
           ../.dependency-tools/bin/python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
           ../.dependency-tools/bin/python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-tools-lock.txt
           ../.dependency-tools/bin/python -m pip check
+          ../.dependency-tools/bin/python ../scripts/license_inventory.py --environment maintenance --output "$RUNNER_TEMP/python-maintenance-licenses.json"
           ../.dependency-tools/bin/python scripts/export_dependencies.py --check
           ../.dependency-tools/bin/python -m pip_audit --disable-pip --no-deps --strict -r requirements-dev-lock.txt -r requirements-tools-lock.txt -r requirements-bootstrap.txt
 
       - name: Ruff
-        run: ruff check app tests scripts/export_dependencies.py ../scripts/security_checks.py ../scripts/tests
+        run: ruff check app tests scripts/export_dependencies.py ../scripts/security_checks.py ../scripts/license_inventory.py ../scripts/tests
 
       - name: Pytest (SQLite)
         run: python -m pytest tests -q
@@ -95,6 +103,19 @@ jobs:
               assert client.get("/api/v1/portfolios/").status_code == 401
               assert client.get("/openapi.json").status_code == 404
           PY
+
+      - name: Retain sanitized Python license inventories
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, node24
+        with:
+          name: python-license-inventory-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/python-development-licenses.json
+            ${{ runner.temp }}/python-runtime-licenses.json
+            ${{ runner.temp }}/python-maintenance-licenses.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          overwrite: false
 
     services:
       postgres:
@@ -148,6 +169,12 @@ jobs:
       - name: Remediation policy rejection checks
         run: pnpm run test:remediation
 
+      - name: License inventory rejection checks
+        run: pnpm run test:licenses
+
+      - name: Frontend license inventory (not approval)
+        run: pnpm run license:inventory "$RUNNER_TEMP/frontend-licenses.json"
+
       - name: Build
         run: pnpm run build
 
@@ -156,3 +183,13 @@ jobs:
 
       - name: Frontend dependency advisories
         run: pnpm run audit:dependencies
+
+      - name: Retain sanitized frontend license inventory
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, node24
+        with:
+          name: frontend-license-inventory-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frontend-licenses.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          overwrite: false
