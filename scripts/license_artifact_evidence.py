@@ -25,7 +25,7 @@ def safe_name(name):
     parts = PurePosixPath(name).parts
     if (not parts or PurePosixPath(name).is_absolute() or ".." in parts
             or "\\" in name or any(ord(char) < 32 or ord(char) == 127 for char in name)
-            or re.match(r"^[A-Za-z]:", name)):
+            or re.match(r"^[A-Za-z]:", parts[0])):
         raise ValueError("Unsafe archive member")
     return str(PurePosixPath(name))
 

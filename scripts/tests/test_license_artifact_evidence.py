@@ -104,7 +104,8 @@ class ArtifactEvidenceTests(unittest.TestCase):
             self.collect()
 
     def test_unsafe_names_and_duplicate_normalized_paths_fail(self):
-        for name in ("../LICENSE", "/LICENSE", "C:/LICENSE", "dir\\LICENSE", "x/../LICENSE", "LICENSE\n"):
+        for name in ("../LICENSE", "/LICENSE", "C:/LICENSE", "./C:/LICENSE",
+                     "dir\\LICENSE", "x/../LICENSE", "LICENSE\n"):
             with self.subTest(name=name):
                 self.archive([(name, b"text")])
                 with self.assertRaises(ValueError):
