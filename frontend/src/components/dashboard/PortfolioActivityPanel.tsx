@@ -155,7 +155,6 @@ function WatchlistSignals() {
         <ul className="divide-y divide-slate-50 flex-1">
           {signals.map((w, i) => {
             const base    = w.ticker.replace(/\.(NS|BSE|BO)$/i, '')
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const tagStyle = (WATCHLIST_TAG_STYLES as any)[w.tag ?? ''] ?? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' }
             return (
               <li key={i} className="flex items-center gap-2 py-2.5">

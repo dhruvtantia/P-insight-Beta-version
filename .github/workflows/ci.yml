@@ -172,6 +172,12 @@ jobs:
       - name: License inventory rejection checks
         run: pnpm run test:licenses
 
+      - name: Lint gate rejection checks
+        run: pnpm run test:lint
+
+      - name: Lint
+        run: pnpm run lint
+
       - name: Frontend license inventory (not approval)
         run: pnpm run license:inventory "$RUNNER_TEMP/frontend-licenses.json"
 

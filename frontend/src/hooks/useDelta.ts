@@ -77,7 +77,6 @@ export function useDelta(
       return
     }
     fetch(snapshotAId, snapshotBId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotAId, snapshotBId])
 
   const refetch = () => {

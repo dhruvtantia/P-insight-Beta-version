@@ -72,7 +72,6 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 
 // ─── Active slice renderer (subtle scale on hover) ────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ActiveSlice(props: any) {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
   return (

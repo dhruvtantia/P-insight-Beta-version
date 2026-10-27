@@ -168,7 +168,7 @@ export default function WatchlistPage() {
             )}
           </div>
           <p className="text-sm text-slate-500">
-            Track stocks you're researching or considering for your portfolio.
+            Track stocks you&apos;re researching or considering for your portfolio.
             Search by ticker or company name — sector and name auto-fill on selection.
           </p>
         </div>
