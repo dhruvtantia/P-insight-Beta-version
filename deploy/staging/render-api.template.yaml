@@ -1,0 +1,76 @@
+# Preparation only. Do not apply before budget/region/accounts and access review.
+# Not named render.yaml: no automatic Blueprint import/deployment is configured.
+services:
+  - type: web
+    name: pinsight-staging-api
+    runtime: python
+    repo: https://github.com/dhruvtantia/P-insight-Beta-version
+    branch: main
+    rootDir: backend
+    autoDeployTrigger: "off"
+    numInstances: 1
+    healthCheckPath: /readiness
+    buildCommand: |
+      set -eu
+      python -c "import platform; assert platform.python_version() == '3.12.13'"
+      python -m pip --isolated install --require-hashes --no-deps -r requirements-bootstrap.txt
+      python -m pip --isolated install --require-hashes --no-deps --no-build-isolation -r requirements-lock.txt
+      python -m pip check
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.13"
+      - key: APP_ENV
+        value: staging
+      - key: AUTH_ENABLED
+        value: "true"
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DOCS_ENABLED
+        value: "false"
+      - key: LOCAL_DB_BOOTSTRAP
+        value: "false"
+      - key: DEFAULT_DATA_MODE
+        value: uploaded
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: LIVE_API_ENABLED
+        value: "false"
+      - key: BROKER_SYNC_ENABLED
+        value: "false"
+      - key: AI_CHAT_ENABLED
+        value: "false"
+      - key: ADVANCED_ANALYTICS_ENABLED
+        value: "false"
+      - key: FEATURE_PORTFOLIO_CORE
+        value: "false"
+      - key: FEATURE_UPLOAD
+        value: "false"
+      - key: FEATURE_WATCHLIST
+        value: "false"
+      - key: FEATURE_QUANT
+        value: "false"
+      - key: FEATURE_FUNDAMENTALS
+        value: "false"
+      - key: FEATURE_HISTORY
+        value: "false"
+      - key: FEATURE_MARKET_DATA
+        value: "false"
+      - key: FEATURE_NEWS
+        value: "false"
+      - key: FEATURE_ADVISOR
+        value: "false"
+      - key: FEATURE_BROKER_SYNC
+        value: "false"
+      - key: FEATURE_AI_CHAT
+        value: "false"
+      - key: FEATURE_SCREENER
+        value: "false"
+      - key: FEATURE_LEGACY_FRONTIER
+        value: "false"

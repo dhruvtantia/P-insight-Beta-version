@@ -1,21 +1,21 @@
 # Production Readiness and Release Decisions
 
-Updated: 2026-10-19. **Not approved for a customer-facing production launch.** [Execution plan](EXECUTION_PLAN.md) | [Checkpoint](EXECUTION_STATUS.md).
+Updated: 2026-10-27. **Core-first development approved; no customer/public go-live approved.** [Core release](CORE_RELEASE.md) | [Execution plan](EXECUTION_PLAN.md) | [Checkpoint](EXECUTION_STATUS.md).
 
 This public summary describes capability and acceptance boundaries. It intentionally omits sensitive audit diagnostics, customer data and security reproduction material. A working local feature or passing build is not a production-readiness claim.
 
 ## Product Scope Decision
 
-**Owner-approved breadth (2026-10-19): "Full roadmap required at launch"**, recorded in [decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12). The earlier invite-only uploaded-INR beta proposal is superseded. Public signup, paid functionality and the extended roadmap are first-launch prerequisites, not subsequent releases.
+**Current owner-approved order (2026-10-27): working core first, unfinished modules later.** The owner requested a usable main product with placeholders for incomplete parts, then accepted the recommended core-first approach. [CORE_RELEASE.md](CORE_RELEASE.md) defines R1's invited/private uploaded-portfolio journey, deferrals and acceptance. Missing features can be hidden/unavailable; identity, persistence, ingestion correctness and displayed financial values cannot be placeholders.
 
-This approves feature breadth, not readiness, a delivery date, a vendor purchase or go-live. Controlled staging and invited rehearsals can precede launch but do not fulfill this scope. Every requirement below needs a bounded specification and evidence; unresolved details are blockers, not permission to omit functionality. Any later deferral needs a new explicit owner-approved scope change.
+The earlier 2026-10-19 full-roadmap-before-first-launch decision in [decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12) is historical and superseded for release ordering, not erased or relabeled as implementation. All its features remain the full-product roadmap. They are no longer prerequisites for the smaller private working-core milestone. A broader public/paid release requires a separately approved scope and applicable safety/operational gates; no purchase, provisioning, customer-data use or go-live is authorized here.
 
 | Decision | Owner input needed | Effect |
 |---|---|---|
-| Audience and commercial capability | Public signup and paid functionality required; exact plans, eligibility and rollout procedure remain open | Abuse/capacity/entitlement/customer-operations gates |
+| Audience and commercial capability | R1 invited/private core; public signup and paid functionality deferred to separately scoped releases | Appropriate access/abuse/customer-operations gates; entitlements before paid use |
 | Geography and assets | Supported exchanges, types, currencies and identifiers | Instrument identity, provider coverage and financial domain rules |
 | Data claims | Delayed/end-of-day versus licensed intraday; hypothetical versus actual investor performance | Sources, timestamp/quality disclosure and methodology |
-| Required integrations | AI, news/events, payments, brokers and screener included; providers and detailed specifications remain open | Integrations, permissions, quotas, customer obligations and acceptance |
+| Roadmap integrations | AI, news/events, payments, brokers and screener retained for later modules; providers/specifications remain open | Each integration needs permissions, quotas, customer obligations and acceptance before enablement |
 | Extended roadmap semantics | Define US-market assets/currencies, real-time latency, recommendations and advanced/broker analytics | Feed entitlements, instrument/FX model, financial methodology and acceptance fixtures |
 | Budget and region | Staging/production allowance and permitted data regions | Service plans, recovery, latency and procurement |
 | Retention and customer lifecycle | Raw-file TTL, export/delete/recovery/support policy | Storage, deletion, backups and operational procedures |
@@ -24,9 +24,9 @@ No provider key alone establishes coverage, production use rights or redistribut
 
 ## Required-Feature Manifest
 
-This consolidates the audited feature areas and existing README/monetization promises; it is not a claim that they work today. Split these rows into delivery issues with module owners, specifications, tests and live evidence. Reconcile any additional legacy promise before declaring scope complete; do not infer that an unlisted promise was waived. A superseded duplicate route is not a requirement to resurrect obsolete implementations.
+This is the **full-product roadmap register**, not R1's enable list or a claim of implementation. R1's requirements/deferrals are in [CORE_RELEASE.md](CORE_RELEASE.md). Split these rows into module-owned issues and require specifications/tests/live evidence before enablement. Reconcile additional legacy promises before claiming the full product complete. A superseded duplicate route need not be resurrected.
 
-| Required area | Acceptance before first launch | Main batches |
+| Full-product area | Acceptance before enabling/claiming this area | Main batches |
 |---|---|---|
 | Public accounts and multi-user portfolios | Signup, verification/login/session/logout/recovery, ownership isolation, portfolio lifecycle and abuse controls; customer export/delete/retention | B02-B09, B18-B19, B21-B23, B25 |
 | Upload, refresh and enrichment | Validated CSV/spreadsheet parsing/mapping/review, canonical acceptance, durable jobs, progress/resume/retry/cancel, provenance, bounded providers and revision-safe recovery | B08-B14, B18-B19 |
@@ -45,9 +45,9 @@ This consolidates the audited feature areas and existing README/monetization pro
 | Advanced/broker analytics | Define metrics and actual-investor-performance claims; establish transaction/cashflow/lot/corporate-action/FX inputs where required, with independently reviewed examples | B08-B09, B16-B17, B25 |
 | Operated customer-ready service | Production services, email/domain/TLS, monitoring, controlled CI promotion, restore/reconciliation, policies, support and measured capacity/cost | B06, B21-B24 |
 
-Specification must clarify whether tax/lot reporting or other detailed advanced metrics are promised; this decision does not invent a jurisdiction-specific tax product. No required feature may pass merely through a disabled flag, stub, API key or mock. Temporary data gaps remain legitimate explicit states after the feature itself is accepted.
+Specification must clarify tax/lot or other advanced promises; this does not invent a tax product. A disabled flag/stub/key/mock never means a feature passed. It is an honest exclusion for R1's explicitly deferred modules, not permission to exclude an R1 requirement. Temporary data gaps remain explicit states, not invented results.
 
-**Release dependency:** retain B02-B23 engineering order, complete all required B20 and B25 integration acceptance, then run B24 full-product rehearsal/go-no-go/launch. B25 can be split and developed alongside later batches after its prerequisite contracts; its number does not put it after launch. Re-estimate effort, procurement lead times, cost and critical path after specifications/provider eligibility. Earlier beta-only estimates are not a full-roadmap schedule, and no new date is committed here.
+**Release dependency:** R1 follows C0-C5 in CORE_RELEASE, mapping applicable portions of existing batches without declaring whole batches complete. Early synthetic staging and code-only identity/contracts may proceed alongside unresolved administrative/license decisions; those decisions still block affected use/release. Full-product B24 still requires accepted applicable B02-B23/B20/B25 scope. Deferred modules proceed after shared contracts stabilize. No delivery date is committed.
 
 ## Capability Map
 
@@ -66,9 +66,9 @@ Keep the current modular-monolith direction: narrow backend ownership boundaries
 
 ## Launch Gates
 
-All implementation and operational gates below need dated evidence. Only the owner's feature-breadth decision is complete here.
+R1 must pass its own [non-placeholder gates](CORE_RELEASE.md#release-gates-that-cannot-be-placeholders). The following register describes broader full-product/public-release acceptance; apply every relevant privacy/correctness/operations gate to R1 rather than requiring every deferred module. No implementation checkbox is completed by the scope decision.
 
-- [x] Owner-approved first-launch feature breadth: full roadmap, decision #12 (2026-10-19).
+- [x] Owner-approved core-first development order (2026-10-27); full roadmap retained as later modules, earlier decision #12 historical.
 - [ ] Bounded specifications for every manifest row, supported assets/geographies/currencies and public data/performance claims approved.
 - [ ] All required B20/B25 roadmap paths implemented and accepted; open specifications and vendor blockers resolved before B24.
 - [ ] Private access, session and computation isolation verified with synthetic multi-user cases.
@@ -85,7 +85,7 @@ All implementation and operational gates below need dated evidence. Only the own
 - [ ] Reviewed disclosures/policies/data/advice requirements for the actual chosen product and jurisdictions.
 - [ ] Full-product rehearsal, no unresolved release blocker, explicit go-live approval, controlled public/paid rollout and monitored observation.
 
-Every required roadmap integration needs its own evidence: broker token/consent/reconcile/revoke; paid entitlements and idempotent payment events; screener universe/filter/freshness; chat isolation/retention/budget; event-source correctness; US-market/FX coverage and measured real-time behavior. A disabled required feature blocks first launch unless the owner explicitly approves a later scope change. Do not call a placeholder functional merely because a flag or API key exists.
+Every roadmap integration needs its own evidence before enablement: broker consent/reconciliation/revocation, paid entitlements/idempotent events, screener universe/freshness, chat isolation/retention, events and US/FX/real-time correctness. Explicitly deferred modules do not block R1; an incomplete R1 requirement does. Do not call a placeholder functional because a flag or key exists.
 
 ## Delivery Controls
 

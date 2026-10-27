@@ -1,14 +1,14 @@
 # P-Insight: Gradual Execution Plan
 
-Updated: 2026-10-19. Start with the [checkpoint and work queue](EXECUTION_STATUS.md). This is the public operating plan, not a production-readiness certificate. Detailed local audit evidence is not part of this publication.
+Updated: 2026-10-27. Start with the [core-first release](CORE_RELEASE.md) and [checkpoint](EXECUTION_STATUS.md). This is an operating plan, not production certification. Detailed local audit evidence is not published here.
 
 ## Baseline and Scope
 
 B00 is accepted through [PR #3](https://github.com/dhruvtantia/P-insight-Beta-version/pull/3), merged at `9b71c53953373421bbc360244b794d8a78edc435`. Its exact-head and post-merge CI passed. The original foundation commits were preserved, and the local baseline was reconciled without discarding existing work.
 
-**Approved first-launch breadth: full roadmap required.** On 2026-10-19 the owner selected "Full roadmap required at launch"; see [decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12). Public signup, billing/entitlements, brokers, screener, AI advisor/chat, news/events and advanced analytics are launch requirements alongside the core portfolio experience. The [required-feature manifest](PRODUCTION_READINESS.md#required-feature-manifest) also carries forward US-market expansion, real-time analytics and portfolio recommendations from the README. None can silently become post-launch work.
+**Current order: working core first, roadmap modules later.** On 2026-10-27 the owner requested a usable main product with incomplete parts separate/placeholdered, then accepted the recommended option. [CORE_RELEASE.md](CORE_RELEASE.md) owns R1's private invited upload-to-dashboard scope, deferred modules, modular boundaries and C0-C6 acceptance. It supersedes release ordering from [historical decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12), not accepted engineering evidence or the long-term roadmap.
 
-Feature breadth is approved; precise markets/assets/currencies, feed latency, advanced-methodology specifications, pricing and provider eligibility remain open. An unresolved specification blocks acceptance of that requirement; it does not exclude it. The earlier invite-only uploaded-INR beta proposal and its scheduling assumptions do not describe this launch.
+The [full-product manifest](PRODUCTION_READINESS.md#required-feature-manifest) retains public/paid accounts, brokers, screener, AI/news/events, US/FX, real-time and advanced analytics. These may be developed/attached later with explicit acceptance, not counted complete because hidden. R1 still requires safe accounts, strict ingestion, durable revision-safe processing, verified displayed values and operated recovery. Its uploaded-INR equity/ETF contract and later specifications must be tested before claims; no old calendar estimate is reused.
 
 Security and correctness work can proceed while commercial decisions remain open. A release, purchase, real-account mutation or customer-data migration needs its own approved scope. This plan configures no unattended work or automatic production rollout.
 
@@ -60,13 +60,17 @@ UI contributors own presentation, accessible interactions and component states. 
 | M6: operated release | B21-B23 | Hosting, auth/email, monitoring, CI promotion, recovery, support and capacity verified |
 | M7: full-roadmap launch | B25 then B24 | All required roadmap tracks accepted before full-product rehearsal, go/no-go and controlled rollout |
 
+These remain full-project milestones. R1 uses applicable subsets under C0-C5
+in CORE_RELEASE; it need not complete all deferred/full-roadmap modules first.
+A partial batch is never marked wholly accepted because R1 ships.
+
 Staging/provider procurement can start after the safety baseline rather than waiting for M6. Frontend work can overlap domain work after B08 contracts are stable. Parallel contributors must coordinate ownership; no concurrent edits to the same surface without agreement.
 
 ## Ordered Batches
 
 A batch is a bounded work package, not a promise to finish a subsystem in one chat. Split large batches into smaller PRs, for example B12a/B12b, while retaining the parent acceptance boundary. The near-term issues are linked from the checkpoint; later issues are created when their scope is ready.
 
-**Execution dependency: B02-B23 -> complete B25 acceptance -> B24 launch.** Batch IDs and original task IDs stay stable; the rows below put B25 before B24 deliberately. B25 subtracks can start after their safety, identity and domain contracts are ready and overlap later engineering/operations work. This is not a requirement to wait until B23 to begin integrations. B20 is mandatory. Early staging or invited rehearsals are tests, not fulfillment of the first-launch scope.
+**Full-product dependency: applicable B02-B23 -> B25 acceptance -> B24 full-product launch.** IDs/task traceability remain stable. R1 follows C0-C5: synthetic staging early; identity/API/revisions; durable import; correct core browser; operated private release. Applicable B06 security/delivery/license decisions still gate affected use/release, but pending owner-admin/commercial work need not block code-only C2 or safe C1 preparation. B20/deferred B25 modules are not R1 prerequisites. Later modules receive separate acceptance after their safety/domain prerequisites.
 
 | Batch | Deliverable | Original tasks | Acceptance boundary |
 |---|---|---|---|
@@ -105,9 +109,9 @@ Use synthetic fixtures for multiple owners, repeated commands, duplicate instrum
 
 ## Scope and Schedule Control
 
-Break B25 into independently reviewed delivery slices with module owners, API/schema contracts, vendor prerequisites and deterministic plus live acceptance evidence for every manifest row. Reconcile legacy roadmap promises against that manifest before committing a launch date. Estimates based only on the earlier uploaded-INR beta are not estimates for this scope. Re-estimate after feature specifications and provider eligibility are established; no delivery date or cost is approved here.
+Break deferred modules into reviewed slices with owners, API/schema contracts, vendor prerequisites and deterministic/live evidence. Reconcile legacy promises before claiming the full product. Estimate R1 from its demonstrated hosted journey and later releases from their own scope/eligibility, not one blended percentage. No date or service cost is approved here.
 
-Any proposed removal or deferral requires a new explicit owner decision recorded in GitHub and these canonical scope documents. Feature flags, missing credentials, mock integrations and unfinished specifications cannot satisfy a required launch gate. Feature breadth approval does not approve purchases, production deployment or real-account mutations.
+Current explicit deferrals are recorded in CORE_RELEASE. New scope changes require owner approval and a delivery record. Flags/mocks/unfinished specifications never satisfy an enabled/R1 requirement. Scope approval does not approve purchases, provisioning, customer-data use, production deployment or real-account mutations.
 
 ## Public-Safe Collaboration
 
@@ -119,7 +123,7 @@ Any proposed removal or deferral requires a new explicit owner decision recorded
 
 ## Session Handoff and Completion
 
-Every handoff identifies the batch/subtask, branch/base, owned changes, exact test evidence, PR/CI state, unverified dependencies and next action. Use PLANNED, IN_PROGRESS, LOCAL_VERIFIED, CI_PENDING, REVIEW_READY, MERGED, STAGING_VERIFIED or BLOCKED accurately. No scope exclusion is approved by this plan; a later owner-approved change must be recorded explicitly, not treated as implementation.
+Every handoff identifies the release milestone/batch/subtask, branch/base, owned changes, tests, PR/CI state, external dependencies and next action. Use PLANNED, IN_PROGRESS, LOCAL_VERIFIED, CI_PENDING, REVIEW_READY, MERGED, STAGING_VERIFIED or BLOCKED accurately. R1 exclusions are explicit in CORE_RELEASE, not implementation or approval of later modules. Further exclusions require a new decision.
 
 A code batch requires tests, review, accepted PR, verified CI and safe baseline reconciliation. An operational batch additionally requires its live acceptance evidence. Record final merge and post-merge CI in the linked issue once known; the next code snapshot can reference that accepted evidence without an endless status-only commit loop.
 

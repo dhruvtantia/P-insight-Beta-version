@@ -162,18 +162,18 @@ own PR. Agent COMMENT review is not independent human approval.
 
 ## B06 Remaining Gates
 
-1. Verify the backend dependency slice's exact-head/post-merge Linux installation,
-   closure, audit and regression checks in issue #9. Do not infer acceptance before
-   that evidence exists. Preserve the documented framework schema differences.
-2. Complete exact-head/post-merge review of the approved frontend remediation;
-   finish license inventory and secret-scanning policy/
-   enforcement. Backend scan evidence is dated and limited to its resolved graph;
-   no whole-project advisory clearance or vulnerability exception is implied.
+1. Use issue #9's accepted PR #19-#24 evidence for toolchain, dependency,
+   secret/runtime-review, inventory and lint slices; do not repeat delivery that
+   already passed. Preserve reviewed framework schema differences and scan limits.
+2. Finish exact artifact/component texts, notices and explicit license choices
+   for actual distribution. PR #25's separate evidence draft needs current-main
+   integration/review/checks before authorized delivery; it is not legal approval.
 3. Configure and exercise repository enforcement after the required context names
    are confirmed, preserving a usable single-maintainer review process.
-4. Review the tracked local-runtime directory separately, including references and
-   history implications, before any approved cleanup. No runtime artifacts or
-   unrelated local evidence are deleted in this slice.
+4. Preserve the tracked-runtime disposition accepted in PR #22. No artifact
+   cleanup, index removal or history rewrite is authorized.
 5. Record exact-head and post-merge Linux checks plus safe local reconciliation in
-   issue #9. Keep B06 open until **all** acceptance criteria are evidenced; B07 and
-   production promotion do not start merely because this first slice passes.
+   issue #9. Keep B06 open until **all** criteria are evidenced. Under the owner's
+   [core-first order](CORE_RELEASE.md), code-only C2/B07 and private synthetic C1
+   preparation can overlap pending admin/commercial work; applicable controls
+   still block affected data use/release. No automatic production promotion.

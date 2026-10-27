@@ -2,6 +2,19 @@
 
 Updated: 2026-10-27. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
 
+## Current Release Direction
+
+The owner's latest decision is **working core first, unfinished modules later**
+(2026-10-27). [CORE_RELEASE.md](CORE_RELEASE.md) defines private R1, explicit
+deferrals and C0-C6 acceptance. The older full-roadmap-before-first-launch
+decision below is historical, superseded for ordering. No public deployment,
+paid account, vendor purchase or real-data use is approved.
+
+C0 prepares a reviewed scope and unapplied bootstrap template. C1 private,
+synthetic-only hosting preparation can overlap C2 identity/contracts; applicable
+security/delivery/license/data gates still apply before affected use. Do not
+wait for every optional module before building the core journey.
+
 ## Accepted Baseline
 
 B00 was reviewed and accepted through [PR #3](https://github.com/dhruvtantia/P-insight-Beta-version/pull/3), merged at `9b71c53953373421bbc360244b794d8a78edc435`.
@@ -17,7 +30,7 @@ This records accepted development evidence, not production certification. The SH
 
 **B01 accepted:** [issue #4](https://github.com/dhruvtantia/P-insight-Beta-version/issues/4), [PR #11](https://github.com/dhruvtantia/P-insight-Beta-version/pull/11), merged at historical anchor `ab06e960df7ca9a6c69851e32493626df4961636`. Exact-head and post-merge CI passed, and local main/development baseline were safely reconciled. The issue owns detailed acceptance evidence.
 
-**Later scope decision:** on 2026-10-19 the owner answered **"Full roadmap required at launch"**. [Decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12) owns this follow-up's PR/CI and reconciliation evidence. B01 remains accepted; the former proposed beta scope is superseded. See the [required-feature manifest](PRODUCTION_READINESS.md#required-feature-manifest).
+**Historical scope decision:** on 2026-10-19 the owner answered **"Full roadmap required at launch"**. [Decision #12](https://github.com/dhruvtantia/P-insight-Beta-version/issues/12) preserves that accepted documentation evidence. The 2026-10-27 core-first decision above now supersedes release ordering; the full roadmap remains retained. B01 stays accepted.
 
 **B02 accepted:** [issue #5](https://github.com/dhruvtantia/P-insight-Beta-version/issues/5), [PR #14](https://github.com/dhruvtantia/P-insight-Beta-version/pull/14), historical merge anchor `8863888276d3e399c0933d3f08d0afc68b7a5673`. Exact-head and post-merge CI passed and local baselines were safely reconciled. Both progress routes pass explicit owner context into the shared status service before reading details; public response shapes are unchanged and unexpected errors are sanitized. The issue owns detailed evidence.
 
@@ -35,7 +48,7 @@ B04 isolated-source verification: 73 new cache/provider/HTTP cases and all 231 b
 
 **B05 second slice and whole-batch acceptance:** issue #8 owns the current delivery status, reviewed PR, exact-head/post-merge checks and reconciliation evidence. Shared approved messages cover reviewed embedded provider/job/parser error boundaries, including read-time filtering of old saved failure reasons without rewriting customer data. Column mapping has one strict structural parser across both confirms and refresh; wrong-shaped JSON becomes 422. A broker-reported sync error stops before holdings replacement. B02/B03 ownership and B04 numerical/cache behavior remain regression gates, not assumed consequences of these edits.
 
-B05 second-slice local evidence: 78 new synthetic failure-injection cases and all 401 backend tests passed. The complete runtime schema keeps existing operation shapes/components, with only a corrected broker-sync description; real optimizer/quant outputs match the accepted baseline on a fixed synthetic dataset, excluding the computation timestamp. Review and delivery acceptance belong to issue #8: completed with that evidence means B05 is accepted and B06 is next; otherwise finish B05 first. Passing this safety batch is not production certification. Safety remains first; B25 is required before B24. Full-roadmap scope and modular UI/backend ownership are unchanged.
+B05 second-slice historical evidence: 78 new synthetic failure-injection cases and all 401 backend tests passed. Runtime schema kept operation shapes/components except a corrected broker-sync description; optimizer/quant outputs matched the accepted synthetic baseline excluding timestamp. Issue #8 owns acceptance. These were safety/parity checks, not general financial or production certification. Full-product B25-before-B24 and modular ownership remain; current R1 ordering is defined above.
 
 **B05 final delivery verified:** [PR #18](https://github.com/dhruvtantia/P-insight-Beta-version/pull/18), historical merge anchor `47867961bf56072f7dae9939614302e030d638aa`. Exact-head/post-merge checks passed, local baselines were safely reconciled, and issue #8 is closed as completed. B05 needs no repeated implementation.
 
@@ -43,7 +56,7 @@ B05 second-slice local evidence: 78 new synthetic failure-injection cases and al
 
 **B06 first-slice delivery verified:** [PR #19](https://github.com/dhruvtantia/P-insight-Beta-version/pull/19), historical merge anchor `638c4802194e47351254a19bb8741b5c5b47b619`. Final-head/post-merge checks passed with 405 backend tests, frontend build/type checks and PostgreSQL startup. Local baselines were safely reconciled. Issue #9 remains open; owner-approved required CI without self-approval still needs administration access and effective-rule verification.
 
-**B06 backend dependency slice:** current review/delivery acceptance belongs to issue #9. The [dependency policy](DEPENDENCY_POLICY.md) defines one Poetry graph with separate hashed app/dev/bootstrap/maintenance exports, fail-closed export/advisory checks and dated scan limits. Numerical packages are retained; compatible framework/security updates include explicitly reviewed OpenAPI metadata differences. This does not certify financial correctness or complete B08's generated-artifact reconciliation. Finish this slice's delivery, then frontend advisory/license/secret policy, GitHub enforcement and separate runtime-artifact review before B07.
+**B06 backend dependency slice:** issue #9 owns accepted evidence. The [dependency policy](DEPENDENCY_POLICY.md) defines one Poetry graph with separate hashed app/dev/bootstrap/maintenance exports, fail-closed checks and dated scan limits. Numerical packages are retained; framework/security updates include reviewed OpenAPI metadata differences. This does not certify financial correctness or complete B08 reconciliation. The current core-first queue, not this historical slice's former next-action order, governs new work.
 
 **B06 backend slice accepted:** [PR #20](https://github.com/dhruvtantia/P-insight-Beta-version/pull/20), historical merge anchor `996327043043018593302e0f102d03ed7b70c8c7`. Exact-head/post-merge Linux checks passed, including all 418 tests, isolated runtime/dev/maintenance installs, backend advisory/export checks and PostgreSQL startup. Local baselines were reconciled with all preserved evidence/worktree entries unchanged. Issue #9 owns full delivery evidence; the old local Python environment was not upgraded.
 
@@ -53,14 +66,17 @@ B05 second-slice local evidence: 78 new synthetic failure-injection cases and al
 
 **B06 license-inventory slice accepted:** [PR #23](https://github.com/dhruvtantia/P-insight-Beta-version/pull/23), merge `a9c1f0199dbc83a3598d5acb55d9edacb78c0607`. Exact-head CI 39946621303 and post-merge CI 39961050295 passed; report artifacts were downloaded/verified and local baselines preservation-checked and reconciled. [Validated inventories](LICENSE_REVIEW.md) establish environment/lock coverage, not license compatibility: every record remains review-required. Artifact texts/notices/license choices and owner-admin enforcement still block whole B06. Issue #9 owns full delivery evidence; do not repeat this accepted tooling slice.
 
-**B06 frontend-lint slice prepared:** [lint contract](FRONTEND_LINT.md) replaces interactive setup with ESLint CLI, the existing Next 15 preset and an explicit five-warning ceiling. Rejection tests and lint run in the existing frontend job; the tooltip's conditional-hook bug is corrected without changing financial methods or upload commands. Review/exact-head CI and delivery acceptance remain required in issue #9. No whole-B06 acceptance, branch-protection change or deployment is implied.
+**B06 frontend-lint slice accepted:** [PR #24](https://github.com/dhruvtantia/P-insight-Beta-version/pull/24), merge `9f1e60dca613c8e5629dd53ab504f426bc77f993`. Exact-head CI 40543279433 and post-merge CI 40576176454 passed: 423 backend tests, 31 root tooling checks, 104 frontend checks, lint/build/types and PostgreSQL startup. Real React/Chrome merged-source tooltip regression and preservation-checked local reconciliation passed. Five visible warnings remain; this is not whole-B06 acceptance or deployment. Issue #9 owns evidence.
+
+**B06 first artifact-evidence draft:** [PR #25](https://github.com/dhruvtantia/P-insight-Beta-version/pull/25) remains separate/unmerged at `a8dd920f055deb80a7a133e16d22c6e1b842d34e`. Its old-base checks do not prove current-main integration; reconcile/review/retest before separately authorized delivery. Evidence is not license approval or a complete notice bundle.
 
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Review/deliver the lint slice; finish artifact/notices/license approval and owner-admin enforcement |
-| 2 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | After whole-batch B06 acceptance: signing/claim/provisioning and private-operation contracts |
+| 1 | C0/C1 [core release](CORE_RELEASE.md) | Review scope/bootstrap; confirm budget/region/accounts/runtime fit before private synthetic-only hosting |
+| 2 | C2 / [B07 identity](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Next core code: signing/required claims, owner/session matrix and provisioning, followed by API/revision contracts |
+| Parallel | [B06 controls](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Artifact/notices/choices and owner-admin enforcement remain gates for affected use/release, not falsely completed |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
 
@@ -81,7 +97,7 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 
 | Decision | State | Before it is needed |
 |---|---|---|
-| First-launch feature breadth | APPROVED: full roadmap, including public signup and required integrations; decision #12 | Fulfill manifest before B24; no silent deferrals |
+| First usable release | APPROVED: private core first; deferrals in CORE_RELEASE; older decision #12 historical | R1 C0-C5 acceptance; full roadmap retained for later, not counted implemented |
 | Markets/assets/currencies and real-time/advanced specifications | OPEN; includes defining README US expansion and real-time analytics promises | Instrument/feed/methodology contracts and full-scope estimate |
 | AI/news/events/billing/brokers/screener implementation choices | OPEN; inclusion is required, provider/pricing/permissions details are not selected | Affected specification, integration or purchase |
 | Data contracts/rights, region and budget | OPEN | Production provider/hosting commitment |
@@ -98,4 +114,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B06 issue #9 and scope decision #12, then verify live GitHub/local main and the lint candidate. Build/backend/frontend dependency, secret-control/runtime-review and license-inventory tooling slices are accepted. Finish lint review/delivery, artifact texts/notices/license choices and owner-admin enforcement before B07. The exact-backport review still expires on 2026-11-20 without automatic renewal. The October 23 scored audit is local evidence, not automatically published or a revised launch scope. Implement only the selected slice with synthetic tests and exact-revision review/checks; preserve local evidence/installations and locked worktrees. Do not delete the tracked runtime or begin a broad import rewrite. Revisit the B04 revision hook when B09 lands.
+Read CORE_RELEASE and live delivery issues, then verify GitHub/local main and open drafts. PR #24 lint delivery is accepted; do not repeat it. Review/deliver C0 preparation, resolve owner hosting inputs/runtime fit, then prepare protected synthetic C1 and begin C2/B07 identity code. B06 license/notices/choices and owner-admin enforcement remain parallel gates for affected use/release, not waived. PR #25 needs new-base integration before delivery. Exact-backport review expires 2026-11-20 without automatic renewal. Preserve local scored-audit evidence/installations/locked worktree; do not publish private findings, delete tracked runtime or mix broad import rewrites into preparation. Revisit B04 revision fencing when B09 lands. Prefer the core hosted journey over new general-purpose tooling.
