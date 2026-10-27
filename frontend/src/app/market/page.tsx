@@ -343,7 +343,6 @@ export default function MarketPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── News headlines (secondary, non-blocking) ────────────────────────────────

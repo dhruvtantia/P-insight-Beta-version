@@ -140,7 +140,7 @@ export function UploadDropzone({ onFile, disabled = false, error = null }: Uploa
           Current Price, Sector / Industry
         </p>
         <p className="text-slate-400 mt-1">
-          Column names are detected automatically — exact names don't matter.
+          Column names are detected automatically — exact names don&apos;t matter.
         </p>
       </div>
     </div>

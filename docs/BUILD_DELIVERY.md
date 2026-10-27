@@ -88,6 +88,8 @@ pnpm run test:dependencies
 pnpm run test:patches
 pnpm run test:remediation
 pnpm run test:licenses
+pnpm run test:lint
+pnpm run lint
 pnpm run license:inventory /tmp/frontend-licenses-new.json
 pnpm run build
 pnpm run type-check
@@ -109,6 +111,13 @@ A successful build, patch test or production-only scan is not whole-batch
 acceptance. No blanket advisory suppression or automatic renewal is permitted.
 
 ## Delivery Controls
+
+Frontend [linting](FRONTEND_LINT.md) is an unattended ESLint CLI check using the
+existing Next 15 preset and a directly declared, already-locked FlatCompat tool.
+CI runs real rejection tests and lint before Build in the existing frontend job.
+All errors fail; five pre-existing hook/accessibility warnings remain visible
+under a fixed ceiling, not disabled or declared resolved. Unused suppression
+comments fail. Financial/browser-state fixes remain separate acceptance work.
 
 CI actions use verified full commit references, job tokens have `contents: read`,
 and checkout does not persist credentials. All four pinned action implementations

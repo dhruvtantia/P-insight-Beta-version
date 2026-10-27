@@ -83,6 +83,22 @@ def test_backend_install_does_not_override_pinned_test_tools():
     ]
 
 
+def test_frontend_lint_is_noninteractive_and_enforced_in_existing_job():
+    package = json.loads((ROOT / "frontend/package.json").read_text())
+    assert package["scripts"]["lint"] == "eslint . --max-warnings 5"
+    assert package["scripts"]["test:lint"] == "node --test scripts/test-lint.mjs"
+    assert package["devDependencies"]["@eslint/eslintrc"] == "3.3.5"
+    commands = {step["name"]: step for step in steps("frontend") if "run" in step}
+    for name, command in (("Lint gate rejection checks", "pnpm run test:lint"), ("Lint", "pnpm run lint")):
+        assert commands[name]["run"] == command
+        assert not commands[name].get("continue-on-error", False)
+        assert "if" not in commands[name]
+    names = [step.get("name") for step in steps("frontend")]
+    assert names.index("Install dependencies") < names.index("Lint gate rejection checks")
+    assert names.index("Lint gate rejection checks") < names.index("Lint") < names.index("Build")
+    assert workflow()["jobs"]["frontend"]["name"] == "Frontend (type-check + build)"
+
+
 def test_frontend_audit_requires_approved_exact_backport_verification():
     check = next(s for s in steps("frontend") if s.get("name") == "Frontend dependency advisories")
     assert check["run"].strip() == "pnpm run audit:dependencies"

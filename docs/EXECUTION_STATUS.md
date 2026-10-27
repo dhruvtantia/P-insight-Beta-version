@@ -1,6 +1,6 @@
 # P-Insight: Execution Checkpoint
 
-Updated: 2026-10-21. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
+Updated: 2026-10-27. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
 
 ## Accepted Baseline
 
@@ -51,13 +51,15 @@ B05 second-slice local evidence: 78 new synthetic failure-injection cases and al
 
 **B06 secret-control/runtime-review slice accepted:** [PR #22](https://github.com/dhruvtantia/P-insight-Beta-version/pull/22), merge `1370723bcfdb72cb779ee90922ae94959bedb415`. Exact-head and post-merge checks passed, including 420 backend tests, 17 secret-scanner tests, 70 frontend checks and PostgreSQL startup. GitHub's delayed aggregate/run registration was resolved without bypass. Local source was preservation-checked and reconciled; existing files/installations and locked worktree are unchanged. The [tracked-runtime review](TRACKED_RUNTIME_REVIEW.md) preserves the directory and history; no cleanup is authorized. Issue #9 owns evidence; license approval and owner-admin GitHub enforcement remain.
 
-**B06 license-inventory slice in progress:** [validated inventory tooling](LICENSE_REVIEW.md) checks exact Python environment/export equality, native pnpm package/version coverage and explicit optional/group exclusions. Every record remains review-required. Separate sanitized JSON reports are retained for 14 days; secret findings are never uploaded. This is not license compatibility approval, a notice bundle, production deployment or whole-B06 acceptance. Finish exact-head/post-merge delivery in issue #9, then artifact/notice/choice review and owner-admin enforcement before B07.
+**B06 license-inventory slice accepted:** [PR #23](https://github.com/dhruvtantia/P-insight-Beta-version/pull/23), merge `a9c1f0199dbc83a3598d5acb55d9edacb78c0607`. Exact-head CI 39946621303 and post-merge CI 39961050295 passed; report artifacts were downloaded/verified and local baselines preservation-checked and reconciled. [Validated inventories](LICENSE_REVIEW.md) establish environment/lock coverage, not license compatibility: every record remains review-required. Artifact texts/notices/license choices and owner-admin enforcement still block whole B06. Issue #9 owns full delivery evidence; do not repeat this accepted tooling slice.
+
+**B06 frontend-lint slice prepared:** [lint contract](FRONTEND_LINT.md) replaces interactive setup with ESLint CLI, the existing Next 15 preset and an explicit five-warning ceiling. Rejection tests and lint run in the existing frontend job; the tooltip's conditional-hook bug is corrected without changing financial methods or upload commands. Review/exact-head CI and delivery acceptance remain required in issue #9. No whole-B06 acceptance, branch-protection change or deployment is implied.
 
 ## Near-Term Queue
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Accept validated license-inventory delivery; finish artifact/notices/license approval and owner-admin enforcement |
+| 1 | [B06: reproducible builds and checks](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Review/deliver the lint slice; finish artifact/notices/license approval and owner-admin enforcement |
 | 2 | [B07: identity lifecycle and access matrix](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | After whole-batch B06 acceptance: signing/claim/provisioning and private-operation contracts |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
@@ -96,4 +98,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read B06 issue #9 and scope decision #12, then verify live GitHub/local main and the license-inventory candidate. Build/backend/frontend dependency and secret-control/runtime-review slices are accepted. Finish inventory delivery, then verify artifact texts/notices/license choices and owner-admin enforcement before B07. The exact-backport review still expires on 2026-11-20 without automatic renewal. Implement only the selected slice with synthetic tests and exact-revision review/checks; preserve local evidence/installations and locked worktrees. Do not delete the tracked runtime without separate approval or start a broad import rewrite. Private staging is not full-roadmap launch acceptance. Revisit the B04 revision hook when B09 lands.
+Read B06 issue #9 and scope decision #12, then verify live GitHub/local main and the lint candidate. Build/backend/frontend dependency, secret-control/runtime-review and license-inventory tooling slices are accepted. Finish lint review/delivery, artifact texts/notices/license choices and owner-admin enforcement before B07. The exact-backport review still expires on 2026-11-20 without automatic renewal. The October 23 scored audit is local evidence, not automatically published or a revised launch scope. Implement only the selected slice with synthetic tests and exact-revision review/checks; preserve local evidence/installations and locked worktrees. Do not delete the tracked runtime or begin a broad import rewrite. Revisit the B04 revision hook when B09 lands.

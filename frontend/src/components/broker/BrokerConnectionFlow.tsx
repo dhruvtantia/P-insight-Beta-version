@@ -117,7 +117,7 @@ export function BrokerConnectionFlow({
         {step === 'select' && (
           <div className="space-y-3">
             <p className="text-xs text-slate-500">
-              Choose a broker to connect. Scaffolded connectors are shown so you can see what's coming.
+              Choose a broker to connect. Scaffolded connectors are shown so you can see what&apos;s coming.
             </p>
             <div className="space-y-2">
               {brokers.map((b) => (
@@ -241,7 +241,7 @@ export function BrokerConnectionFlow({
                   <p className="text-sm font-bold text-slate-900">Scaffolded — pending state saved</p>
                   <p className="text-xs text-slate-500 mt-1 max-w-xs">
                     {selected?.display_name} is not yet implemented. The connection state has been
-                    saved as "pending". You'll be notified when this connector is ready.
+                    saved as &quot;pending&quot;. You&apos;ll be notified when this connector is ready.
                   </p>
                 </div>
                 <SourceSyncStatusBadge state="pending" size="sm" />

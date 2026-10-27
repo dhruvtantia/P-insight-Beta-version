@@ -42,7 +42,6 @@ export function TooltipHelp({
   useEffect(() => { setMounted(true) }, [])
 
   const content = text ?? (metric ? METRIC_TOOLTIPS[metric] : null)
-  if (!content) return null
 
   const TOOLTIP_W = 256  // w-64 = 16rem = 256px
   const OFFSET    = 10
@@ -88,6 +87,8 @@ export function TooltipHelp({
   }, [computeCoords])
 
   const hide = useCallback(() => setVisible(false), [])
+
+  if (!content) return null
 
   // Arrow direction (visual caret)
   const arrowStyle =
