@@ -149,7 +149,7 @@ def test_secret_scan_has_full_history_and_cannot_skip_failures():
 def test_license_inventories_are_validated_in_existing_separate_environments():
     commands = {step["name"]: step for step in steps("backend") if "run" in step}
     assert commands["License inventory rejection checks"]["run"] == (
-        "python -m unittest discover -s ../scripts/tests -p test_license_inventory.py -v"
+        "python -m unittest discover -s ../scripts/tests -p 'test_license*.py' -v"
     )
     assert commands["Development license inventory (not approval)"]["run"] == (
         'python ../scripts/license_inventory.py --environment development '
