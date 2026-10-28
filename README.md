@@ -15,6 +15,10 @@ be placeholders. The [full-roadmap register](docs/PRODUCTION_READINESS.md#requir
 remains the long-term scope, not a prerequisite for this smaller milestone.
 No public launch or service spending is approved; [staging preparation](deploy/staging/README.md)
 is not a deployed or usable core yet.
+The owner has approved an initial US$120-150/month planning envelope and requires
+[portfolio data to stay in India](docs/DATA_RESIDENCY.md), with a polished functional
+UI. The older Render/Singapore candidate must not be applied; eligible services,
+complete costs and actual residency controls remain to be verified.
 
 ---
 

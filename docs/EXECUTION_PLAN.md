@@ -1,6 +1,6 @@
 # P-Insight: Gradual Execution Plan
 
-Updated: 2026-10-27. Start with the [core-first release](CORE_RELEASE.md) and [checkpoint](EXECUTION_STATUS.md). This is an operating plan, not production certification. Detailed local audit evidence is not published here.
+Updated: 2026-10-28. Start with the [core-first release](CORE_RELEASE.md) and [checkpoint](EXECUTION_STATUS.md). This is an operating plan, not production certification. Detailed local audit evidence is not published here.
 
 ## Baseline and Scope
 
@@ -11,6 +11,13 @@ B00 is accepted through [PR #3](https://github.com/dhruvtantia/P-insight-Beta-ve
 The [full-product manifest](PRODUCTION_READINESS.md#required-feature-manifest) retains public/paid accounts, brokers, screener, AI/news/events, US/FX, real-time and advanced analytics. These may be developed/attached later with explicit acceptance, not counted complete because hidden. R1 still requires safe accounts, strict ingestion, durable revision-safe processing, verified displayed values and operated recovery. Its uploaded-INR equity/ETF contract and later specifications must be tested before claims; no old calendar estimate is reused.
 
 Security and correctness work can proceed while commercial decisions remain open. A release, purchase, real-account mutation or customer-data migration needs its own approved scope. This plan configures no unattended work or automatic production rollout.
+
+**Owner constraints (2026-10-28):** initial US$120-150/month planning envelope,
+professional UI and India-only portfolio storage/processing. Follow
+[DATA_RESIDENCY.md](DATA_RESIDENCY.md) before selecting services. The earlier
+Render/Singapore candidate is ineligible; a Mumbai database by itself does not
+establish the required boundary. This is a cross-cutting acceptance gate for
+C1-C5 and affected B07-B23 work, not a batch/task renumbering or vendor purchase.
 
 ## Source of Truth
 

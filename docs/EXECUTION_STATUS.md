@@ -10,6 +10,13 @@ deferrals and C0-C6 acceptance. The older full-roadmap-before-first-launch
 decision below is historical, superseded for ordering. No public deployment,
 paid account, vendor purchase or real-data use is approved.
 
+The owner confirmed an initial US$120-150/month planning envelope and professional
+UI quality on 2026-10-28, then required portfolio data to stay in India.
+[The residency boundary](DATA_RESIDENCY.md) supersedes the Render/Singapore
+candidate. Country and budget are confirmed; the actual eligible India-region
+services, total bill and operational proof remain open. No purchase or real-data
+release follows from these decisions.
+
 C0 delivered the reviewed scope and unapplied bootstrap template in PR #27. C1 private,
 synthetic-only hosting preparation can overlap C2 identity/contracts; applicable
 security/delivery/license/data gates still apply before affected use. Do not
@@ -77,22 +84,27 @@ merge `cf9868fdd06e92bffb754041f72cc0de30d6935d`, passed exact-head and fresh
 post-merge CI 40628907610. Local main/development were safely reconciled with
 local evidence, installations and the locked worktree preserved. Issue #26 owns
 live acceptance. No account, paid service, deployment or functional hosted core
-was created. The owner confirms new hosting projects are needed; budget/region
-remain open.
+was created. New hosting projects are needed; the subsequent budget/India-only
+decision above governs their provider/profile review.
 
-**C2/B07 token slice in progress:** [token contract](AUTH_IDENTITY.md), issue #10.
+**C2/B07 token slice accepted:** [PR #28](https://github.com/dhruvtantia/P-insight-Beta-version/pull/28),
+merge `f8efc9e2b6b33f6131b321157136dcb03a872a7e`; exact-head CI 40630391360 and
+post-merge CI 40630963515 passed, including 639 backend tests/19 retained warnings,
+frontend checks and PostgreSQL startup. Local main/development were safely
+reconciled with evidence/installations/locked worktree preserved. See the
+[token contract](AUTH_IDENTITY.md) and issue #10 for accepted slice evidence.
 The shared verifier now requires the configured issuer/audience, end-user role
 and complete valid lifetime/identity claims before local identity resolution.
 Bounded JWKS cache/timeout/rotation and synthetic malformed-token/key tests are
 part of this slice. This is not whole-B07 acceptance: concurrent provisioning,
 the complete access/session matrix and applicable PostgreSQL/external account
-evidence remain. Exact-head review/CI/delivery is recorded in issue #10, not
-inferred from this document.
+evidence remain. Hosted identity-vendor residency is not accepted merely because
+its synthetic JWT checks pass.
 
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | C1 [core release](CORE_RELEASE.md) | C0 accepted; confirm budget/region/accounts/runtime fit before private synthetic-only hosting |
-| 2 | C2 / [B07 identity](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Next core code: signing/required claims, owner/session matrix and provisioning, followed by API/revision contracts |
+| 1 | C1 [core release](CORE_RELEASE.md) | India-only data-flow/provider evidence, complete quote within the approved envelope, account/access/runtime fit; no Render application |
+| 2 | C2 / [B07 identity](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Token slice accepted; next concurrent provisioning and complete owner/session matrix, then API/revision contracts |
 | Parallel | [B06 controls](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Artifact/notices/choices and owner-admin enforcement remain gates for affected use/release, not falsely completed |
 
 Issues contain desired acceptance, not proof of completion. Do not infer that an open issue was tested or fixed. Later B08-B25 batches are defined in the operating plan and receive delivery issues as they approach execution.
@@ -117,7 +129,8 @@ Issues contain desired acceptance, not proof of completion. Do not infer that an
 | First usable release | APPROVED: private core first; deferrals in CORE_RELEASE; older decision #12 historical | R1 C0-C5 acceptance; full roadmap retained for later, not counted implemented |
 | Markets/assets/currencies and real-time/advanced specifications | OPEN; includes defining README US expansion and real-time analytics promises | Instrument/feed/methodology contracts and full-scope estimate |
 | AI/news/events/billing/brokers/screener implementation choices | OPEN; inclusion is required, provider/pricing/permissions details are not selected | Affected specification, integration or purchase |
-| Data contracts/rights, region and budget | OPEN | Production provider/hosting commitment |
+| Budget and portfolio-data country | APPROVED: initial US$120-150/month envelope; portfolio data stays in India | Itemized India-profile cost and full data-flow evidence still required before provisioning |
+| Data contracts/rights and eligible services | OPEN; do not infer eligibility from a Mumbai selector | Affected data/vendor/hosting commitment |
 | Retention, export/delete, support and disclosures | OPEN | Customer lifecycle and release acceptance |
 | Required-check/review enforcement and deployment linkage | VERIFY in B06/B21 | Relying on server enforcement or production promotion |
 
@@ -131,4 +144,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read CORE_RELEASE and live delivery issues, then verify GitHub/local main and open drafts. PR #27/C0 and prior deliveries are accepted; do not repeat them. Finish the bounded C2/B07 token slice, then concurrent provisioning/private access and API/revision work. Resolve owner hosting inputs/runtime fit alongside safe synthetic C1 preparation. B06 license/notices/choices and owner-admin enforcement remain gates for affected use/release, not waived. PR #25 needs current-main integration before separate delivery. Exact-backport review expires 2026-11-20 without automatic renewal. Preserve local scored-audit evidence/installations/locked worktree; do not publish private findings or delete tracked runtime. Revisit B04 revision fencing when B09 lands. Prefer the core hosted journey over new general-purpose tooling.
+Read CORE_RELEASE, DATA_RESIDENCY and live delivery issues, then verify GitHub/local main and open drafts. PR #28's token slice and PR #27/C0 are accepted; do not repeat them. Next code is concurrent provisioning/private access, then API/revisions. Prepare an India-only service/data-flow/cost review for C1; do not apply the older Render template or assume a Mumbai database proves residency. B06 license/notices/choices and owner-admin enforcement remain gates for affected use/release. PR #25 needs current-main integration and separate delivery. Exact-backport review expires 2026-11-20 without automatic renewal. Preserve local evidence/installations/locked worktree; do not publish private findings or delete tracked runtime. Revisit B04 revision fencing when B09 lands.
