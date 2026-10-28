@@ -1,6 +1,6 @@
 # Production Readiness and Release Decisions
 
-Updated: 2026-10-27. **Core-first development approved; no customer/public go-live approved.** [Core release](CORE_RELEASE.md) | [Execution plan](EXECUTION_PLAN.md) | [Checkpoint](EXECUTION_STATUS.md).
+Updated: 2026-10-28. **Core-first development approved; no customer/public go-live approved.** [Core release](CORE_RELEASE.md) | [Execution plan](EXECUTION_PLAN.md) | [Checkpoint](EXECUTION_STATUS.md).
 
 This public summary describes capability and acceptance boundaries. It intentionally omits sensitive audit diagnostics, customer data and security reproduction material. A working local feature or passing build is not a production-readiness claim.
 
@@ -17,10 +17,16 @@ The earlier 2026-10-19 full-roadmap-before-first-launch decision in [decision #1
 | Data claims | Delayed/end-of-day versus licensed intraday; hypothetical versus actual investor performance | Sources, timestamp/quality disclosure and methodology |
 | Roadmap integrations | AI, news/events, payments, brokers and screener retained for later modules; providers/specifications remain open | Each integration needs permissions, quotas, customer obligations and acceptance before enablement |
 | Extended roadmap semantics | Define US-market assets/currencies, real-time latency, recommendations and advanced/broker analytics | Feed entitlements, instrument/FX model, financial methodology and acceptance fixtures |
-| Budget and region | Staging/production allowance and permitted data regions | Service plans, recovery, latency and procurement |
+| Budget and region | Initial US$120-150/month envelope approved; portfolio data must stay in India; individual service/profile costs and residency evidence still required | [India-only data flow](DATA_RESIDENCY.md), recovery, latency and procurement; old Render/Singapore candidate ineligible |
 | Retention and customer lifecycle | Raw-file TTL, export/delete/recovery/support policy | Storage, deletion, backups and operational procedures |
 
 No provider key alone establishes coverage, production use rights or redistribution permission. Confirm contracts, supported symbols, quota, attribution, caching/retention terms and cost before committing to a customer-facing feed. Obtain qualified jurisdiction-specific review where product/advice/data obligations require it; this document is not legal advice.
+
+The India-only requirement applies to uploads, API/worker processing, private
+frontend paths, databases, caches/queues, backups and portfolio-bearing logs or
+external integrations. A Mumbai database alone is not acceptance. The owner also
+requires professional, responsive UI; lower-cost service tiers do not relax
+functional, accessibility, correctness or visual/browser acceptance.
 
 ## Required-Feature Manifest
 

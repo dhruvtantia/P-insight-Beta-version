@@ -8,6 +8,12 @@ spending, service provisioning, provider contracts or real customer-data use.
 Current acceptance/delivery evidence belongs to
 [issue #26](https://github.com/dhruvtantia/P-insight-Beta-version/issues/26).
 
+Latest owner constraints (2026-10-28): initial users in India; portfolio data
+must stay in India; initial US$120-150/month planning envelope; functional core
+with professional graphical/mobile UI. [DATA_RESIDENCY.md](DATA_RESIDENCY.md)
+defines the full data-flow gate. The old Render/Singapore candidate is not
+eligible; the new provider profile and complete costs still require review.
+
 The full roadmap remains the destination. [Production readiness](PRODUCTION_READINESS.md)
 retains its feature register; [the execution plan](EXECUTION_PLAN.md) retains B00-B25
 and original task traceability. This file owns the smaller release boundary and
@@ -83,7 +89,7 @@ it is not an R1-enable profile or evidence that a user journey already works.
 | Order | Owned work / existing batches | Proof before moving to the next acceptance level |
 |---|---|---|
 | C0: release boundary | This decision, feature deferrals, provider fit and non-provisioning staging setup | Reviewed plan/template tests and GitHub delivery; no actual deployment claimed |
-| C1: private staging skeleton | Early subset of B21/B22, with applicable B06 controls | Approved budget/regions/accounts; exact runtime compatibility; isolated empty/synthetic DB; controlled migrations; access-restricted frontend/API health; documented URL/revision and logs |
+| C1: private staging skeleton | Early subset of B21/B22, with applicable B06 controls | India-only data-flow/provider evidence and itemized budget; approved accounts/profile; exact runtime compatibility; isolated synthetic DB; controlled migrations; restricted frontend/API; URL/revision/log proof |
 | C2: identity and data foundation | B07/B08 and the revision/transaction portion of B09 | Issuer/required claims/session/owner/file/job matrix, generated API agreement, PostgreSQL ownership/revision invariants and migration tests |
 | C3: reliable import/enrichment | B10-B14, required B15 observation semantics | One parse/review/import/refresh command; private sources; durable job/outbox/worker; idempotency; bounded providers; interruption/retry/supersession tests |
 | C4: trustworthy core browser | Core B15/B17 correctness and B18/B19 | Independently checked basic totals/units; session/portfolio/revision-scoped queries; no stale responses; desktop/mobile end-to-end journey |
@@ -100,11 +106,19 @@ remain stable; finishing a core subset never marks a whole batch complete.
 
 ## Hosting Choice And Limits
 
-Preferred architecture: Vercel frontend; Render FastAPI API and later an actual
-durable worker; Supabase PostgreSQL/Auth/private storage. This reduces custom
-infrastructure while retaining backend/domain ownership. Budget, region, account
-access and service/runtime compatibility still require verification. See the
-[staging setup](../deploy/staging/README.md).
+Keep the application architecture, but reselect hosting for
+[India-only portfolio data](DATA_RESIDENCY.md). The earlier Vercel/Render/Supabase
+combination is historical, not an approved private-data deployment: Render has
+no Indian region, and a Mumbai database alone does not verify all other flows.
+AWS Mumbai is a reference candidate for service/cost review, not a provisioned or
+selected stack. Indian storage, processing, backup and operational data flows,
+individual provider eligibility, account access and runtime fit need evidence.
+See the [staging stop and historical setup](../deploy/staging/README.md).
+
+The US$120-150/month initial envelope is approved, but the old $120 service
+breakdown is not an India-only quote. Re-price the complete operated profile,
+including taxes and extras, before purchasing; do not silently add costs or
+relax the data boundary. UI quality and core reliability remain requirements.
 
 Vercel controls Node minor/patch updates; this repository currently requires an
 exact Node patch. Verify the actual build/runtime before applying project
@@ -132,9 +146,10 @@ Compose Redis is an optional local service, not proof a durable worker uses it.
 
 ## Immediate Next Work
 
-1. C0 is accepted via PR #27; issue #26 owns delivery evidence. Resolve owner
-   budget/region/account inputs without posting credentials in GitHub/chat.
-   Verify Vercel/runtime fit before relying on it.
+1. C0 is accepted via PR #27; issue #26 owns delivery evidence. Budget and India-only
+   portfolio data are confirmed. Review the complete India-region data flow,
+   provider/cost profile and runtime fit before accounts/provisioning. Do not
+   apply the superseded Render candidate or publish credentials in GitHub/chat.
 2. Prepare C1's protected synthetic-only environment and start C2 identity
    contracts; keep PR #25's artifact evidence separate and refresh it against
    current main before any separately authorized delivery.

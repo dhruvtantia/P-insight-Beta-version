@@ -1,10 +1,21 @@
 # Private Staging Preparation
 
+## Current Hosting Stop
+
+The owner requires [India-only portfolio data](../../docs/DATA_RESIDENCY.md)
+(2026-10-28), with a US$120-150/month initial planning envelope and a polished
+functional core. **Do not apply the Render template for the new R1 environment.**
+Render has no Indian region; this older preparation is retained as historical,
+unapplied C0 evidence, not the current eligible hosting choice. A Mumbai database
+alone does not prove that API/worker/frontend/log/support flows stay in India.
+The India-region profile, full data-flow review and replacement cost estimate
+remain pending. No cloud resource is created by these files.
+
 Part of C0/C1 in the [core release plan](../../docs/CORE_RELEASE.md). Prepared
 configuration is not a running service, a paid-plan approval or permission to
 process real portfolios. No deployment workflow or account API is invoked.
 
-## Intended Services
+## Historical Candidate Services (Not Approved For India-Only R1)
 
 | Component | Direction | Current boundary |
 |---|---|---|
@@ -23,9 +34,12 @@ commands rather than bypassing application ownership through public DB tables.
 
 ## Stop Conditions Before Provisioning
 
-- Owner confirms monthly spending cap, permitted data regions, account/project
-  ownership and who operates releases/recovery. No plan or region is preselected
-  in the template; provider defaults can incur charges if someone applies it.
+- Resolve the current India-only requirement using the linked data-flow and
+  provider evidence checklist. The historical template below is not a shortcut.
+- The budget envelope and India-only requirement are confirmed. Actual eligible
+  providers/Indian region, complete costs, account/project ownership and release/
+  recovery operators still need review. No plan or region is preselected in the
+  historical template; provider defaults can incur charges if someone applies it.
 - Review provider terms, staging isolation, budget alerts and account access.
 - Verify Node/Python/manager compatibility with the pinned build contract. Vercel
   supports Node major selection and automatically changes minor/patch versions;
@@ -39,6 +53,9 @@ commands rather than bypassing application ownership through public DB tables.
   is a second barrier, not a substitute for the access decision.
 
 ## API Bootstrap Template
+
+The commands and tests below describe the preserved C0 candidate only. Passing
+these tests does not make Render eligible under the newer residency requirement.
 
 `render-api.template.yaml` is not an auto-discovered root `render.yaml` and is
 not applied by CI. `autoDeployTrigger: off` prevents subsequent automatic
