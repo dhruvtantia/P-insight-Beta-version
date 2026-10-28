@@ -8,9 +8,13 @@ It transforms a simple portfolio upload into a complete analytical stack — cov
 [execution plan](docs/EXECUTION_PLAN.md), [checkpoint and work queue](docs/EXECUTION_STATUS.md),
 and [release decisions and acceptance gates](docs/PRODUCTION_READINESS.md).
 Earlier roadmap descriptions are not proof that a feature is production-ready.
-**First-launch scope:** the owner requires the full roadmap, including public signup,
-billing and the extended feature tracks. The [required-feature manifest](docs/PRODUCTION_READINESS.md#required-feature-manifest)
-defines the launch gates; feature flags and placeholders do not count as delivery.
+**Current release order:** [a private working core first](docs/CORE_RELEASE.md),
+with unfinished features hidden/unavailable and attached later after their own
+acceptance. Safe login, uploads, saved data and correct displayed values cannot
+be placeholders. The [full-roadmap register](docs/PRODUCTION_READINESS.md#required-feature-manifest)
+remains the long-term scope, not a prerequisite for this smaller milestone.
+No public launch or service spending is approved; [staging preparation](deploy/staging/README.md)
+is not a deployed or usable core yet.
 
 ---
 

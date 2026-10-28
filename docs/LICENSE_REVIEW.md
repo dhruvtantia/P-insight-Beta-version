@@ -122,5 +122,8 @@ are read by these collectors.
    allowlist, silently choose OR terms or add a project license automatically.
 5. Add reviewed change-detection/approval gates after the inventory baseline and
    decision policy are accepted. Current integrity checks do not replace that
-   outstanding approval gate. Also finish owner-admin GitHub enforcement before
-   B07; no deployment, roadmap reduction or tracked-runtime cleanup follows here.
+   outstanding approval gate. Under the [core-first order](CORE_RELEASE.md),
+   code-only identity/contracts and synthetic staging preparation can proceed
+   alongside this review; applicable rights/notices and owner-admin enforcement
+   remain gates before affected use/release. No approval or tracked-runtime cleanup
+   follows from an inventory or this scheduling change.
