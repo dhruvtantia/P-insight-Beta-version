@@ -6,6 +6,8 @@ Covers both modes:
   - AUTH_ENABLED = True  → Supabase HS256 token required, get-or-create user
 """
 
+import time
+
 import jwt
 import pytest
 
@@ -18,8 +20,14 @@ from app.models.user import User
 _TEST_SECRET = "unit-test-jwt-secret-000000000000000000"
 
 
-def _make_token(sub="user-abc-123", email="investor@example.com", aud=None, secret=_TEST_SECRET):
-    payload = {"sub": sub, "email": email, "aud": aud or settings.SUPABASE_JWT_AUD}
+def _make_token(sub="user-abc-123", email="investor@example.com", aud=None, secret=_TEST_SECRET, **claims):
+    now = int(time.time())
+    payload = {
+        "sub": sub, "email": email, "aud": aud or settings.SUPABASE_JWT_AUD,
+        "iss": "https://auth.example.invalid/auth/v1", "iat": now, "exp": now + 300,
+        "role": "authenticated",
+        **claims,
+    }
     return jwt.encode(payload, secret, algorithm="HS256")
 
 
@@ -28,6 +36,7 @@ def auth_enabled(monkeypatch):
     monkeypatch.setattr(settings, "AUTH_ENABLED", True)
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _TEST_SECRET)
     monkeypatch.setattr(settings, "SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
     yield
 
 
@@ -103,16 +112,17 @@ def test_wrong_audience_rejected(auth_enabled):
 def test_expired_token_rejected(auth_enabled):
     db = SessionLocal()
     try:
-        payload = {"sub": "s", "aud": "authenticated", "exp": 1}  # 1970
-        token = jwt.encode(payload, _TEST_SECRET, algorithm="HS256")
-        with pytest.raises(AuthError):
+        token = _make_token(exp=1)
+        with pytest.raises(AuthError) as error:
             get_current_user(db=db, authorization=f"Bearer {token}")
+        assert error.value.detail == "Token has expired"
     finally:
         db.close()
 
 
 def test_misconfigured_secret_rejected(monkeypatch):
     monkeypatch.setattr(settings, "AUTH_ENABLED", True)
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", "")  # enabled but no secret
     db = SessionLocal()
     try:

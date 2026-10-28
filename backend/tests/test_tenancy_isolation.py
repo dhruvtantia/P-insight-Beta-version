@@ -5,6 +5,8 @@ Two authenticated users must never see each other's portfolios or watchlist
 items through the API. Unauthenticated requests must be rejected.
 """
 
+import time
+
 import jwt
 import pytest
 
@@ -14,8 +16,11 @@ _SECRET = "tenancy-isolation-test-secret-0000000000"
 
 
 def _tok(sub: str) -> dict:
+    now = int(time.time())
     token = jwt.encode(
-        {"sub": sub, "email": f"{sub}@example.com", "aud": "authenticated"},
+        {"sub": sub, "email": f"{sub}@example.com", "aud": "authenticated",
+         "iss": "https://auth.example.invalid/auth/v1", "iat": now, "exp": now + 300,
+         "role": "authenticated"},
         _SECRET,
         algorithm="HS256",
     )
@@ -27,6 +32,7 @@ def _enable_auth(monkeypatch):
     monkeypatch.setattr(settings, "AUTH_ENABLED", True)
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SECRET)
     monkeypatch.setattr(settings, "SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
     yield
 
 

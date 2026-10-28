@@ -193,6 +193,13 @@ class Settings(BaseSettings):
         errors = []
         if self.LOCAL_DB_BOOTSTRAP and (deployed or not self.is_sqlite()):
             errors.append("LOCAL_DB_BOOTSTRAP is restricted to development/test SQLite")
+        if self.AUTH_ENABLED:
+            if not self.SUPABASE_JWT_AUD or self.SUPABASE_JWT_AUD.strip() != self.SUPABASE_JWT_AUD:
+                errors.append("SUPABASE_JWT_AUD must be non-empty without surrounding whitespace")
+            try:
+                _origin(self.SUPABASE_URL, deployed=deployed)
+            except ValueError:
+                errors.append("SUPABASE_URL must be an exact project origin (non-local HTTPS when deployed)")
         if deployed:
             if not self.AUTH_ENABLED:
                 errors.append("AUTH_ENABLED must be true")
@@ -202,12 +209,6 @@ class Settings(BaseSettings):
                 errors.append("DOCS_ENABLED must be false")
             if self.is_sqlite():
                 errors.append("DATABASE_URL must select PostgreSQL")
-            if not self.SUPABASE_JWT_AUD.strip():
-                errors.append("SUPABASE_JWT_AUD must not be empty")
-            try:
-                _origin(self.SUPABASE_URL, deployed=True)
-            except ValueError:
-                errors.append("SUPABASE_URL must be a non-local HTTPS project origin")
             try:
                 for origin in self.cors_origins():
                     _origin(origin, deployed=True)

@@ -132,8 +132,9 @@ Compose Redis is an optional local service, not proof a durable worker uses it.
 
 ## Immediate Next Work
 
-1. Review/deliver C0 and resolve owner budget/region/account inputs without posting
-   credentials in GitHub/chat. Verify Vercel/runtime fit before relying on it.
+1. C0 is accepted via PR #27; issue #26 owns delivery evidence. Resolve owner
+   budget/region/account inputs without posting credentials in GitHub/chat.
+   Verify Vercel/runtime fit before relying on it.
 2. Prepare C1's protected synthetic-only environment and start C2 identity
    contracts; keep PR #25's artifact evidence separate and refresh it against
    current main before any separately authorized delivery.

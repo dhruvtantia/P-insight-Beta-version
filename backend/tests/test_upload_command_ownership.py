@@ -51,6 +51,7 @@ def upload_accounts(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "AUTH_ENABLED", True)
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", secret)
     monkeypatch.setattr(settings, "SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
 
     with SessionLocal() as db:
         users = {}
@@ -76,7 +77,8 @@ def upload_accounts(monkeypatch, tmp_path):
     def headers(account="first"):
         now = int(time.time())
         token = jwt.encode(
-            {"sub": f"upload-{account}", "aud": "authenticated", "iat": now, "exp": now + 300},
+            {"sub": f"upload-{account}", "aud": "authenticated", "iat": now, "exp": now + 300,
+             "iss": "https://auth.example.invalid/auth/v1", "role": "authenticated"},
             secret, algorithm="HS256",
         )
         return {"Authorization": f"Bearer {token}"}
