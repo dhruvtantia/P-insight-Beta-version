@@ -59,6 +59,7 @@ def progress_auth(monkeypatch):
     monkeypatch.setattr(settings, "AUTH_ENABLED", True)
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", secret)
     monkeypatch.setattr(settings, "SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
 
     def headers(account="first"):
         now = int(time.time())
@@ -69,6 +70,7 @@ def progress_auth(monkeypatch):
                 "iss": "https://auth.example.invalid/auth/v1",
                 "iat": now,
                 "exp": now + 300,
+                "role": "authenticated",
             },
             secret,
             algorithm="HS256",

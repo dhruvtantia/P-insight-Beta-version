@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from json import JSONDecodeError
 from typing import Optional
 
 import jwt
@@ -65,11 +66,41 @@ def _extract_bearer_token(authorization: Optional[str]) -> str:
 
 
 _ASYMMETRIC_ALGS = ("ES256", "RS256")
+_REQUIRED_CLAIMS = ("iss", "aud", "sub", "iat", "exp", "role")
 
 
 @functools.lru_cache(maxsize=1)
 def _get_jwks_client(supabase_url: str) -> jwt.PyJWKClient:
-    return jwt.PyJWKClient(f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json")
+    return jwt.PyJWKClient(
+        f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json",
+        cache_keys=False, cache_jwk_set=True, lifespan=300, timeout=5,
+        cooldown_duration=30,
+    )
+
+
+def _validate_access_claims(claims: dict) -> None:
+    """Apply the end-user/database contract after cryptographic verification."""
+    sub = claims["sub"]
+    if (
+        not isinstance(sub, str) or not 1 <= len(sub) <= 64
+        or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in sub)
+        or claims["role"] != "authenticated"
+    ):
+        raise AuthError("Invalid token")
+    # Supabase issues whole-second NumericDates; never coerce strings or booleans.
+    for name in ("iat", "exp", "nbf"):
+        if name in claims and (
+            not isinstance(claims[name], int) or isinstance(claims[name], bool) or claims[name] < 0
+        ):
+            raise AuthError("Invalid token")
+    if claims["iat"] >= claims["exp"] or claims.get("nbf", 0) >= claims["exp"]:
+        raise AuthError("Invalid token")
+    email = claims.get("email")
+    if email is not None and (
+        not isinstance(email, str) or len(email) > 255
+        or any(ord(char) < 32 or ord(char) == 127 for char in email)
+    ):
+        raise AuthError("Invalid token")
 
 
 def _decode_supabase_jwt(token: str) -> dict:
@@ -87,32 +118,36 @@ def _decode_supabase_jwt(token: str) -> dict:
     except jwt.InvalidTokenError:
         raise AuthError("Invalid token") from None
 
+    if not settings.SUPABASE_URL or not settings.SUPABASE_JWT_AUD.strip():
+        logger.error("Authentication project or audience is not configured.")
+        raise AuthError("Authentication is misconfigured on the server")
+
     try:
         if alg == "HS256":
             if not settings.SUPABASE_JWT_SECRET:
                 logger.error("AUTH_ENABLED is True but SUPABASE_JWT_SECRET is not set.")
                 raise AuthError("Authentication is misconfigured on the server")
-            return jwt.decode(
-                token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience=settings.SUPABASE_JWT_AUD,
-            )
-        if alg in _ASYMMETRIC_ALGS:
-            if not settings.SUPABASE_URL:
-                logger.error("AUTH_ENABLED is True but SUPABASE_URL is not set.")
-                raise AuthError("Authentication is misconfigured on the server")
+            key = settings.SUPABASE_JWT_SECRET
+            algorithms = ["HS256"]
+        elif alg in _ASYMMETRIC_ALGS:
             signing_key = _get_jwks_client(settings.SUPABASE_URL).get_signing_key_from_jwt(token)
-            return jwt.decode(
-                token,
-                signing_key.key,
-                algorithms=[alg],
-                audience=settings.SUPABASE_JWT_AUD,
-            )
-        raise AuthError("Unsupported token signing algorithm")
+            if signing_key.algorithm_name != alg:
+                raise AuthError("Invalid token")
+            key = signing_key.key
+            algorithms = _ASYMMETRIC_ALGS
+        else:
+            raise AuthError("Unsupported token signing algorithm")
+        claims = jwt.decode(
+            token, key, algorithms=algorithms,
+            audience=settings.SUPABASE_JWT_AUD,
+            issuer=f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1",
+            options={"require": list(_REQUIRED_CLAIMS)},
+        )
+        _validate_access_claims(claims)
+        return claims
     except jwt.ExpiredSignatureError:
         raise AuthError("Token has expired")
-    except (jwt.PyJWKClientError, jwt.InvalidTokenError):
+    except (jwt.PyJWTError, JSONDecodeError):
         raise AuthError("Invalid token") from None
 
 
@@ -146,10 +181,7 @@ def get_current_user(
 
     token = _extract_bearer_token(authorization)
     claims = _decode_supabase_jwt(token)
-    sub = claims.get("sub")
-    if not sub:
-        raise AuthError("Token missing 'sub' claim")
-    return _get_or_create_user(db, sub, claims.get("email"))
+    return _get_or_create_user(db, claims["sub"], claims.get("email"))
 
 
 def get_current_user_id(

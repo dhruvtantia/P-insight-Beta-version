@@ -11,7 +11,7 @@ Staging and production have the same safety rules:
 - `AUTH_ENABLED=true`, `DEBUG=false`, `LOG_LEVEL` not `DEBUG`, `DOCS_ENABLED=false`.
 - A supported synchronous PostgreSQL URL with explicit host/database; SQLite and async drivers are rejected. Supported driver names are `postgresql` and `postgresql+psycopg2`.
 - `LOCAL_DB_BOOTSTRAP=false`.
-- A non-local HTTPS Supabase project origin and non-empty expected JWT audience. ES256/RS256 use JWKS; the legacy HS256 secret is not mandatory for asymmetric projects. This does not certify issuer/claim/rotation behavior; B07 still owns that policy.
+- A non-local HTTPS Supabase project origin and non-empty expected JWT audience. ES256/RS256 use JWKS; the legacy HS256 secret is not mandatory for asymmetric projects. The [B07 token contract](AUTH_IDENTITY.md) defines issuer/required claims and bounded key caching; full identity/session/access and external acceptance remain open.
 - Exact, non-local HTTPS browser origins. The checks reject loopback/unspecified literal IPs and localhost names; they do not validate DNS, network routing, TLS availability, cloud eligibility or provider subscriptions.
 - A supported default data-mode name (`uploaded`, `live`, `broker`). A valid name is not evidence that its provider is implemented or available.
 

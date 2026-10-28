@@ -37,6 +37,7 @@ def cache_accounts(monkeypatch):
     secret = secrets.token_hex(32)
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", secret)
     monkeypatch.setattr(settings, "SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://auth.example.invalid")
 
     async def history(self, ticker, period="1y", interval="1d"):
         return {"data": _history(), "source": "synthetic"}
@@ -67,8 +68,11 @@ def cache_accounts(monkeypatch):
 
     def headers(account):
         now = int(time.time())
-        token = jwt.encode({"sub": f"cache-{account}", "aud": "authenticated", "exp": now + 300},
-                           secret, algorithm="HS256")
+        token = jwt.encode(
+            {"sub": f"cache-{account}", "aud": "authenticated", "iat": now, "exp": now + 300,
+             "iss": "https://auth.example.invalid/auth/v1", "role": "authenticated"},
+            secret, algorithm="HS256",
+        )
         return {"Authorization": f"Bearer {token}"}
 
     return SimpleNamespace(users=users, portfolios=portfolios, headers=headers)

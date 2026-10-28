@@ -1,6 +1,6 @@
 # P-Insight: Execution Checkpoint
 
-Updated: 2026-10-27. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
+Updated: 2026-10-28. [Operating plan](EXECUTION_PLAN.md) | [Release decisions and gates](PRODUCTION_READINESS.md).
 
 ## Current Release Direction
 
@@ -10,7 +10,7 @@ deferrals and C0-C6 acceptance. The older full-roadmap-before-first-launch
 decision below is historical, superseded for ordering. No public deployment,
 paid account, vendor purchase or real-data use is approved.
 
-C0 prepares a reviewed scope and unapplied bootstrap template. C1 private,
+C0 delivered the reviewed scope and unapplied bootstrap template in PR #27. C1 private,
 synthetic-only hosting preparation can overlap C2 identity/contracts; applicable
 security/delivery/license/data gates still apply before affected use. Do not
 wait for every optional module before building the core journey.
@@ -72,9 +72,26 @@ B05 second-slice historical evidence: 78 new synthetic failure-injection cases a
 
 ## Near-Term Queue
 
+**C0 accepted:** [PR #27](https://github.com/dhruvtantia/P-insight-Beta-version/pull/27),
+merge `cf9868fdd06e92bffb754041f72cc0de30d6935d`, passed exact-head and fresh
+post-merge CI 40628907610. Local main/development were safely reconciled with
+local evidence, installations and the locked worktree preserved. Issue #26 owns
+live acceptance. No account, paid service, deployment or functional hosted core
+was created. The owner confirms new hosting projects are needed; budget/region
+remain open.
+
+**C2/B07 token slice in progress:** [token contract](AUTH_IDENTITY.md), issue #10.
+The shared verifier now requires the configured issuer/audience, end-user role
+and complete valid lifetime/identity claims before local identity resolution.
+Bounded JWKS cache/timeout/rotation and synthetic malformed-token/key tests are
+part of this slice. This is not whole-B07 acceptance: concurrent provisioning,
+the complete access/session matrix and applicable PostgreSQL/external account
+evidence remain. Exact-head review/CI/delivery is recorded in issue #10, not
+inferred from this document.
+
 | Order | Batch / delivery issue | Acceptance focus |
 |---|---|---|
-| 1 | C0/C1 [core release](CORE_RELEASE.md) | Review scope/bootstrap; confirm budget/region/accounts/runtime fit before private synthetic-only hosting |
+| 1 | C1 [core release](CORE_RELEASE.md) | C0 accepted; confirm budget/region/accounts/runtime fit before private synthetic-only hosting |
 | 2 | C2 / [B07 identity](https://github.com/dhruvtantia/P-insight-Beta-version/issues/10) | Next core code: signing/required claims, owner/session matrix and provisioning, followed by API/revision contracts |
 | Parallel | [B06 controls](https://github.com/dhruvtantia/P-insight-Beta-version/issues/9) | Artifact/notices/choices and owner-admin enforcement remain gates for affected use/release, not falsely completed |
 
@@ -114,4 +131,4 @@ GitHub Issues own live delivery state. The checkpoint owns the durable navigatio
 
 ## Next Session
 
-Read CORE_RELEASE and live delivery issues, then verify GitHub/local main and open drafts. PR #24 lint delivery is accepted; do not repeat it. Review/deliver C0 preparation, resolve owner hosting inputs/runtime fit, then prepare protected synthetic C1 and begin C2/B07 identity code. B06 license/notices/choices and owner-admin enforcement remain parallel gates for affected use/release, not waived. PR #25 needs new-base integration before delivery. Exact-backport review expires 2026-11-20 without automatic renewal. Preserve local scored-audit evidence/installations/locked worktree; do not publish private findings, delete tracked runtime or mix broad import rewrites into preparation. Revisit B04 revision fencing when B09 lands. Prefer the core hosted journey over new general-purpose tooling.
+Read CORE_RELEASE and live delivery issues, then verify GitHub/local main and open drafts. PR #27/C0 and prior deliveries are accepted; do not repeat them. Finish the bounded C2/B07 token slice, then concurrent provisioning/private access and API/revision work. Resolve owner hosting inputs/runtime fit alongside safe synthetic C1 preparation. B06 license/notices/choices and owner-admin enforcement remain gates for affected use/release, not waived. PR #25 needs current-main integration before separate delivery. Exact-backport review expires 2026-11-20 without automatic renewal. Preserve local scored-audit evidence/installations/locked worktree; do not publish private findings or delete tracked runtime. Revisit B04 revision fencing when B09 lands. Prefer the core hosted journey over new general-purpose tooling.
