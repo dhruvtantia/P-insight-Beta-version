@@ -44,7 +44,7 @@ jobs:
           python -m pip check
 
       - name: License inventory rejection checks
-        run: python -m unittest discover -s ../scripts/tests -p test_license_inventory.py -v
+        run: python -m unittest discover -s ../scripts/tests -p 'test_license*.py' -v
 
       - name: Development license inventory (not approval)
         run: python ../scripts/license_inventory.py --environment development --output "$RUNNER_TEMP/python-development-licenses.json"
@@ -78,7 +78,7 @@ jobs:
           ../.dependency-tools/bin/python -m pip_audit --disable-pip --no-deps --strict -r requirements-dev-lock.txt -r requirements-tools-lock.txt -r requirements-bootstrap.txt
 
       - name: Ruff
-        run: ruff check app tests scripts/export_dependencies.py ../scripts/security_checks.py ../scripts/license_inventory.py ../scripts/tests
+        run: ruff check app tests scripts/export_dependencies.py ../scripts/security_checks.py ../scripts/license_inventory.py ../scripts/license_artifact_evidence.py ../scripts/tests
 
       - name: Pytest (SQLite)
         run: python -m pytest tests -q

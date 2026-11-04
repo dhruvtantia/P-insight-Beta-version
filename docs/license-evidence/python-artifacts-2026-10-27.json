@@ -1,0 +1,1422 @@
+{
+  "artifacts": [
+    {
+      "artifact": {
+        "bytes": 16081,
+        "filename": "annotated_types-0.7.0.tar.gz",
+        "kind": "source",
+        "sha256": "aff07c09a53a08bc8cfccb9c85b05f1aa9a2a6f23728d790723543408344ce89"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1083,
+          "path": "annotated_types-0.7.0/LICENSE",
+          "sha256": "fe1049884b1a0d9342901e88e07f32925d24b3121d9972b6a6805fb9824b095d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "annotated-types",
+      "registryUrl": "https://files.pythonhosted.org/packages/ee/67/531ea369ba64dcff5ec9c3402f9f51bf748cec26dde048a2f973a4eea7f5/annotated_types-0.7.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.7.0"
+    },
+    {
+      "artifact": {
+        "bytes": 627737,
+        "filename": "beautifulsoup4-4.14.3.tar.gz",
+        "kind": "source",
+        "sha256": "6292b1c5186d356bba669ef9f7f051757099565ad9ada5dd630bd9de5fa7fb86"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1441,
+          "path": "beautifulsoup4-4.14.3/LICENSE",
+          "sha256": "55b4d8d4b1e5bc86d10efac91b74c87bcb77526b0f5b9edaf8b9cd2adc7397b2"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "beautifulsoup4",
+      "registryUrl": "https://files.pythonhosted.org/packages/c3/b0/1c6a16426d389813b48d95e26898aff79abbde42ad353958ad95cc8c9b21/beautifulsoup4-4.14.3.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [
+        {
+          "path": "beautifulsoup4-4.14.3/NEWS.txt",
+          "type": "symlink"
+        }
+      ],
+      "version": "4.14.3"
+    },
+    {
+      "artifact": {
+        "bytes": 75520,
+        "filename": "defusedxml-0.7.1.tar.gz",
+        "kind": "source",
+        "sha256": "1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 2409,
+          "path": "defusedxml-0.7.1/LICENSE",
+          "sha256": "b80ce9da8c42a1f91079627fbbe2bf27210ae108a0ffe5f077d5b08e076c24c8"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "defusedxml",
+      "registryUrl": "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.7.1"
+    },
+    {
+      "artifact": {
+        "bytes": 60722,
+        "filename": "distro-1.9.0.tar.gz",
+        "kind": "source",
+        "sha256": "2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11325,
+          "path": "distro-1.9.0/LICENSE",
+          "sha256": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "distro",
+      "registryUrl": "https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527f8a2e8885fc8015d3e6f5775df186e443e0964a11c3/distro-1.9.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.9.0"
+    },
+    {
+      "artifact": {
+        "bytes": 317082,
+        "filename": "frozendict-2.4.7.tar.gz",
+        "kind": "source",
+        "sha256": "e478fb2a1391a56c8a6e10cc97c4a9002b410ecd1ac28c18d780661762e271bd"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 7652,
+          "path": "frozendict-2.4.7/LICENSE.txt",
+          "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "frozendict",
+      "registryUrl": "https://files.pythonhosted.org/packages/90/b2/2a3d1374b7780999d3184e171e25439a8358c47b481f68be883c14086b4c/frozendict-2.4.7.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.4.7"
+    },
+    {
+      "artifact": {
+        "bytes": 16264,
+        "filename": "frozendict-2.4.7-py3-none-any.whl",
+        "kind": "wheel",
+        "sha256": "972af65924ea25cf5b4d9326d549e69a9a4918d8a76a9d3a7cd174d98b237550"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 7652,
+          "path": "frozendict-2.4.7.dist-info/licenses/LICENSE.txt",
+          "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "frozendict",
+      "registryUrl": "https://files.pythonhosted.org/packages/38/74/f94141b38a51a553efef7f510fc213894161ae49b88bffd037f8d2a7cb2f/frozendict-2.4.7-py3-none-any.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "universal-wheel-review-sample",
+      "unreadLinks": [],
+      "version": "2.4.7"
+    },
+    {
+      "artifact": {
+        "bytes": 474349,
+        "filename": "installer-0.7.0.tar.gz",
+        "kind": "source",
+        "sha256": "a26d3e3116289bb08216e0d0f7d925fcef0b0194eedfa0c944bcaaa106c4b631"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1057,
+          "path": "installer-0.7.0/LICENSE",
+          "sha256": "37b8b9f2569892fa54406383d431169dbb2115980d78b7efba6eeae5664c484f"
+        },
+        {
+          "bytes": 118,
+          "path": "installer-0.7.0/docs/license.md",
+          "sha256": "7fe43b491ca834589437650a883bfb63c6c46fb2ce2cb7269a4c8303d40b47b4"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "installer",
+      "registryUrl": "https://files.pythonhosted.org/packages/05/18/ceeb4e3ab3aa54495775775b38ae42b10a92f42ce42dfa44da684289b8c8/installer-0.7.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.7.0"
+    },
+    {
+      "artifact": {
+        "bytes": 11780,
+        "filename": "jaraco.classes-3.4.0.tar.gz",
+        "kind": "source",
+        "sha256": "47a024b51d0239c0dd8c8540c6c7f484be3b8fcf0b2d85c13825780d3b3f3acd"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1023,
+          "path": "jaraco.classes-3.4.0/LICENSE",
+          "sha256": "86da0f01aeae46348a3c3d465195dc1ceccde79f79e87769a64b8da04b2a4741"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "jaraco-classes",
+      "registryUrl": "https://files.pythonhosted.org/packages/06/c0/ed4a27bc5571b99e3cff68f8a9fa5b56ff7df1c2251cc715a652ddd26402/jaraco.classes-3.4.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "3.4.0"
+    },
+    {
+      "artifact": {
+        "bytes": 73070,
+        "filename": "markdown_it_py-4.0.0.tar.gz",
+        "kind": "source",
+        "sha256": "cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1078,
+          "path": "markdown_it_py-4.0.0/LICENSE",
+          "sha256": "4a2260d6e2cd0f5a151a1e86dbfe7d3ed552b1e2beabf9941c1ba5c49cbce484"
+        },
+        {
+          "bytes": 1073,
+          "path": "markdown_it_py-4.0.0/LICENSE.markdown-it",
+          "sha256": "792c48c5a849a15fdf9e37e8bcf9e6d1dd13b32b46c642a748a0a46a9919d473"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock",
+        "main"
+      ],
+      "name": "markdown-it-py",
+      "registryUrl": "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "4.0.0"
+    },
+    {
+      "artifact": {
+        "bytes": 8729,
+        "filename": "mdurl-0.1.2.tar.gz",
+        "kind": "source",
+        "sha256": "bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 2338,
+          "path": "mdurl-0.1.2/LICENSE",
+          "sha256": "7c605df6e28667a9603118e98274f64a49ce3eed0d26fccce9534a345e0ef955"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock",
+        "main"
+      ],
+      "name": "mdurl",
+      "registryUrl": "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.1.2"
+    },
+    {
+      "artifact": {
+        "bytes": 19984,
+        "filename": "multitasking-0.0.12.tar.gz",
+        "kind": "source",
+        "sha256": "2fba2fa8ed8c4b85e227c5dd7dc41c7d658de3b6f247927316175a57349b84d1"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11357,
+          "path": "multitasking-0.0.12/LICENSE.txt",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "multitasking",
+      "registryUrl": "https://files.pythonhosted.org/packages/17/0d/74f0293dfd7dcc3837746d0138cbedd60b31701ecc75caec7d3f281feba0/multitasking-0.0.12.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.0.12"
+    },
+    {
+      "artifact": {
+        "bytes": 16672469,
+        "filename": "numpy-2.5.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "59fda5e192b570217ec2580c96f00e9a7e12ef6866a900eb089b62c1a32545ca"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 46794,
+          "path": "numpy-2.5.1.dist-info/licenses/LICENSE.txt",
+          "sha256": "4860083caa0de2ac3292ca98bd074bd8f45d8b32624e37b1e70a240bff61e488"
+        },
+        {
+          "bytes": 1018,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+          "sha256": "fbc539f47d0cf83bc61378080fb873d5c14630126cacbfe754035c3926daa5ec"
+        },
+        {
+          "bytes": 690,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+          "sha256": "3f2c1ffa76383a55ae0aac01c9737cd70050dff63e1f026694fbe9d662573c98"
+        },
+        {
+          "bytes": 20785,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+          "sha256": "e340270d4f64384569a91d546acb5b094d69ce47f0c015db77abb74dc6f815af"
+        },
+        {
+          "bytes": 1414,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+          "sha256": "f7b14309e5f54e5022b26448eefd419988ada2aec01d3c1162d84a0ea8f21f2c"
+        },
+        {
+          "bytes": 1514,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+          "sha256": "211e7d737d6179a08f791ebb0a99897ce7cd2457410c542876d125576edfe910"
+        },
+        {
+          "bytes": 1543,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+          "sha256": "c17011467b4fe6e20fbfbeda4df09e58c2bca5480a063e55735a4000a379aad9"
+        },
+        {
+          "bytes": 1498,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+          "sha256": "a85ca13fdf90160b64a0698215868c13b74d835ad0a4e2ba44713b8c5058a056"
+        },
+        {
+          "bytes": 2266,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+          "sha256": "a14cc25e10d40a3aa705b7de2fb764a6535d8ee9b2db4e1724900585457dfd55"
+        },
+        {
+          "bytes": 1593,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/ma/LICENSE",
+          "sha256": "05f3b88351988ecfad10abe92c0c50e5875c6452d5009a0084cc291551ffcca6"
+        },
+        {
+          "bytes": 3511,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/LICENSE.md",
+          "sha256": "103166b62b80443afb9eb3488e052ea06be0cff566b908f199e561fde49af19f"
+        },
+        {
+          "bytes": 2745,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+          "sha256": "469778be8f33d54e1bcaab28c281cc472916d2d273f835e55bc487d30503face"
+        },
+        {
+          "bytes": 2926,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+          "sha256": "0e111337b25494a773106695f0e799f642b8567aaacca4f116a74a8177179156"
+        },
+        {
+          "bytes": 1154,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+          "sha256": "e7d4f4fb20358f314210a892ae17351e04993813646f697ec387385ca2a36918"
+        },
+        {
+          "bytes": 1509,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+          "sha256": "6f5828a57223d4cc7f8ea505a2623e7b978b242752c1515e355f46ba2cec1800"
+        },
+        {
+          "bytes": 1226,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+          "sha256": "9d4098846018319cd68e228ee6220361787f73bccbf00237a85e4fc9621b998f"
+        },
+        {
+          "bytes": 332,
+          "path": "numpy-2.5.1.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+          "sha256": "268b0ca06759d31ea3ca68dd35f20e877916e927b1c2a835e4592a3c4354b1f9"
+        },
+        {
+          "bytes": 1018,
+          "path": "numpy/_core/include/numpy/random/LICENSE.txt",
+          "sha256": "fbc539f47d0cf83bc61378080fb873d5c14630126cacbfe754035c3926daa5ec"
+        },
+        {
+          "bytes": 1593,
+          "path": "numpy/ma/LICENSE",
+          "sha256": "05f3b88351988ecfad10abe92c0c50e5875c6452d5009a0084cc291551ffcca6"
+        },
+        {
+          "bytes": 3511,
+          "path": "numpy/random/LICENSE.md",
+          "sha256": "103166b62b80443afb9eb3488e052ea06be0cff566b908f199e561fde49af19f"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "numpy",
+      "registryUrl": "https://files.pythonhosted.org/packages/b8/a9/6e73d68500f80773f65f0654ea932019d6694329a0eb0ed0533de38df376/numpy-2.5.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "2.5.1"
+    },
+    {
+      "artifact": {
+        "bytes": 4495223,
+        "filename": "pandas-2.3.3.tar.gz",
+        "kind": "source",
+        "sha256": "e05e1af93b977f7eafa636d043f9f94c7ee3ac81af99c13508215942e64c993b"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1634,
+          "path": "pandas-2.3.3/LICENSE",
+          "sha256": "533eb6d0b98e5be3ddd12dce97be35dd11282f5c47cdf8d08c81756fd5d70a26"
+        },
+        {
+          "bytes": 1360,
+          "path": "pandas-2.3.3/LICENSES/BOTTLENECK_LICENCE",
+          "sha256": "053a90e30580f5d9d79817add1567f88b4a3eeb11bcded9ecf74619d17768066"
+        },
+        {
+          "bytes": 2889,
+          "path": "pandas-2.3.3/LICENSES/DATEUTIL_LICENSE",
+          "sha256": "ba00f51a0d92823b5a1cde27d8b5b9d2321e67ed8da9bc163eff96d5e17e577e"
+        },
+        {
+          "bytes": 1099,
+          "path": "pandas-2.3.3/LICENSES/HAVEN_LICENSE",
+          "sha256": "48216b40b3d1b19452923dd6fd74655bf5c0df9d76b51eb0efade7e0b88bfbcc"
+        },
+        {
+          "bytes": 1264,
+          "path": "pandas-2.3.3/LICENSES/HAVEN_MIT",
+          "sha256": "87217d0a79195441ab615a3abb3ab6777502e57804ea83f973df975a67ebd720"
+        },
+        {
+          "bytes": 1104,
+          "path": "pandas-2.3.3/LICENSES/KLIB_LICENSE",
+          "sha256": "7463172c3a23321c1838896eba437f70a6de80ac5a840b2960966c8c5444abf1"
+        },
+        {
+          "bytes": 6203,
+          "path": "pandas-2.3.3/LICENSES/MUSL_LICENSE",
+          "sha256": "50a343c1ce9e27cd6c58023f13b91d2cd679861fe7fb6bbbbfbec3dcafc3583f"
+        },
+        {
+          "bytes": 1542,
+          "path": "pandas-2.3.3/LICENSES/NUMPY_LICENSE",
+          "sha256": "81d42da02a56b611c35abc83d2241564b46bec3a5b1960b395d55cebca68fb6f"
+        },
+        {
+          "bytes": 11519,
+          "path": "pandas-2.3.3/LICENSES/PACKAGING_LICENSE",
+          "sha256": "1871330068a18f1f07c3f147a41c008e59f367f217041ca6eb20b0298639a128"
+        },
+        {
+          "bytes": 13936,
+          "path": "pandas-2.3.3/LICENSES/PSF_LICENSE",
+          "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+        },
+        {
+          "bytes": 1486,
+          "path": "pandas-2.3.3/LICENSES/PYPERCLIP_LICENSE",
+          "sha256": "eafcd440e3570c6bc7b77dcec15dec398d13bc9b5e897336b221ff81ff19f345"
+        },
+        {
+          "bytes": 1058,
+          "path": "pandas-2.3.3/LICENSES/PYUPGRADE_LICENSE",
+          "sha256": "70aedcd6928272bd176e4fdc3384af22ee759d006fb15105d994756e4f2d1b7a"
+        },
+        {
+          "bytes": 1059,
+          "path": "pandas-2.3.3/LICENSES/SAS7BDAT_LICENSE",
+          "sha256": "458d5fd4175825440ad32d6bf6af45d1a19d4adb316b557d869c6560b6692e00"
+        },
+        {
+          "bytes": 5974,
+          "path": "pandas-2.3.3/LICENSES/ULTRAJSON_LICENSE",
+          "sha256": "2bfbb5bb8ec66d136ec62d836ddc0c0019d44ef4d9389f1f6cab1c1109d774a2"
+        },
+        {
+          "bytes": 10272,
+          "path": "pandas-2.3.3/LICENSES/XARRAY_LICENSE",
+          "sha256": "9ff562631a04b8cb1030c53fdf461bd749c9af0655d86e4f17eb270e935a7fe2"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "pandas",
+      "registryUrl": "https://files.pythonhosted.org/packages/33/01/d40b85317f86cf08d853a4f495195c73815fdf205eef3993821720274518/pandas-2.3.3.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.3.3"
+    },
+    {
+      "artifact": {
+        "bytes": 12362693,
+        "filename": "pandas-2.3.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "b3d11d2fda7eb164ef27ffc14b4fcab16a80e1ce67e9f57e19ec0afaf715ba89"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 62399,
+          "path": "pandas-2.3.3.dist-info/LICENSE",
+          "sha256": "1dea2e80ed1cbd0233f84cee4486b29689f133babaccf4d295e51c43051f3216"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "pandas",
+      "registryUrl": "https://files.pythonhosted.org/packages/e5/63/cd7d615331b328e287d8233ba9fdf191a9c2d11b6af0c7a59cfcec23de68/pandas-2.3.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "2.3.3"
+    },
+    {
+      "artifact": {
+        "bytes": 718021,
+        "filename": "peewee-4.0.4.tar.gz",
+        "kind": "source",
+        "sha256": "70e07c14a10bec8d663514bda5854e44ef15d5b03974b41f7218066b6fd3a065"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "missing",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1058,
+          "path": "peewee-4.0.4/LICENSE",
+          "sha256": "3740096125b08735a247b8dd08cd82e0ba984d3bebd9221d378576637e5240da"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "peewee",
+      "registryUrl": "https://files.pythonhosted.org/packages/ad/8e/8fe6b93914ed40b9cb5162e45e1be4f8bb8cf7f5a49333aa1a2d383e4870/peewee-4.0.4.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "4.0.4"
+    },
+    {
+      "artifact": {
+        "bytes": 123884,
+        "filename": "pip_api-0.0.35.tar.gz",
+        "kind": "source",
+        "sha256": "14dea05d7b3b68f4c7582213e3ae8932bbba8e1f754bf06b95263d5fa6ab4363"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 9695,
+          "path": "pip_api-0.0.35/LICENSE",
+          "sha256": "14ed54990120efea26042269885df36e1b53db858bf04b40c8cfc8c5e12f6fb1"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "pip-api",
+      "registryUrl": "https://files.pythonhosted.org/packages/fc/08/47dfc28aa16ef0dbc38dd7c6e4fe24d124c3ed3a722a4a3e5021584a588c/pip_api-0.0.35.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.0.35"
+    },
+    {
+      "artifact": {
+        "bytes": 54275,
+        "filename": "pip_audit-2.10.1.tar.gz",
+        "kind": "source",
+        "sha256": "1eb4565d19ebe5d48996f4b770b4d2b32887e12cb12cfa637f1a064011b55ffc"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 10174,
+          "path": "pip_audit-2.10.1/LICENSE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "pip-audit",
+      "registryUrl": "https://files.pythonhosted.org/packages/66/a4/f21d5f0a0edabcbce31560b73c7c5a6f72ae87af4236fd1069c8f59a353d/pip_audit-2.10.1.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.10.1"
+    },
+    {
+      "artifact": {
+        "bytes": 454708,
+        "filename": "protobuf-7.34.1.tar.gz",
+        "kind": "source",
+        "sha256": "9ce42245e704cc5027be797c1db1eb93184d44d1cdd71811fb2d9b25ad541280"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1732,
+          "path": "protobuf-7.34.1/LICENSE",
+          "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "protobuf",
+      "registryUrl": "https://files.pythonhosted.org/packages/6b/6b/a0e95cad1ad7cc3f2c6821fcab91671bd5b78bd42afb357bb4765f29bc41/protobuf-7.34.1.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "7.34.1"
+    },
+    {
+      "artifact": {
+        "bytes": 324267,
+        "filename": "protobuf-7.34.1-cp310-abi3-manylinux2014_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "8ff40ce8cd688f7265326b38d5a1bed9bfdf5e6723d49961432f83e21d5713e4"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1732,
+          "path": "protobuf-7.34.1.dist-info/LICENSE",
+          "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "protobuf",
+      "registryUrl": "https://files.pythonhosted.org/packages/53/1b/3b431694a4dc6d37b9f653f0c64b0a0d9ec074ee810710c0c3da21d67ba7/protobuf-7.34.1-cp310-abi3-manylinux2014_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "7.34.1"
+    },
+    {
+      "artifact": {
+        "bytes": 379686,
+        "filename": "psycopg2_binary-2.9.12.tar.gz",
+        "kind": "source",
+        "sha256": "5ac9444edc768c02a6b6a591f070b8aae28ff3a99be57560ac996001580f294c"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 2238,
+          "path": "psycopg2-binary-2.9.12/LICENSE",
+          "sha256": "9614b85dfc9a72c5b2ca33144c1d7e1ed3b1c297459d9fb28a6a5762c2e8d71b"
+        },
+        {
+          "bytes": 7638,
+          "path": "psycopg2-binary-2.9.12/doc/COPYING.LESSER",
+          "sha256": "f56039b5ee783a50114de388f95ffe7173001d63c32ed4c00649045eec0cf506"
+        },
+        {
+          "bytes": 76,
+          "path": "psycopg2-binary-2.9.12/doc/src/license.rst",
+          "sha256": "bded80c3769a2512a79bd25d2ecbc3e952054a55182f24e2e14546ce1ec29f25"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "psycopg2-binary",
+      "registryUrl": "https://files.pythonhosted.org/packages/2a/60/a3624f79acea344c16fbef3a94d28b89a8042ddfb8f3e4ca83f538671409/psycopg2_binary-2.9.12.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.9.12"
+    },
+    {
+      "artifact": {
+        "bytes": 4274917,
+        "filename": "psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "9fe06d93e72f1c048e731a2e3e7854a5bfaa58fc736068df90b352cefe66f03f"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 2238,
+          "path": "psycopg2_binary-2.9.12.dist-info/licenses/LICENSE",
+          "sha256": "9614b85dfc9a72c5b2ca33144c1d7e1ed3b1c297459d9fb28a6a5762c2e8d71b"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "psycopg2-binary",
+      "registryUrl": "https://files.pythonhosted.org/packages/b0/55/44df3965b5f297c50cc0b1b594a31c67d6127a9d133045b8a66611b14dfb/psycopg2_binary-2.9.12-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "2.9.12"
+    },
+    {
+      "artifact": {
+        "bytes": 342432,
+        "filename": "python-dateutil-2.9.0.post0.tar.gz",
+        "kind": "source",
+        "sha256": "37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 2889,
+          "path": "python-dateutil-2.9.0.post0/LICENSE",
+          "sha256": "ba00f51a0d92823b5a1cde27d8b5b9d2321e67ed8da9bc163eff96d5e17e577e"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "python-dateutil",
+      "registryUrl": "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.9.0.post0"
+    },
+    {
+      "artifact": {
+        "bytes": 89883,
+        "filename": "python_discovery-1.6.4.tar.gz",
+        "kind": "source",
+        "sha256": "bc70d31f0ec5de11eda13d4d64c16e24b3506a65984684f2b6c98cb83b2ea9df"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1023,
+          "path": "python_discovery-1.6.4/LICENSE",
+          "sha256": "90e25e1faf2a4aaea8d95ee8e7f5738b052a1acc0c9c58068101f931a86bd588"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "python-discovery",
+      "registryUrl": "https://files.pythonhosted.org/packages/f3/ee/cf608372c88ce2c136ee13c69ab6f667dbc0d0c1176af188b4ddc8853e66/python_discovery-1.6.4.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.6.4"
+    },
+    {
+      "artifact": {
+        "bytes": 206888,
+        "filename": "requests-toolbelt-1.0.0.tar.gz",
+        "kind": "source",
+        "sha256": "7681a0a3d047012b5bdc0ee37d7f8f07ebe76ab08caeccfc3921ce23c88d5bc6"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 596,
+          "path": "requests-toolbelt-1.0.0/LICENSE",
+          "sha256": "1f8cf8bdacd98ed6d36d0fec0c07f7765acebd6e81205962ab5146023b3c858d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "requests-toolbelt",
+      "registryUrl": "https://files.pythonhosted.org/packages/f3/61/d7545dafb7ac2230c70d38d31cbfe4cc64f7144dc41f6e4e4b78ecd9f5bb/requests-toolbelt-1.0.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.0.0"
+    },
+    {
+      "artifact": {
+        "bytes": 30774447,
+        "filename": "scipy-1.18.0.tar.gz",
+        "kind": "source",
+        "sha256": "67b2ad2ad54c72ca6d04975a9b2df8c3638c34ddd5b28738e94fc2b57929d378"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1531,
+          "path": "scipy-1.18.0/LICENSE.txt",
+          "sha256": "221e59f5e910fd7f94e44f0dac77436a11338c285c6346232e4a850a50da0e94"
+        },
+        {
+          "bytes": 11358,
+          "path": "scipy-1.18.0/doc/source/_static/scipy-mathjax/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "bytes": 1072,
+          "path": "scipy-1.18.0/scipy/_build_utils/tempita/LICENSE.txt",
+          "sha256": "743b0f4a0087fe3607167113fffab6f2ca069c8da321763697ab5d0d8411634a"
+        },
+        {
+          "bytes": 1344,
+          "path": "scipy-1.18.0/scipy/_external/packaging_version/src/LICENSE.BSD",
+          "sha256": "b70e7e9b742f1cc6f948b34c16aa39ffece94196364bc88ff0d2180f0028fac5"
+        },
+        {
+          "bytes": 1514,
+          "path": "scipy-1.18.0/scipy/_lib/_uarray/LICENSE",
+          "sha256": "c80c39b5fce06ba4897e14e0b0a88b54458334d951eb1361402ffad2cfb863b4"
+        },
+        {
+          "bytes": 1498,
+          "path": "scipy-1.18.0/scipy/fft/_duccfft/LICENSE.md",
+          "sha256": "c254b2b5fd30ae3c89d36ba061730563b9760fca04f1b746a1b2c3157da2c789"
+        },
+        {
+          "bytes": 3572,
+          "path": "scipy-1.18.0/scipy/integrate/src/LICENSE_DOP",
+          "sha256": "ed9bf58c6d74d3fad9d92d1d67d9bff8141d8ab60de784516b0711364fd43357"
+        },
+        {
+          "bytes": 1275,
+          "path": "scipy-1.18.0/scipy/io/_fast_matrix_market/LICENSE.txt",
+          "sha256": "4421977664ada9a02087ab1b031b50335f02b500e2cb58a1757074f31b4a89f5"
+        },
+        {
+          "bytes": 1079,
+          "path": "scipy-1.18.0/scipy/io/_fast_matrix_market/fast_matrix_market/dependencies/fast_float/LICENSE-MIT",
+          "sha256": "e562f3f974ced7e69dd1db77b820b36bcf8f30377f1aa105723fba449c53c4e6"
+        },
+        {
+          "bytes": 1338,
+          "path": "scipy-1.18.0/scipy/io/_fast_matrix_market/fast_matrix_market/dependencies/ryu/LICENSE-Boost",
+          "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+        },
+        {
+          "bytes": 1389,
+          "path": "scipy-1.18.0/scipy/ndimage/LICENSE.txt",
+          "sha256": "606209a000716c5f66e33e180ce08434b96ed17db4975ab9723c6b5fbcc89609"
+        },
+        {
+          "bytes": 1543,
+          "path": "scipy-1.18.0/scipy/optimize/_direct/COPYING",
+          "sha256": "a7669da81aac1b0539f161cf93d6a94956d24ff476537e0b0579925997eec3f0"
+        },
+        {
+          "bytes": 1085,
+          "path": "scipy-1.18.0/scipy/optimize/tnc/LICENSE",
+          "sha256": "3df9207af2fdb861af0ae3b22026f163b9bcfab4e525dc4943afe2ffa3f77624"
+        },
+        {
+          "bytes": 1681,
+          "path": "scipy-1.18.0/scipy/sparse/linalg/_dsolve/SuperLU/License.txt",
+          "sha256": "f0cedf52503b2d42b83411a0a16e6fefac346dfad8fddc66f50050150123470c"
+        },
+        {
+          "bytes": 1466,
+          "path": "scipy-1.18.0/scipy/sparse/linalg/_eigen/arpack/arnaud/LICENSE",
+          "sha256": "f49da99252dee2c12dbd5c71762b0724063f4531de193fbcece550ad9a3b6354"
+        },
+        {
+          "bytes": 1466,
+          "path": "scipy-1.18.0/scipy/sparse/linalg/_propack/PROPACK/LICENSE",
+          "sha256": "f49da99252dee2c12dbd5c71762b0724063f4531de193fbcece550ad9a3b6354"
+        },
+        {
+          "bytes": 1720,
+          "path": "scipy-1.18.0/scipy/spatial/COPYING_QHULL.txt",
+          "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+        },
+        {
+          "bytes": 1217,
+          "path": "scipy-1.18.0/scipy/stats/biasedurn/license.txt",
+          "sha256": "c2bf3b1e5a5cde539b9f8e38b5c870f49db0b5f01c7f9cdd1d1291bafc81d22f"
+        },
+        {
+          "bytes": 1097,
+          "path": "scipy-1.18.0/subprojects/array_api_compat/array_api_compat/LICENSE",
+          "sha256": "4ffd978e3fa18d058d98c66771cfea7ed634aaf7023cf9612b8b55eee9a8f0fe"
+        },
+        {
+          "bytes": 1097,
+          "path": "scipy-1.18.0/subprojects/array_api_extra/LICENSE",
+          "sha256": "58494398fe147fdce76a68b2decd4c08ce3a1ea237b6d6785001c15f822c6ed6"
+        },
+        {
+          "bytes": 1338,
+          "path": "scipy-1.18.0/subprojects/boost_math/math/LICENSE",
+          "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+        },
+        {
+          "bytes": 473,
+          "path": "scipy-1.18.0/subprojects/cobyqa/.github/workflows/license.yml",
+          "sha256": "13f8b813fefcb28457fc72c77fb6913dd4ee043d52841b4e21dff70868c77bbd"
+        },
+        {
+          "bytes": 1525,
+          "path": "scipy-1.18.0/subprojects/cobyqa/LICENSE",
+          "sha256": "a4d7975be6d6487b7125ce6e79f299a5396b300b1a67e3644a1cf6467b426708"
+        },
+        {
+          "bytes": 72,
+          "path": "scipy-1.18.0/subprojects/cobyqa/doc/source/license.rst",
+          "sha256": "51360f9096b34021dee78d8a34869f3c8d740fda65ea2a9eeda6d477cc8cc61d"
+        },
+        {
+          "bytes": 1498,
+          "path": "scipy-1.18.0/subprojects/duccfft/LICENSE.md",
+          "sha256": "c254b2b5fd30ae3c89d36ba061730563b9760fca04f1b746a1b2c3157da2c789"
+        },
+        {
+          "bytes": 1062,
+          "path": "scipy-1.18.0/subprojects/highs/LICENSE.txt",
+          "sha256": "10b39dba7b7731175f0705398b6db4320b64add1bd2ed9f9ec5b512a9ef1bd95"
+        },
+        {
+          "bytes": 1337,
+          "path": "scipy-1.18.0/subprojects/highs/extern/LICENCE_1_0.txt",
+          "sha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b"
+        },
+        {
+          "bytes": 1061,
+          "path": "scipy-1.18.0/subprojects/highs/extern/filereaderlp/LICENSE",
+          "sha256": "4374bb8064e5302f5ac6b82fd3e153a36670f04d0a6ee1bc55b3dc3faee923cc"
+        },
+        {
+          "bytes": 874,
+          "path": "scipy-1.18.0/subprojects/highs/extern/pdqsort/license.txt",
+          "sha256": "323fc18e35fcf058d69d684022ef844f206cb8fefb2bac1298fa1767e0b9ae38"
+        },
+        {
+          "bytes": 1533,
+          "path": "scipy-1.18.0/subprojects/pyprima/pyprima/LICENCE.txt",
+          "sha256": "997379b2c1bf53a391d2fd3295dce75bf3c94ed28d64882ede30d1b518cb0dd6"
+        },
+        {
+          "bytes": 1720,
+          "path": "scipy-1.18.0/subprojects/qhull_r/libqhull_r/COPYING.txt",
+          "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+        },
+        {
+          "bytes": 14404,
+          "path": "scipy-1.18.0/subprojects/unuran/license.txt",
+          "sha256": "8d62d5c8e1752ee5c3d3a0f8fd0dd0b45865c243fa282cf5e63f00288a01c5ee"
+        },
+        {
+          "bytes": 1492,
+          "path": "scipy-1.18.0/subprojects/xsf/LICENSE",
+          "sha256": "632f86f8bd24a264ac49c002f39866f407a38e8cbd8a6568df7596cc7fbe0048"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "scipy",
+      "registryUrl": "https://files.pythonhosted.org/packages/a7/25/c2700dfaf6442b4effaa91af24ebce5dc9d31bb4a69706313aae70d72cd0/scipy-1.18.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.18.0"
+    },
+    {
+      "artifact": {
+        "bytes": 35287115,
+        "filename": "scipy-1.18.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "1f55797419e16e7f30cf88ffb3113ce0467f00cfe3f70d5c281730b21769bfc2"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 46845,
+          "path": "scipy-1.18.0.dist-info/LICENSE.txt",
+          "sha256": "17e7db9ffa4913121fa2df484633a362456a482da736c99db4711a98473770ea"
+        },
+        {
+          "bytes": 1514,
+          "path": "scipy/_lib/_uarray/LICENSE",
+          "sha256": "c80c39b5fce06ba4897e14e0b0a88b54458334d951eb1361402ffad2cfb863b4"
+        },
+        {
+          "bytes": 1498,
+          "path": "scipy/fft/_duccfft/LICENSE.md",
+          "sha256": "c254b2b5fd30ae3c89d36ba061730563b9760fca04f1b746a1b2c3157da2c789"
+        },
+        {
+          "bytes": 3572,
+          "path": "scipy/integrate/LICENSE_DOP",
+          "sha256": "ed9bf58c6d74d3fad9d92d1d67d9bff8141d8ab60de784516b0711364fd43357"
+        },
+        {
+          "bytes": 1720,
+          "path": "scipy/spatial/qhull_src/COPYING_QHULL.txt",
+          "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "scipy",
+      "registryUrl": "https://files.pythonhosted.org/packages/dd/aa/1b939f6c67ed68635bb538e6752d3dacc02f66535182e939a89581a44e9c/scipy-1.18.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "1.18.0"
+    },
+    {
+      "artifact": {
+        "bytes": 10310,
+        "filename": "shellingham-1.5.4.tar.gz",
+        "kind": "source",
+        "sha256": "8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 751,
+          "path": "shellingham-1.5.4/LICENSE",
+          "sha256": "f388fd38cad13112c1dc0f669bbe80e7f84541edbafb72f3030d2ca7642c3c9d"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "shellingham",
+      "registryUrl": "https://files.pythonhosted.org/packages/58/15/8b3609fd3830ef7b27b655beb4b4e9c62313a4e8da8c676e142cc210d58e/shellingham-1.5.4.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.5.4"
+    },
+    {
+      "artifact": {
+        "bytes": 30594,
+        "filename": "sortedcontainers-2.4.0.tar.gz",
+        "kind": "source",
+        "sha256": "25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 557,
+          "path": "sortedcontainers-2.4.0/LICENSE",
+          "sha256": "1db7cae7fce6452e2e608e401a0f953e0133e4c2d75db69fb8ae851d2086f5b6"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "sortedcontainers",
+      "registryUrl": "https://files.pythonhosted.org/packages/e8/c4/ba2f8066cceb6f23394729afe52f3bf7adec04bf9ed2c820b39e19299111/sortedcontainers-2.4.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2.4.0"
+    },
+    {
+      "artifact": {
+        "bytes": 7184,
+        "filename": "tomli_w-1.2.0.tar.gz",
+        "kind": "source",
+        "sha256": "2dd14fac5a47c27be9cd4c976af5a12d87fb1f0b4512f81d69cce3b35ae25021"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 1072,
+          "path": "tomli_w-1.2.0/LICENSE",
+          "sha256": "b80816b0d530b8accb4c2211783790984a6e3b61922c2b5ee92f3372ab2742fe"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "tomli-w",
+      "registryUrl": "https://files.pythonhosted.org/packages/19/75/241269d1da26b624c0d5e110e8149093c759b7a286138f4efd61a60e75fe/tomli_w-1.2.0.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "1.2.0"
+    },
+    {
+      "artifact": {
+        "bytes": 17085,
+        "filename": "trove_classifiers-2026.9.21.13.tar.gz",
+        "kind": "source",
+        "sha256": "0a9ebc8d4e2f3e8a22848c5258033035bec17a3012ac3fea16dbaa764489eb71"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "classifiers-only",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11357,
+          "path": "trove_classifiers-2026.9.21.13/LICENSE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "lock"
+      ],
+      "name": "trove-classifiers",
+      "registryUrl": "https://files.pythonhosted.org/packages/bf/93/af436dfaa845cab5d96f0adbc1e4f3730532d37fa249e4eb796fb1d7fc82/trove_classifiers-2026.9.21.13.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "2026.9.21.13"
+    },
+    {
+      "artifact": {
+        "bytes": 2443250,
+        "filename": "uvloop-0.22.1.tar.gz",
+        "kind": "source",
+        "sha256": "6c84bae345b9147082b17371e3dd5d42775bddce91f885499017f4607fdaf39f"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11439,
+          "path": "uvloop-0.22.1/LICENSE-APACHE",
+          "sha256": "377025287798f9dcd819e1f826fa5fc5e2f382528691ab0528c5cf8c8c282c27"
+        },
+        {
+          "bytes": 1105,
+          "path": "uvloop-0.22.1/LICENSE-MIT",
+          "sha256": "6dd4c399f26de043d77a2ad7e31db4cb5bf08ea8368b0a42d6e158635cc8ab62"
+        },
+        {
+          "bytes": 1079,
+          "path": "uvloop-0.22.1/vendor/libuv/LICENSE",
+          "sha256": "16de0c32b265cb7d46a6d3bd614f259dd4d693a5e26b3407b04aae8d73041f0c"
+        },
+        {
+          "bytes": 18652,
+          "path": "uvloop-0.22.1/vendor/libuv/LICENSE-docs",
+          "sha256": "cce5d01fa4a83b794271bd2c28cffdf99afd43c803e6ddefddae39b591ea7448"
+        },
+        {
+          "bytes": 1603,
+          "path": "uvloop-0.22.1/vendor/libuv/LICENSE-extra",
+          "sha256": "262c44bd2cdba037e6d2a82fba15f5800d292bc993a6f5d6b6ea487744d02836"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "uvloop",
+      "registryUrl": "https://files.pythonhosted.org/packages/06/f0/18d39dbd1971d6d62c4629cc7fa67f74821b0dc1f5a77af43719de7936a7/uvloop-0.22.1.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.22.1"
+    },
+    {
+      "artifact": {
+        "bytes": 4426307,
+        "filename": "uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+        "kind": "wheel",
+        "sha256": "7b5b1ac819a3f946d3b2ee07f09149578ae76066d70b44df3fa990add49a82e4"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11439,
+          "path": "uvloop-0.22.1.dist-info/licenses/LICENSE-APACHE",
+          "sha256": "377025287798f9dcd819e1f826fa5fc5e2f382528691ab0528c5cf8c8c282c27"
+        },
+        {
+          "bytes": 1105,
+          "path": "uvloop-0.22.1.dist-info/licenses/LICENSE-MIT",
+          "sha256": "6dd4c399f26de043d77a2ad7e31db4cb5bf08ea8368b0a42d6e158635cc8ab62"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "uvloop",
+      "registryUrl": "https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "linux-x86_64-review-sample",
+      "unreadLinks": [],
+      "version": "0.22.1"
+    },
+    {
+      "artifact": {
+        "bytes": 132820,
+        "filename": "yfinance-0.2.66.tar.gz",
+        "kind": "source",
+        "sha256": "fae354cc1649109444b2c84194724afcc52c2a7799551ce44c739424ded6af9c"
+      },
+      "ecosystem": "python",
+      "evidenceStatus": "locked-archive-inspected",
+      "installedMetadataStatus": "legacy-text",
+      "licenseDiscovery": "files-found",
+      "licenseFiles": [
+        {
+          "bytes": 11358,
+          "path": "yfinance-0.2.66/LICENSE.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      ],
+      "lockSha256": "cf96486f569970493050870c68fcd00dfe78a64311e8ff5b5868fc606a0f7b30",
+      "lockedGroups": [
+        "main"
+      ],
+      "name": "yfinance",
+      "registryUrl": "https://files.pythonhosted.org/packages/59/73/50450b9906c5137d2d02fde6f7360865366c72baea1f8d0550cc990829ce/yfinance-0.2.66.tar.gz",
+      "reviewStatus": "required",
+      "schemaVersion": 1,
+      "selection": "ambiguous-metadata-source",
+      "unreadLinks": [],
+      "version": "0.2.66"
+    }
+  ],
+  "coverage": {
+    "ambiguousMetadataSourceIdentities": 26,
+    "installedAllGroupsMacIdentities": 121,
+    "linuxWheelReviewSamples": 6,
+    "lockedIdentities": 126,
+    "outsideMacEnvironment": [
+      {
+        "name": "colorama",
+        "version": "0.4.6"
+      },
+      {
+        "name": "greenlet",
+        "version": "3.3.2"
+      },
+      {
+        "name": "jeepney",
+        "version": "0.9.0"
+      },
+      {
+        "name": "pywin32-ctypes",
+        "version": "0.2.3"
+      },
+      {
+        "name": "secretstorage",
+        "version": "3.5.0"
+      }
+    ],
+    "wheelReviewSamples": 7
+  },
+  "reviewStatus": "required",
+  "schemaVersion": 1,
+  "sourceRevision": "a9c1f0199dbc83a3598d5acb55d9edacb78c0607"
+}

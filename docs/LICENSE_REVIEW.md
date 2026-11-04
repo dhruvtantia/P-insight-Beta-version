@@ -5,6 +5,11 @@ B06 acceptance and live delivery evidence belong to
 This change validates inventories, not legal compatibility or permission to launch.
 It does not assign a license to P-Insight or authorize a data-provider purchase.
 
+The [October 27 first artifact pass](LICENSE_ARTIFACT_REVIEW_2026-10-27.md)
+records 26 unclear-metadata source archives and seven wheel samples, exact locked
+fingerprints and concrete native/notice gaps. It adds evidence, not approval or
+a complete notice bundle. Its source baseline and sample limits are explicit.
+
 ## Separate Integrity From Approval
 
 Every report says `inventoryStatus: validated` and `licenseReviewStatus: required`.
