@@ -4,7 +4,8 @@
 
 @layer base {
   :root {
-    --font-inter: 'Inter', system-ui, sans-serif;
+    /* Keep builds self-contained; use Inter when installed, otherwise the OS UI font. */
+    --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
   }
 
   * {

@@ -37,6 +37,7 @@ def test_runtime_versions_are_exact_and_frontend_engines_match():
             "sharp@<0.35.5": "0.35.5",
             "postcss-selector-parser@<7.1.6": "7.1.6",
             "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
+            "minimatch@10.2.4": "11.0.1",
         },
         "patchedDependencies": {"braces@3.0.3": "patches/braces@3.0.3.patch"},
     }
